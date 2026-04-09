@@ -1,0 +1,13 @@
+# Vercel applies .gitignore first — anything Git ignores is not deployed.
+# Use this file only for tracked paths you still want omitted from the deployment
+# bundle (e.g. editor assets, reference SQL, docs).
+
+.cursor
+.agents
+db
+**/*.md
+.github
+.git
+.turbo
+dist
+Thumbs.db
