@@ -1,31 +1,55 @@
 import Link from "next/link";
-import { Aperture, Heart, Plus, Share2 } from "lucide-react";
+import { Aperture, Plus } from "lucide-react";
 
-import { MOCK_ARCHIVE_USAGE, MOCK_MAIN_COLORS } from "@/lib/mock/dashboard";
-import {
-  MOCK_DASHBOARD_RECOMMENDATION,
-  MOCK_OUTFIT_OF_DAY,
-} from "@/lib/mock/outfits";
-import { MOCK_GARMENTS } from "@/lib/mock/garments";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { getClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
+import type { ClothingCardData } from "@/lib/garments/types";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ClothingCard } from "@/components/outfit/clothing-card";
 
-export default function DashboardPage() {
-  const recent = MOCK_GARMENTS.slice(0, 4);
+function mainColorSegments(garments: ClothingCardData[]) {
+  if (garments.length === 0) return [];
+  const counts = new Map<string, number>();
+  for (const g of garments) {
+    const hex =
+      g.colorHex?.startsWith("#") ? g.colorHex.toLowerCase() : "#cbd5e1";
+    counts.set(hex, (counts.get(hex) ?? 0) + 1);
+  }
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const total = garments.length;
+  return sorted.map(([color, n]) => ({
+    color,
+    value: Math.round((100 * n) / total),
+    label: color,
+  }));
+}
+
+function cnBarSegment(index: number, total: number) {
+  const rounded =
+    index === 0
+      ? "rounded-l-full"
+      : index === total - 1
+        ? "rounded-r-full"
+        : "";
+  return ["h-full", rounded].filter(Boolean).join(" ");
+}
+
+export default async function DashboardPage() {
+  const garments = await getClosetGarmentsCached();
+  const recent = garments.slice(0, 4);
+  const colorSegments = mainColorSegments(garments);
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-12 lg:max-w-none">
       <section className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-xl space-y-3">
           <h1 className="font-serif text-4xl leading-tight text-foreground sm:text-5xl">
-            Good morning, Julian.
+            Overview
           </h1>
           <p className="text-base leading-relaxed text-muted-foreground">
-            Today&apos;s light is soft and directional—favor layered neutrals
-            with one deep green anchor piece.
+            Jump into the generator with your closet, or add pieces you want
+            styled.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -33,7 +57,7 @@ export default function DashboardPage() {
             href="/generator"
             className={cn(
               buttonVariants({ size: "lg" }),
-              "inline-flex gap-2 rounded-full bg-gradient-to-br from-primary to-[#064e3b] text-primary-foreground shadow-[0_12px_40px_rgba(26,28,27,0.06)] hover:from-[#064e3b] hover:to-primary"
+              "inline-flex gap-2 rounded-full bg-gradient-to-br from-primary to-[#064e3b] text-primary-foreground shadow-[0_12px_40px_rgba(26,28,27,0.06)] hover:from-[#064e3b] hover:to-primary",
             )}
           >
             <Aperture className="size-4" />
@@ -43,7 +67,7 @@ export default function DashboardPage() {
             href="/closet"
             className={cn(
               buttonVariants({ size: "lg", variant: "secondary" }),
-              "inline-flex gap-2 rounded-full"
+              "inline-flex gap-2 rounded-full",
             )}
           >
             <Plus className="size-4" />
@@ -55,45 +79,24 @@ export default function DashboardPage() {
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card className="border-0 bg-muted/40 shadow-none">
           <CardContent className="space-y-6 p-6 sm:p-8">
-            <div className="relative overflow-hidden rounded-3xl bg-muted">
-              <div className="aspect-[16/10] bg-gradient-to-br from-[#0d3d30] via-[#1a4d42] to-[#2a5c50]" />
-              <div className="pointer-events-none absolute inset-0">
-                <span className="absolute top-[18%] left-[12%] max-w-[10rem] rounded-full bg-card/95 px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-wide text-foreground shadow-sm">
-                  {MOCK_OUTFIT_OF_DAY.labels[0].text}
-                </span>
-                <span className="absolute top-[48%] right-[10%] max-w-[9rem] rounded-full bg-card/95 px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-wide text-foreground shadow-sm">
-                  {MOCK_OUTFIT_OF_DAY.labels[1].text}
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h2 className="font-serif text-2xl text-foreground">
-                  {MOCK_OUTFIT_OF_DAY.name}
-                </h2>
-                <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-                  {MOCK_OUTFIT_OF_DAY.summary}
+            <div className="relative overflow-hidden rounded-3xl border border-dashed border-border bg-muted/60">
+              <div className="flex aspect-[16/10] flex-col items-center justify-center gap-2 px-6 text-center">
+                <p className="font-serif text-lg text-foreground">
+                  No spotlight look yet
                 </p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="icon-sm" aria-label="Favorite">
-                  <Heart className="size-4" />
-                </Button>
-                <Button variant="ghost" size="icon-sm" aria-label="Share">
-                  <Share2 className="size-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {MOCK_OUTFIT_OF_DAY.tags.map((t) => (
-                <Badge
-                  key={t}
-                  variant="secondary"
-                  className="rounded-full text-[0.65rem] font-medium uppercase tracking-wide"
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Generate a lookbook to pin a hero outfit here.
+                </p>
+                <Link
+                  href="/generator"
+                  className={cn(
+                    buttonVariants({ variant: "secondary" }),
+                    "mt-2 rounded-full",
+                  )}
                 >
-                  {t}
-                </Badge>
-              ))}
+                  Open generator
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -104,18 +107,18 @@ export default function DashboardPage() {
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-white/80">
                 AI style recommendation
               </p>
-              <h3 className="font-serif text-xl text-white">
-                {MOCK_DASHBOARD_RECOMMENDATION.title}
-              </h3>
               <p className="text-sm leading-relaxed text-white/85">
-                {MOCK_DASHBOARD_RECOMMENDATION.body}
+                Recommendations appear after you generate looks from your closet.
               </p>
-              <Button
-                variant="link"
-                className="h-auto p-0 text-white underline-offset-4 hover:text-white"
+              <Link
+                href="/generator"
+                className={cn(
+                  buttonVariants({ variant: "link" }),
+                  "h-auto p-0 text-white underline-offset-4 hover:text-white",
+                )}
               >
-                {MOCK_DASHBOARD_RECOMMENDATION.cta}
-              </Button>
+                Go to generator
+              </Link>
             </CardContent>
           </Card>
 
@@ -128,37 +131,33 @@ export default function DashboardPage() {
                 <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                   Main colors
                 </p>
-                <div className="flex h-3 overflow-hidden rounded-full bg-muted">
-                  {MOCK_MAIN_COLORS.map((c) => (
-                    <div
-                      key={c.label}
-                      className="h-full first:rounded-l-full last:rounded-r-full"
-                      style={{
-                        width: `${c.value}%`,
-                        backgroundColor: c.color,
-                      }}
-                      title={c.label}
-                    />
-                  ))}
-                </div>
+                {colorSegments.length > 0 ? (
+                  <div className="flex h-3 overflow-hidden rounded-full bg-muted">
+                    {colorSegments.map((c, i) => (
+                      <div
+                        key={c.label}
+                        className={cnBarSegment(i, colorSegments.length)}
+                        style={{
+                          width: `${c.value}%`,
+                          backgroundColor: c.color,
+                        }}
+                        title={c.label}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Add pieces with colors in your closet to see a breakdown.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Archive usage
+                  Wear history
                 </p>
-                <div className="flex h-3 overflow-hidden rounded-full bg-muted">
-                  {MOCK_ARCHIVE_USAGE.map((u, i) => (
-                    <div
-                      key={u.label}
-                      className={cnBarSegment(i, MOCK_ARCHIVE_USAGE.length)}
-                      style={{
-                        width: `${u.value}%`,
-                        backgroundColor:
-                          i === 0 ? "#003527" : "var(--surface-high)",
-                      }}
-                    />
-                  ))}
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  Not tracked yet—archive usage will show here when available.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -174,28 +173,31 @@ export default function DashboardPage() {
             href="/closet"
             className={cn(
               buttonVariants({ variant: "link" }),
-              "h-auto px-0 text-primary"
+              "h-auto px-0 text-primary",
             )}
           >
             View archive
           </Link>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {recent.map((g) => (
-            <ClothingCard key={g.id} garment={g} />
-          ))}
-        </div>
+        {recent.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {recent.map((g) => (
+              <ClothingCard key={g.id} garment={g} />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
+            Your closet is empty.{" "}
+            <Link
+              href="/closet"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Add garments
+            </Link>{" "}
+            to see them here.
+          </p>
+        )}
       </section>
     </div>
   );
-}
-
-function cnBarSegment(index: number, total: number) {
-  const rounded =
-    index === 0
-      ? "rounded-l-full"
-      : index === total - 1
-        ? "rounded-r-full"
-        : "";
-  return ["h-full", rounded].filter(Boolean).join(" ");
 }

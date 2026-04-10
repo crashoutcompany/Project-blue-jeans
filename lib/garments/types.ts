@@ -11,7 +11,7 @@ export function isGarmentCategoryDb(v: string): v is GarmentCategoryDb {
   return (GARMENT_CATEGORY_VALUES as readonly string[]).includes(v);
 }
 
-/** Shared shape for `ClothingCard` (closet DB rows + dashboard mock items). */
+/** Shared shape for `ClothingCard` (closet DB rows). */
 export type ClothingCardData = {
   id: string;
   name: string;

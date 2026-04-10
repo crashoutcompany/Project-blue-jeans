@@ -3,28 +3,24 @@
 import { useState } from "react";
 import { Flower2, Pencil, Plus, Sparkles, Upload } from "lucide-react";
 
-import {
-  MOCK_AESTHETICS,
-  MOCK_CURATED_TONES,
-  MOCK_MOOD_ITEMS,
-  MOCK_SILHOUETTE,
-  MOCK_STYLE_INSIGHTS,
-  MOCK_STYLE_TAGS,
-} from "@/lib/mock/style-profile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+
+/** Available aesthetic directions (UI options only; not loaded from a profile API yet). */
+const AESTHETIC_OPTIONS = [
+  { id: "minimalist", label: "Minimal" },
+  { id: "tailored", label: "Tailored" },
+  { id: "romantic", label: "Romantic" },
+  { id: "street", label: "Street" },
+] as const;
 
 const FIT_OPTIONS = ["slim", "relaxed", "boxy"] as const;
 
 export function StyleProfileView() {
-  const [aesthetic, setAesthetic] = useState<string>(
-    MOCK_AESTHETICS.find((a) => a.selected)?.id ?? "minimalist"
-  );
-  const [fit, setFit] = useState<(typeof FIT_OPTIONS)[number]>(
-    MOCK_SILHOUETTE.fit
-  );
+  const [aesthetic, setAesthetic] = useState<string | null>(null);
+  const [fit, setFit] = useState<(typeof FIT_OPTIONS)[number] | null>(null);
+  const [tags] = useState<string[]>([]);
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:max-w-none">
@@ -33,8 +29,9 @@ export function StyleProfileView() {
           Style identity
         </h1>
         <p className="text-base leading-relaxed text-muted-foreground">
-          Refine the digital DNA that steers recommendations—visual aesthetic,
-          palette, silhouette, and inspiration boards (all mock data for now).
+          Shape the signals that steer recommendations—aesthetic, palette,
+          silhouette, and inspiration. Preferences are not saved to the server
+          yet.
         </p>
       </header>
 
@@ -45,7 +42,7 @@ export function StyleProfileView() {
               Visual aesthetic
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {MOCK_AESTHETICS.map((a) => {
+              {AESTHETIC_OPTIONS.map((a) => {
                 const active = aesthetic === a.id;
                 return (
                   <button
@@ -56,7 +53,7 @@ export function StyleProfileView() {
                       "flex aspect-square flex-col items-center justify-center rounded-2xl text-center text-[0.65rem] font-semibold uppercase tracking-wide transition",
                       active
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80",
                     )}
                   >
                     <Sparkles className="mb-2 size-5 opacity-80" />
@@ -66,15 +63,26 @@ export function StyleProfileView() {
               })}
             </div>
             <div className="flex flex-wrap gap-2">
-              {MOCK_STYLE_TAGS.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
-                >
-                  {t}
-                </span>
-              ))}
-              <Button variant="outline" size="sm" className="rounded-full">
+              {tags.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No tags yet.</p>
+              ) : (
+                tags.map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground"
+                  >
+                    {t}
+                  </span>
+                ))
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                type="button"
+                disabled
+                title="Not available yet"
+              >
                 <Plus className="size-3.5" />
                 Add tag
               </Button>
@@ -92,23 +100,17 @@ export function StyleProfileView() {
                 ◎
               </span>
             </div>
-            <ul className="space-y-4">
-              {MOCK_CURATED_TONES.map((tone) => (
-                <li key={tone.name} className="flex gap-4">
-                  <span
-                    className="mt-0.5 size-10 shrink-0 rounded-lg border border-border/40"
-                    style={{ backgroundColor: tone.hex }}
-                  />
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-wide text-foreground">
-                      {tone.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{tone.role}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <Button variant="ghost" className="gap-2 px-0 text-primary">
+            <p className="text-sm text-muted-foreground">
+              No palette saved yet. Generate one from your closet when this flow
+              is connected.
+            </p>
+            <Button
+              variant="ghost"
+              className="gap-2 px-0 text-primary"
+              type="button"
+              disabled
+              title="Not available yet"
+            >
               <Pencil className="size-4" />
               Generate new palette
             </Button>
@@ -129,19 +131,19 @@ export function StyleProfileView() {
                   <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     Height
                   </dt>
-                  <dd className="font-medium">{MOCK_SILHOUETTE.heightCm} cm</dd>
+                  <dd className="font-medium text-muted-foreground">Not set</dd>
                 </div>
                 <div>
                   <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     Build
                   </dt>
-                  <dd className="font-medium">{MOCK_SILHOUETTE.build}</dd>
+                  <dd className="font-medium text-muted-foreground">Not set</dd>
                 </div>
                 <div>
                   <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     Shoulders
                   </dt>
-                  <dd className="font-medium">{MOCK_SILHOUETTE.shoulders}</dd>
+                  <dd className="font-medium text-muted-foreground">Not set</dd>
                 </div>
               </dl>
             </div>
@@ -159,7 +161,7 @@ export function StyleProfileView() {
                     className={cn(
                       "rounded-full px-5 capitalize",
                       fit === f &&
-                        "bg-primary text-primary-foreground hover:bg-primary/90"
+                        "bg-primary text-primary-foreground hover:bg-primary/90",
                     )}
                     onClick={() => setFit(f)}
                   >
@@ -180,12 +182,16 @@ export function StyleProfileView() {
               </p>
             </div>
             <p className="flex-1 text-sm leading-relaxed text-white/90">
-              {MOCK_STYLE_INSIGHTS}
+              Insights from your closet and generations will appear here once
+              that pipeline is connected.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 className="rounded-full bg-black/20 text-white hover:bg-black/30"
+                type="button"
+                disabled
+                title="Not available yet"
               >
                 Refine AI logic
               </Button>
@@ -193,6 +199,9 @@ export function StyleProfileView() {
                 size="sm"
                 variant="secondary"
                 className="rounded-full bg-[#c4a995] text-[#1a1c1b] hover:bg-[#b8967f]"
+                type="button"
+                disabled
+                title="Not available yet"
               >
                 View matches
               </Button>
@@ -204,56 +213,23 @@ export function StyleProfileView() {
       <section className="space-y-4">
         <h2 className="font-serif text-xl">Mood &amp; inspiration</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {MOCK_MOOD_ITEMS.map((item) =>
-            item.tone === "upload" ? (
-              <button
-                key={item.id}
-                type="button"
-                className="flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground transition hover:bg-muted"
-              >
-                <Upload className="size-6" />
-                Upload moodboard
-              </button>
-            ) : (
-              <div
-                key={item.id}
-                className="aspect-square overflow-hidden rounded-2xl"
-                style={{ backgroundColor: item.tone }}
-              >
-                <div className="flex h-full items-center justify-center text-[0.65rem] font-medium text-white/80">
-                  {item.label}
-                </div>
-              </div>
-            )
-          )}
+          <button
+            type="button"
+            className="flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground transition hover:bg-muted sm:col-span-1"
+            disabled
+            title="Not available yet"
+          >
+            <Upload className="size-6" />
+            Upload moodboard
+          </button>
         </div>
       </section>
 
-      <footer className="flex flex-col gap-6 border-t border-border/60 pt-8 lg:flex-row lg:items-center lg:justify-between">
-        <div className="max-w-sm space-y-2">
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Profile status
-          </p>
-          <Progress value={85} className="h-1.5" />
-          <p className="text-xs text-muted-foreground">85% complete</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            className="rounded-full"
-            type="button"
-            onClick={() => console.info("Reset preferences (mock)")}
-          >
-            Reset preferences
-          </Button>
-          <Button
-            type="button"
-            className="rounded-full bg-gradient-to-br from-primary to-[#064e3b] text-primary-foreground"
-            onClick={() => console.info("Save profile (mock)")}
-          >
-            Save profile
-          </Button>
-        </div>
+      <footer className="border-t border-border/60 pt-8">
+        <p className="max-w-lg text-sm text-muted-foreground">
+          Profile fields are for preview only until persistence and AI hooks are
+          wired to your account.
+        </p>
       </footer>
     </div>
   );

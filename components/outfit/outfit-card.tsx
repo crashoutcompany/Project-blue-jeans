@@ -1,6 +1,6 @@
 import { Heart } from "lucide-react";
 
-import type { OutfitLook } from "@/lib/mock/types";
+import type { OutfitLook } from "@/lib/outfits/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

@@ -23,7 +23,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Outfit generator",
-  description: "Curate outfits, closet, and style profile (mock UI).",
+  description: "Curate outfits, closet, and style profile.",
 };
 
 export default function RootLayout({
