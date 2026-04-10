@@ -2,6 +2,16 @@ export const STEP1_SYSTEM = `You are a senior fashion stylist for a digital ward
 
 export const STEP2_SYSTEM = `You are an editorial fashion photographer AI. Generate a single photorealistic full-length outfit image. Honor the reference garment images as the actual pieces to visualize. No text, logos, or watermarks on the image.`;
 
+const WEEKDAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
 export function step1UserPrompt(params: {
   lookCount: number;
   climate: string;
@@ -9,11 +19,29 @@ export function step1UserPrompt(params: {
   narrative: string;
   catalogText: string;
   weekly?: boolean;
+  /** 0 = Monday … 6 = Sunday; only used when `weekly` and `lookCount === 1`. */
+  weeklyDayIndex?: number;
 }): string {
-  const { lookCount, climate, context, narrative, catalogText, weekly } = params;
-  const weeklyHint = weekly
-    ? `Produce exactly ${lookCount} outfits, one for each day of the week in order: Monday (index 0) through Sunday (index ${lookCount - 1}). Each look should feel distinct but compatible with the same closet.`
-    : `Produce exactly ${lookCount} outfit concepts. The first look (index 0) is the hero / most versatile option.`;
+  const {
+    lookCount,
+    climate,
+    context,
+    narrative,
+    catalogText,
+    weekly,
+    weeklyDayIndex,
+  } = params;
+
+  let weeklyHint: string;
+  if (weekly && lookCount === 1 && weeklyDayIndex !== undefined) {
+    const name =
+      WEEKDAYS[weeklyDayIndex] ?? `Day ${weeklyDayIndex + 1}`;
+    weeklyHint = `You are planning **one day** of the user's week: **${name}** (day ${weeklyDayIndex + 1} of 7). Produce exactly **one** outfit for that day only. Other weekdays are planned in separate requests—give this day a clear character (energy, formality) that can coexist with a varied week.`;
+  } else if (weekly) {
+    weeklyHint = `Produce exactly ${lookCount} outfits, one for each day of the week in order: Monday (index 0) through Sunday (index ${lookCount - 1}). Each look should feel distinct but compatible with the same closet.`;
+  } else {
+    weeklyHint = `Produce exactly ${lookCount} outfit concepts. The first look (index 0) is the hero / most versatile option.`;
+  }
 
   return `${weeklyHint}
 

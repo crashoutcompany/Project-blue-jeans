@@ -1,6 +1,7 @@
-import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 
+import { fetchUrlAsImagePart } from "@/lib/ai/fetch-image-part";
+import { geminiModel } from "@/lib/ai/gemini-provider";
 import { GEMINI_IMAGE_MODEL } from "@/lib/ai/gemini-models";
 import { STEP2_SYSTEM, step2UserPrompt } from "@/lib/ai/lookbook/prompts";
 import { firstImageDataUrl } from "@/lib/ai/lookbook/images";
@@ -11,21 +12,6 @@ export type GarmentImageSource = {
   name: string | null;
   imageUrl: string;
 };
-
-async function fetchImageAsPart(url: string): Promise<{
-  type: "image";
-  image: Uint8Array;
-  mediaType?: string;
-}> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch garment image (${res.status})`);
-  }
-  const buf = new Uint8Array(await res.arrayBuffer());
-  const ct = res.headers.get("content-type")?.split(";")[0]?.trim();
-  const mediaType = ct?.startsWith("image/") ? ct : "image/jpeg";
-  return { type: "image", image: buf, mediaType };
-}
 
 export type RunHeroImageStepParams = {
   title: string;
@@ -58,7 +44,7 @@ export async function runHeroImageStep(
   });
 
   const imageParts = await Promise.all(
-    params.garments.map((g) => fetchImageAsPart(g.imageUrl)),
+    params.garments.map((g) => fetchUrlAsImagePart(g.imageUrl)),
   );
 
   const prompt = [
@@ -79,7 +65,7 @@ export async function runHeroImageStep(
   ];
 
   const imageResult = await generateText({
-    model: google(GEMINI_IMAGE_MODEL),
+    model: geminiModel(GEMINI_IMAGE_MODEL),
     system: STEP2_SYSTEM,
     prompt,
     providerOptions: {
