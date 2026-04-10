@@ -1,24 +1,27 @@
 "use server";
 
 import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
+import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
-import { runOutfitPlanStep } from "@/lib/ai/lookbook/step1-plan";
-import {
-  filterPlanToValidGarmentIds,
-  planHasEmptyGarmentIds,
-} from "@/lib/ai/lookbook/validate-ids";
+import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
 import { loadGarmentCatalog, loadGarmentsByIds } from "@/lib/garments/load-catalog";
-import type { OutfitLook } from "@/lib/mock/types";
+import { safeClientMessage } from "@/lib/server/safe-client-error";
+import type { OutfitLook } from "@/lib/outfits/types";
 
 export type GenerateLookbookInput = {
   climate: string;
   context: string;
   narrative: string;
+  /**
+   * When set and non-empty, only these closet garment ids are sent to the model.
+   * Omit or leave empty to use the full closet (default).
+   */
+  includedGarmentIds?: string[];
   /** Number of looks (default 3 for generator UI; use 7 for weekly workflow step 1). */
   lookCount?: number;
   /** When true, step-1 prompt targets Mon–Sun planning. */
   weekly?: boolean;
-  /** Skip step-2 hero image (weekly workflow uses Batch API for images). */
+  /** Skip step-2 hero image (e.g. weekly cron renders heroes separately). */
   skipHeroImage?: boolean;
 };
 
@@ -27,11 +30,6 @@ export type GenerateLookbookResult =
   | { ok: false; message: string };
 
 const MAX_NARRATIVE = 2000;
-
-function requireGoogleKey(): string | null {
-  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim();
-  return key && key.length > 0 ? key : null;
-}
 
 function buildOutfitLooks(
   plan: import("@/lib/ai/lookbook/schemas").LookbookPlan,
@@ -57,12 +55,11 @@ function buildOutfitLooks(
 export async function generateLookbook(
   input: GenerateLookbookInput,
 ): Promise<GenerateLookbookResult> {
-  const apiKey = requireGoogleKey();
-  if (!apiKey) {
+  if (!hasGeminiCredentials()) {
     return {
       ok: false,
       message:
-        "Missing GOOGLE_GENERATIVE_AI_API_KEY. Add it to your environment to enable generation.",
+        "Missing Vertex credentials. Set GOOGLE_VERTEX_PROJECT and authenticate (see docs/vertex-ai-env.md).",
     };
   }
 
@@ -75,7 +72,7 @@ export async function generateLookbook(
     return { ok: false, message: "Climate and context are required." };
   }
 
-  const garments = await loadGarmentCatalog();
+  let garments = await loadGarmentCatalog();
   if (garments.length === 0) {
     return {
       ok: false,
@@ -83,42 +80,32 @@ export async function generateLookbook(
     };
   }
 
+  const requestedIds = input.includedGarmentIds?.filter(Boolean);
+  if (requestedIds && requestedIds.length > 0) {
+    const allow = new Set(requestedIds);
+    garments = garments.filter((g) => allow.has(g.id));
+    if (garments.length === 0) {
+      return {
+        ok: false,
+        message:
+          "None of the selected pieces are in your closet. Refresh the page or adjust your selection.",
+      };
+    }
+  }
+
   const validIds = new Set(garments.map((g) => g.id));
   const catalogText = formatClosetCatalog(garments);
 
   try {
-    let plan = await runOutfitPlanStep({
+    const plan = await runStep1PlanWithRetry({
       lookCount,
       climate,
       context,
       narrative,
       catalogText,
+      validIds,
       weekly: input.weekly,
     });
-
-    plan = filterPlanToValidGarmentIds(plan, validIds);
-
-    if (planHasEmptyGarmentIds(plan)) {
-      plan = await runOutfitPlanStep({
-        lookCount,
-        climate,
-        context,
-        narrative:
-          narrative +
-          `\n\nIMPORTANT: You must only output garmentIds that appear in this exact list: ${[...validIds].join(", ")}`,
-        catalogText,
-        weekly: input.weekly,
-      });
-      plan = filterPlanToValidGarmentIds(plan, validIds);
-    }
-
-    if (planHasEmptyGarmentIds(plan)) {
-      return {
-        ok: false,
-        message:
-          "The model returned garment ids that do not match your closet. Try again or improve descriptions.",
-      };
-    }
 
     const baseId = `gen-${Date.now()}`;
     const looks = buildOutfitLooks(plan, baseId);
@@ -161,8 +148,13 @@ export async function generateLookbook(
 
     return { ok: true, looks, curatorNote };
   } catch (e) {
-    const message =
-      e instanceof Error ? e.message : "Generation failed. Try again shortly.";
-    return { ok: false, message };
+    return {
+      ok: false,
+      message: safeClientMessage(
+        "generateLookbook",
+        e,
+        "We could not generate your lookbook. Try again in a moment.",
+      ),
+    };
   }
 }

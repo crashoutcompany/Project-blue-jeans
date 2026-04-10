@@ -1,6 +1,7 @@
 import { connection, NextResponse } from "next/server";
 
 import { getSql } from "@/lib/db";
+import { safeClientMessage } from "@/lib/server/safe-client-error";
 
 /**
  * GET /api/db/ping — verifies Neon connectivity (`SELECT 1`).
@@ -23,7 +24,11 @@ export async function GET() {
     return NextResponse.json(
       {
         ok: false,
-        message: e instanceof Error ? e.message : "Database query failed",
+        message: safeClientMessage(
+          "db/ping",
+          e,
+          "Database connection check failed.",
+        ),
       },
       { status: 500 },
     );
