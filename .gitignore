@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# Legacy Vercel Workflow generated routes (if package is re-added)
+/app/.well-known/workflow/
+
 # production
 /build
 

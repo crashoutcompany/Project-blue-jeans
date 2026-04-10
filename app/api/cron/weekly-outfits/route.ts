@@ -1,19 +1,21 @@
 /**
- * Vercel Cron entry: starts the durable weekly outfit workflow (step 1 + Batch images).
+ * Vercel Cron: generate the weekly 7-look plan + hero images in one request.
  *
  * Environment:
- * - `CRON_SECRET` — Vercel sets `Authorization: Bearer <CRON_SECRET>` on cron invocations;
- *   this route rejects requests without a matching bearer token.
- * - `GOOGLE_GENERATIVE_AI_API_KEY` — step 1 (AI SDK) + Batch REST use the same Gemini key.
- * - `DATABASE_URL` — Neon; required for plan persistence inside workflow steps.
+ * - `CRON_SECRET` — Vercel sends `Authorization: Bearer <CRON_SECRET>`.
+ * - Vertex AI: `GOOGLE_VERTEX_PROJECT`, `GOOGLE_VERTEX_LOCATION`, auth (see docs/vertex-ai-env.md).
+ * - `DATABASE_URL` — Neon.
+ *
+ * This route can run for several minutes (7 parallel plans + 7 parallel images). On Vercel Pro+, `maxDuration`
+ * below raises the serverless limit; on Hobby, consider reducing work or using a queue later.
  *
  * @see https://vercel.com/docs/cron-jobs
- * @see https://vercel.com/docs/workflow
  */
 import { NextResponse } from "next/server";
-import { start } from "workflow/api";
 
-import { weeklyOutfitWorkflow } from "@/workflows/weekly-outfit";
+import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
+
+export const maxDuration = 300;
 
 function mondayUtcIso(d = new Date()): string {
   const day = d.getUTCDay();
@@ -40,18 +42,40 @@ export async function GET(request: Request) {
 
   const weekStart = mondayUtcIso();
 
-  await start(weeklyOutfitWorkflow, [
-    {
+  const result = await runWeeklyOutfitsJob({
+    weekStart,
+    climate: "Temperate",
+    context: "Everyday week",
+    narrative: "",
+  });
+
+  if (!result.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: result.error,
+        planId: result.planId,
+        weekStart,
+      },
+      { status: 500 },
+    );
+  }
+
+  if (result.skipped) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      planId: result.planId,
       weekStart,
-      climate: "Temperate",
-      context: "Everyday week",
-      narrative: "",
-    },
-  ]);
+      message: "Week already completed",
+    });
+  }
 
   return NextResponse.json({
     ok: true,
-    message: "Weekly outfit workflow started",
+    skipped: false,
+    planId: result.planId,
     weekStart,
+    message: "Weekly outfits generated",
   });
 }
