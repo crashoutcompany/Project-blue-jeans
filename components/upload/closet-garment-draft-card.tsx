@@ -149,7 +149,7 @@ export function ClosetGarmentDraftCard({
                 value={draft.description}
                 onChange={(e) => onChange({ description: e.target.value })}
                 disabled={disabled}
-                placeholder="Silhouette, fabric, fit, how you’d style it…"
+                placeholder="Optional. Leave blank and we’ll describe the photo with Gemini when you add to closet."
                 rows={2}
                 className="min-h-[4.5rem] resize-y rounded-lg text-sm"
               />

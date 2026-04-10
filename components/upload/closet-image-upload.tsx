@@ -48,10 +48,8 @@ export function ClosetImageUpload({
         name: file.name,
       }));
       await onFilesReady(items);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Something went wrong. Try again.",
-      );
+    } catch {
+      setError("Something went wrong preparing images. Try again.");
     } finally {
       setPhase("idle");
     }

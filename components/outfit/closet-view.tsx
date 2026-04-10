@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Settings2, Sparkles } from "lucide-react";
+import { Plus, Settings2 } from "lucide-react";
 
 import {
   createGarmentsFromUpload,
@@ -27,36 +27,11 @@ import {
   FilterPills,
   type CategoryFilterId,
 } from "@/components/outfit/filter-pills";
+import {
+  buildColorFacetsFromGarments,
+  garmentMatchesColorFacet,
+} from "@/lib/garments/color-facets";
 import { cn } from "@/lib/utils";
-
-const COLOR_FILTERS = [
-  { id: "all", hex: "transparent", label: "All" },
-  { id: "cream", hex: "#f5f0e6", label: "Cream" },
-  { id: "sand", hex: "#d4c4a8", label: "Sand" },
-  { id: "emerald", hex: "#0d3d30", label: "Emerald" },
-  { id: "terracotta", hex: "#8b4a3c", label: "Terracotta" },
-] as const;
-
-function garmentMatchesColorFilter(
-  g: ClothingCardData,
-  colorId: (typeof COLOR_FILTERS)[number]["id"],
-): boolean {
-  if (colorId === "all") return true;
-  const swatch = COLOR_FILTERS.find((c) => c.id === colorId);
-  if (!swatch || swatch.hex === "transparent") return true;
-
-  const raw = (g.color ?? "").trim().toLowerCase();
-  const hex = (g.colorHex ?? "").toLowerCase();
-  const label = (g.colorLabel ?? "").trim().toLowerCase();
-
-  if (hex && hex === swatch.hex.toLowerCase()) return true;
-  if (raw && raw === swatch.hex.toLowerCase()) return true;
-  if (raw && raw === swatch.label.toLowerCase()) return true;
-  if (raw && raw === swatch.id.toLowerCase()) return true;
-  if (label && label === swatch.label.toLowerCase()) return true;
-
-  return false;
-}
 
 function publicImageUrl(file: {
   ufsUrl?: string;
@@ -73,8 +48,7 @@ export function ClosetView({
 }) {
   const router = useRouter();
   const [category, setCategory] = useState<CategoryFilterId>("all");
-  const [colorId, setColorId] =
-    useState<(typeof COLOR_FILTERS)[number]["id"]>("all");
+  const [colorId, setColorId] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [pendingDrafts, setPendingDrafts] = useState<GarmentUploadDraft[]>([]);
   const [persistError, setPersistError] = useState<string | null>(null);
@@ -91,10 +65,29 @@ export function ClosetView({
 
   const { startUpload } = useUploadThing("closetImage");
 
+  const dynamicColorFacets = useMemo(
+    () => buildColorFacetsFromGarments(initialGarments),
+    [initialGarments],
+  );
+
+  const colorFacetIdsKey = useMemo(
+    () => dynamicColorFacets.map((f) => f.id).join("\0"),
+    [dynamicColorFacets],
+  );
+
+  useEffect(() => {
+    if (
+      colorId !== "all" &&
+      !dynamicColorFacets.some((f) => f.id === colorId)
+    ) {
+      setColorId("all");
+    }
+  }, [colorFacetIdsKey, colorId, dynamicColorFacets]);
+
   const filtered = useMemo(() => {
     return initialGarments.filter((g) => {
       if (category !== "all" && g.category !== category) return false;
-      if (!garmentMatchesColorFilter(g, colorId)) return false;
+      if (!garmentMatchesColorFacet(g, colorId)) return false;
       if (query.trim()) {
         const q = query.toLowerCase();
         const hay = [g.name, g.category, g.color, g.colorLabel, g.material]
@@ -138,7 +131,7 @@ export function ClosetView({
         const url = publicImageUrl(u);
         if (!url) {
           setPersistError(
-            "Upload succeeded but no public URL was returned. Check the dev server console.",
+            "Upload succeeded but no public URL was returned. Try again or refresh the page.",
           );
           return;
         }
@@ -162,10 +155,8 @@ export function ClosetView({
       } else {
         setPersistError(result.message);
       }
-    } catch (e) {
-      setPersistError(
-        e instanceof Error ? e.message : "Could not complete upload or save.",
-      );
+    } catch {
+      setPersistError("Could not complete upload or save. Try again.");
     } finally {
       setSavingDrafts(false);
     }
@@ -231,7 +222,22 @@ export function ClosetView({
                 Color
               </p>
               <div className="flex flex-wrap gap-2">
-                {COLOR_FILTERS.map((c) => {
+                <button
+                  type="button"
+                  onClick={() => setColorId("all")}
+                  className={cn(
+                    "flex size-9 items-center justify-center rounded-full ring-2 ring-offset-2 ring-offset-background transition",
+                    colorId === "all" ? "ring-primary" : "ring-transparent",
+                  )}
+                  aria-label="All colors"
+                  title="All colors"
+                >
+                  <span
+                    className="size-7 rounded-full border border-border/40"
+                    style={{ backgroundColor: "#e2e3e0" }}
+                  />
+                </button>
+                {dynamicColorFacets.map((c) => {
                   const active = colorId === c.id;
                   return (
                     <button
@@ -242,14 +248,12 @@ export function ClosetView({
                         "flex size-9 items-center justify-center rounded-full ring-2 ring-offset-2 ring-offset-background transition",
                         active ? "ring-primary" : "ring-transparent",
                       )}
-                      aria-label={c.label}
+                      aria-label={`Color: ${c.label}`}
+                      title={c.label}
                     >
                       <span
                         className="size-7 rounded-full border border-border/40"
-                        style={{
-                          backgroundColor:
-                            c.hex === "transparent" ? "#e2e3e0" : c.hex,
-                        }}
+                        style={{ backgroundColor: c.hex }}
                       />
                     </button>
                   );

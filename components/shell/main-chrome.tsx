@@ -13,47 +13,29 @@ export function MainChrome({ children }: { children: React.ReactNode }) {
       return {
         title: "Your closet",
         titleItalic: true,
-        searchPlaceholder: "Search your closet…",
-        showSearch: true,
-        secondaryNav: "closet-generator-lookbook" as const,
       };
     }
     if (pathname.startsWith("/generator")) {
       return {
         title: "Curate your aesthetic",
         titleItalic: true,
-        searchPlaceholder: "",
-        showSearch: false,
-        secondaryNav: "closet-generator-lookbook" as const,
       };
     }
     if (pathname.startsWith("/style-profile")) {
       return {
         title: "Style identity",
         titleItalic: false,
-        searchPlaceholder: "Search style library",
-        showSearch: true,
-        secondaryNav: "overview-profile-insights" as const,
       };
     }
     return {
       title: "Curated",
       titleItalic: true,
-      searchPlaceholder: "Search your archive…",
-      showSearch: true,
-      secondaryNav: null,
     };
   }, [pathname]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <TopHeader
-        title={header.title}
-        titleItalic={header.titleItalic}
-        searchPlaceholder={header.searchPlaceholder}
-        showSearch={header.showSearch}
-        secondaryNav={header.secondaryNav}
-      />
+      <TopHeader title={header.title} titleItalic={header.titleItalic} />
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6 lg:px-10">
           {children}
