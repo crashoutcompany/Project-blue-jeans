@@ -1,13 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { Plus, Settings2 } from "lucide-react";
 
-import {
-  createGarmentsFromUpload,
-  toggleGarmentFavorite,
-} from "@/app/actions/garments";
+import { toggleGarmentFavorite } from "@/app/actions/garments";
 import {
   ClosetImageUpload,
   type ClosetPendingLocalImage,
@@ -23,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ClothingCard } from "@/components/outfit/clothing-card";
-import { GarmentDetailSheet } from "@/components/outfit/garment-detail-sheet";
 import {
   FilterPills,
   type CategoryFilterId,
@@ -42,35 +37,65 @@ function publicImageUrl(file: {
   return file.ufsUrl || file.url || file.appUrl || "";
 }
 
+function optimisticGarmentFromDraft(
+  draft: GarmentUploadDraft,
+  uploaded: { ufsUrl?: string; url?: string; appUrl?: string },
+): ClothingCardData {
+  const imageUrl = publicImageUrl(uploaded);
+  return {
+    id: `pending:${draft.clientKey}`,
+    name: draft.displayName.trim() || "Untitled",
+    category: draft.category,
+    imageUrl: imageUrl || undefined,
+    isFavorite: false,
+    color: draft.color?.trim() || null,
+    description: draft.description?.trim() || null,
+  };
+}
+
 export function ClosetView({
   initialGarments,
 }: {
   initialGarments: ClothingCardData[];
 }) {
-  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [serverGarments, setServerGarments] = useState(initialGarments);
+
+  const garmentSignature = useMemo(
+    () =>
+      `${initialGarments.length}\0${[...initialGarments.map((g) => g.id)].sort().join("\0")}`,
+    [initialGarments],
+  );
+  useEffect(() => {
+    setServerGarments(initialGarments);
+  }, [initialGarments, garmentSignature]);
+
+  const [garments, addOptimisticGarments] = useOptimistic(
+    serverGarments,
+    (current, toAdd: ClothingCardData[]) => [...toAdd, ...current],
+  );
+
   const [category, setCategory] = useState<CategoryFilterId>("all");
   const [colorId, setColorId] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [pendingDrafts, setPendingDrafts] = useState<GarmentUploadDraft[]>([]);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [savingDrafts, setSavingDrafts] = useState(false);
-  const [selectedGarment, setSelectedGarment] =
-    useState<ClothingCardData | null>(null);
 
   const previewUrlsRef = useRef<Set<string>>(new Set());
+  previewUrlsRef.current = new Set(pendingDrafts.map((d) => d.previewUrl));
 
   useEffect(() => {
-    const previewUrls = previewUrlsRef.current;
     return () => {
-      previewUrls.forEach((url) => URL.revokeObjectURL(url));
+      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
   const { startUpload } = useUploadThing("closetImage");
 
   const dynamicColorFacets = useMemo(
-    () => buildColorFacetsFromGarments(initialGarments),
-    [initialGarments],
+    () => buildColorFacetsFromGarments(garments),
+    [garments],
   );
 
   const colorFacetIdsKey = useMemo(
@@ -88,7 +113,7 @@ export function ClosetView({
   }, [colorFacetIdsKey, colorId, dynamicColorFacets]);
 
   const filtered = useMemo(() => {
-    return initialGarments.filter((g) => {
+    return garments.filter((g) => {
       if (category !== "all" && g.category !== category) return false;
       if (!garmentMatchesColorFacet(g, colorId)) return false;
       if (query.trim()) {
@@ -101,15 +126,14 @@ export function ClosetView({
       }
       return true;
     });
-  }, [initialGarments, category, colorId, query]);
+  }, [garments, category, colorId, query]);
 
   function handleFilesReady(items: ClosetPendingLocalImage[]) {
     setPersistError(null);
-    const drafts = items.map(garmentDraftFromLocalPick);
-    for (const draft of drafts) {
-      previewUrlsRef.current.add(draft.previewUrl);
-    }
-    setPendingDrafts((prev) => [...prev, ...drafts]);
+    setPendingDrafts((prev) => [
+      ...prev,
+      ...items.map(garmentDraftFromLocalPick),
+    ]);
   }
 
   async function handleSavePendingToCloset() {
@@ -151,22 +175,45 @@ export function ClosetView({
         });
       }
 
-      const result = await createGarmentsFromUpload(payload);
-      if (result.ok) {
-        draftsSnapshot.forEach((d) => {
-          URL.revokeObjectURL(d.previewUrl);
-          previewUrlsRef.current.delete(d.previewUrl);
-        });
-        const savedKeys = new Set(draftsSnapshot.map((d) => d.clientKey));
-        setPendingDrafts((current) =>
-          current.filter((draft) => !savedKeys.has(draft.clientKey)),
+      const saveRes = await fetch("/api/closet/garments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ items: payload }),
+      });
+      let result: { ok: boolean; message?: string };
+      try {
+        result = (await saveRes.json()) as { ok: boolean; message?: string };
+      } catch {
+        setPersistError(
+          saveRes.ok
+            ? "Save returned an invalid response. Try again."
+            : `Save failed (${saveRes.status}). Try again.`,
         );
-        router.refresh();
-      } else {
-        setPersistError(result.message);
+        return;
       }
-    } catch {
-      setPersistError("Could not complete upload or save. Try again.");
+      if (result.ok) {
+        const added = draftsSnapshot.map((d, i) =>
+          optimisticGarmentFromDraft(d, uploaded[i]!),
+        );
+        draftsSnapshot.forEach((d) => URL.revokeObjectURL(d.previewUrl));
+        setPendingDrafts([]);
+        startTransition(() => {
+          addOptimisticGarments(added);
+          setServerGarments((prev) => [...added, ...prev]);
+        });
+      } else {
+        setPersistError(
+          result.message ?? `Save failed (${saveRes.status}). Try again.`,
+        );
+      }
+    } catch (error) {
+      console.error("[closet] save queue", error);
+      const msg =
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : "Could not complete upload or save. Try again.";
+      setPersistError(msg);
     } finally {
       setSavingDrafts(false);
     }
@@ -174,10 +221,7 @@ export function ClosetView({
 
   function handleClearPending() {
     setPendingDrafts((prev) => {
-      prev.forEach((d) => {
-        URL.revokeObjectURL(d.previewUrl);
-        previewUrlsRef.current.delete(d.previewUrl);
-      });
+      prev.forEach((d) => URL.revokeObjectURL(d.previewUrl));
       return [];
     });
     setPersistError(null);
@@ -192,135 +236,157 @@ export function ClosetView({
   function removeDraft(clientKey: string) {
     setPendingDrafts((prev) => {
       const target = prev.find((d) => d.clientKey === clientKey);
-      if (target) {
-        URL.revokeObjectURL(target.previewUrl);
-        previewUrlsRef.current.delete(target.previewUrl);
-      }
+      if (target) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((d) => d.clientKey !== clientKey);
     });
   }
 
   async function handleToggleFavorite(id: string) {
+    if (id.startsWith("pending:")) return;
     const result = await toggleGarmentFavorite(id);
     if (result.ok) {
-      setSelectedGarment((current) =>
-        current?.id === id
-          ? { ...current, isFavorite: !current.isFavorite }
-          : current,
+      setServerGarments((prev) =>
+        prev.map((g) =>
+          g.id === id ? { ...g, isFavorite: !g.isFavorite } : g,
+        ),
       );
-      router.refresh();
     }
   }
 
   return (
-    <div className="page-canvas flex min-w-0 flex-col gap-5">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Collection · {initialGarments.length} pieces
-          </p>
-          <h1 className="mt-1.5 text-2xl font-medium tracking-tight sm:text-3xl">
-            Wardrobe
+    <div className="flex flex-col gap-10">
+      <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-2xl space-y-3">
+          <h1 className="font-serif text-4xl leading-tight sm:text-5xl">
+            Your closet
           </h1>
+          <p className="text-base leading-relaxed text-muted-foreground">
+            Pieces load from your Neon database. Choose photos, add details,
+            then add to closet — we upload and save only when you confirm.
+            Filter by category and color.
+          </p>
         </div>
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full max-w-md lg:w-72">
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search wardrobe"
-            className="h-9 rounded-full border-0 bg-foreground/[0.045] px-4 text-xs shadow-none"
+            placeholder="Search your closet…"
+            className="h-11 rounded-full border border-border bg-card pl-4"
             aria-label="Search closet"
           />
         </div>
       </header>
 
-      <div className="flex flex-col gap-3 border-b border-foreground/8 pb-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="space-y-6">
         <FilterPills value={category} onChange={setCategory} />
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Color
-          </span>
-          <button
-            type="button"
-            onClick={() => setColorId("all")}
-            className={cn(
-              "flex size-7 items-center justify-center rounded-full ring-1 ring-offset-1 ring-offset-background transition",
-              colorId === "all" ? "ring-primary" : "ring-transparent",
-            )}
-            aria-label="All colors"
-            aria-pressed={colorId === "all"}
-            title="All colors"
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+            <div className="space-y-1.5">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Color
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setColorId("all")}
+                  className={cn(
+                    "flex size-9 items-center justify-center rounded-full ring-2 ring-offset-2 ring-offset-background transition",
+                    colorId === "all" ? "ring-primary" : "ring-transparent",
+                  )}
+                  aria-label="All colors"
+                  title="All colors"
+                >
+                  <span
+                    className="size-7 rounded-full border border-border/40"
+                    style={{ backgroundColor: "#e2e3e0" }}
+                  />
+                </button>
+                {dynamicColorFacets.map((c) => {
+                  const active = colorId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setColorId(c.id)}
+                      className={cn(
+                        "flex size-9 items-center justify-center rounded-full ring-2 ring-offset-2 ring-offset-background transition",
+                        active ? "ring-primary" : "ring-transparent",
+                      )}
+                      aria-label={`Color: ${c.label}`}
+                      title={c.label}
+                    >
+                      <span
+                        className="size-7 rounded-full border border-border/40"
+                        style={{ backgroundColor: c.hex }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            className="gap-2 self-start text-muted-foreground"
           >
-            <span
-              className="size-5 rounded-full border border-border/40"
-              style={{ backgroundColor: "#e2e3e0" }}
-            />
-          </button>
-          {dynamicColorFacets.map((c) => {
-            const active = colorId === c.id;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setColorId(c.id)}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-full ring-1 ring-offset-1 ring-offset-background transition",
-                  active ? "ring-primary" : "ring-transparent",
-                )}
-                aria-label={`Color: ${c.label}`}
-                aria-pressed={active}
-                title={c.label}
-              >
-                <span
-                    className="size-5 rounded-full border border-border/40"
-                  style={{ backgroundColor: c.hex }}
-                />
-              </button>
-            );
-          })}
+            <Settings2 className="size-4" />
+            Advanced filters
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      <div className="grid auto-rows-min items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Card
           className={cn(
-            "rounded-xl border border-dashed border-foreground/15 bg-foreground/[0.018] py-0 ring-0",
-            pendingDrafts.length > 0 && "col-span-full",
+            "min-h-0 border-2 border-dashed border-border/80 bg-transparent shadow-none",
+            pendingDrafts.length > 0 && "sm:col-span-2 xl:col-span-3",
           )}
         >
           <CardContent
             className={cn(
-              "flex h-full flex-col items-center justify-center gap-3 p-4 text-center",
-              pendingDrafts.length === 0 && "aspect-[4/5]",
+              "flex min-h-[320px] flex-col gap-4 p-6",
+              pendingDrafts.length > 0
+                ? "min-h-0 w-full items-stretch pb-8"
+                : "items-center justify-center text-center",
             )}
           >
-            <div className="flex size-9 items-center justify-center rounded-full bg-foreground/[0.06]">
-              <Plus className="size-4 text-muted-foreground" />
+            <div
+              className={cn(
+                "flex flex-col gap-4",
+                pendingDrafts.length > 0 &&
+                  "mx-auto w-full max-w-xl items-center text-center",
+              )}
+            >
+              <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+                <Plus className="size-6 text-muted-foreground" />
+              </div>
+              <div className="space-y-2">
+                <p className="font-serif text-lg text-foreground">
+                  New archive piece
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Photos are compressed on your device. Nothing is sent to the
+                  cloud until you tap Add to closet — then we upload and save to
+                  your database.
+                </p>
+              </div>
+              <ClosetImageUpload
+                onFilesReady={handleFilesReady}
+                disabled={savingDrafts}
+              />
+              {persistError ? (
+                <p className="max-w-xs text-sm text-destructive">
+                  {persistError}
+                </p>
+              ) : null}
             </div>
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-foreground">
-                Add pieces
-              </p>
-              <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
-                Select photos from your camera roll
-              </p>
-            </div>
-            <ClosetImageUpload
-              onFilesReady={handleFilesReady}
-              disabled={savingDrafts}
-            />
-            {persistError ? (
-              <p className="max-w-xs text-sm text-destructive">
-                {persistError}
-              </p>
-            ) : null}
 
             {pendingDrafts.length > 0 ? (
-              <div className="w-full space-y-4 border-t border-border/60 pt-4 text-left">
+              <div className="flex min-h-0 w-full flex-col gap-4 border-t border-border/60 pt-4">
                 <p className="text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Ready to save
                 </p>
-                <div className="flex max-h-[min(60vh,520px)] flex-col gap-4 overflow-y-auto pr-1">
+                <div className="flex min-h-0 max-h-[min(70vh,640px)] flex-col gap-4 overflow-x-hidden overflow-y-auto overscroll-y-contain pr-1 [-webkit-overflow-scrolling:touch]">
                   {pendingDrafts.map((d) => (
                     <ClosetGarmentDraftCard
                       key={d.clientKey}
@@ -331,7 +397,7 @@ export function ClosetView({
                     />
                   ))}
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                <div className="flex shrink-0 flex-col gap-3 pt-2 sm:flex-row sm:justify-center">
                   <Button
                     type="button"
                     className="rounded-full"
@@ -359,18 +425,10 @@ export function ClosetView({
           <ClothingCard
             key={g.id}
             garment={g}
-            selected={selectedGarment?.id === g.id}
-            onSelect={setSelectedGarment}
+            onToggleFavorite={handleToggleFavorite}
           />
         ))}
       </div>
-      <GarmentDetailSheet
-        garment={selectedGarment}
-        onOpenChange={(open) => {
-          if (!open) setSelectedGarment(null);
-        }}
-        onToggleFavorite={(id) => void handleToggleFavorite(id)}
-      />
     </div>
   );
 }

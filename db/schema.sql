@@ -1,4 +1,4 @@
--- Neon / Postgres — run in Neon SQL Editor or via migration tool.
+-- Neon / Postgres — fresh install: run in Neon SQL Editor or via migration tool.
 -- UploadThing: store public `image_url` (CDN); `uploadthing_key` for delete/rename via API.
 
 -- Enum: category for each garment (tops / bottoms / shoes).
@@ -25,7 +25,6 @@ END $$;
 DO $$ BEGIN
   CREATE TYPE weekly_plan_status AS ENUM (
     'draft',
-    'batch_submitted',
     'completed',
     'failed'
   );
@@ -82,7 +81,7 @@ CREATE TABLE IF NOT EXISTS outfit_garments (
 CREATE INDEX IF NOT EXISTS outfit_garments_garment_idx ON outfit_garments (garment_id);
 CREATE INDEX IF NOT EXISTS outfit_garments_outfit_sort_idx ON outfit_garments (outfit_id, sort_order);
 
--- Weekly AI plan: step 1 (structured looks) + batch image generation lifecycle.
+-- Weekly AI plan: step 1 (structured looks) + inline hero images per day.
 CREATE TABLE IF NOT EXISTS weekly_outfit_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   week_start date NOT NULL,
@@ -111,27 +110,13 @@ CREATE TABLE IF NOT EXISTS weekly_plan_looks (
 
 CREATE INDEX IF NOT EXISTS weekly_plan_looks_plan_sort_idx ON weekly_plan_looks (plan_id, sort_order);
 
-CREATE TABLE IF NOT EXISTS google_batch_jobs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  plan_id uuid NOT NULL REFERENCES weekly_outfit_plans (id) ON DELETE CASCADE,
-  google_batch_name text NOT NULL,
-  state text NOT NULL DEFAULT 'JOB_STATE_PENDING',
-  submitted_at timestamptz NOT NULL DEFAULT now(),
-  completed_at timestamptz,
-  error_message text
-);
-
-CREATE INDEX IF NOT EXISTS google_batch_jobs_plan_idx ON google_batch_jobs (plan_id);
-CREATE INDEX IF NOT EXISTS google_batch_jobs_name_idx ON google_batch_jobs (google_batch_name);
-
 COMMENT ON TYPE garment_category IS 'tops | bottoms | shoes';
 COMMENT ON TYPE outfit_occasion IS 'everyday | casual | business | evening | office | gala';
-COMMENT ON TYPE weekly_plan_status IS 'draft | batch_submitted | completed | failed';
+COMMENT ON TYPE weekly_plan_status IS 'draft | completed | failed';
 COMMENT ON COLUMN garments.color IS 'Free text: e.g. hex #1a1c1b or name "navy".';
 COMMENT ON COLUMN garments.description IS 'Stylist-facing text for AI outfit selection (closet catalog).';
 COMMENT ON TABLE garments IS 'Clothing pieces; category enum; is_favorite for closet highlights.';
 COMMENT ON TABLE outfits IS 'A worn look: worn_on = calendar day; occasion; image_url optional hero shot.';
 COMMENT ON TABLE outfit_garments IS 'Links outfits to every garment in the look (required usage: insert one row per piece).';
 COMMENT ON TABLE weekly_outfit_plans IS 'One row per calendar week (week_start = Monday); AI weekly outfit pipeline.';
-COMMENT ON TABLE weekly_plan_looks IS 'Seven rows per plan (sort_order 0–6 = Mon–Sun); garment_ids from step 1.';
-COMMENT ON TABLE google_batch_jobs IS 'Google Gemini Batch API job metadata for weekly hero image generation.';
+COMMENT ON TABLE weekly_plan_looks IS 'Seven rows per plan (sort_order 0–6 = Mon–Sun); garment_ids from step 1; hero_image_url from inline image step.';

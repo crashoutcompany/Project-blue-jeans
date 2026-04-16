@@ -1,5 +1,3 @@
-"use server";
-
 import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
@@ -8,20 +6,16 @@ import { loadGarmentCatalog, loadGarmentsByIds } from "@/lib/garments/load-catal
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 import type { OutfitLook } from "@/lib/outfits/types";
 
+const DEFAULT_CLIMATE = "Temperate";
+const DEFAULT_CONTEXT = "Versatile day-to-night";
+
 export type GenerateLookbookInput = {
-  climate: string;
-  context: string;
+  climate?: string;
+  context?: string;
   narrative: string;
-  /**
-   * When set and non-empty, only these closet garment ids are sent to the model.
-   * Omit or leave empty to use the full closet (default).
-   */
   includedGarmentIds?: string[];
-  /** Number of looks (default 3 for generator UI; use 7 for weekly workflow step 1). */
   lookCount?: number;
-  /** When true, step-1 prompt targets Mon–Sun planning. */
   weekly?: boolean;
-  /** Skip step-2 hero image (e.g. weekly cron renders heroes separately). */
   skipHeroImage?: boolean;
 };
 
@@ -49,8 +43,8 @@ function buildOutfitLooks(
 }
 
 /**
- * Shared orchestration: catalog → structured plan → optional hero image (first look only).
- * Used by the generator UI and by the weekly workflow (with different `lookCount` / `weekly`).
+ * Catalog → structured plan → optional hero image (first look only).
+ * Used by the generator API and any server workflows.
  */
 export async function generateLookbook(
   input: GenerateLookbookInput,
@@ -65,12 +59,8 @@ export async function generateLookbook(
 
   const lookCount = input.lookCount ?? 3;
   const narrative = input.narrative.trim().slice(0, MAX_NARRATIVE);
-  const climate = input.climate.trim().slice(0, 80);
-  const context = input.context.trim().slice(0, 80);
-
-  if (!climate || !context) {
-    return { ok: false, message: "Climate and context are required." };
-  }
+  const climate = (input.climate?.trim() || DEFAULT_CLIMATE).slice(0, 80);
+  const context = (input.context?.trim() || DEFAULT_CONTEXT).slice(0, 80);
 
   let garments = await loadGarmentCatalog();
   if (garments.length === 0) {

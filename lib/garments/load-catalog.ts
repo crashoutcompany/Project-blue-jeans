@@ -2,7 +2,8 @@ import { unstable_cache } from "next/cache";
 
 import type { CatalogGarment } from "@/lib/ai/lookbook/catalog";
 import { requireSql } from "@/lib/db";
-import { CLOSET_GARMENTS_TAG, getAllGarmentRowsCached } from "@/lib/garments/get-closet-garments-cached";
+import { CLOSET_GARMENTS_TAG } from "@/lib/garments/closet-garments-cache-tag";
+import { getAllGarmentRowsCached } from "@/lib/garments/get-closet-garments-cached";
 
 /**
  * Closet rows formatted for step-1 AI catalog (same cache as `getClosetGarmentsCached`).
@@ -40,7 +41,7 @@ async function fetchGarmentsByIdsUncached(
 
 /**
  * By-id fetch with cross-request cache, tagged like the full closet list so
- * `revalidateTag` / `updateTag(CLOSET_GARMENTS_TAG)` keeps hero / batch image steps fresh.
+ * `revalidateTag` / `updateTag(CLOSET_GARMENTS_TAG)` keeps hero image steps fresh.
  */
 export async function loadGarmentsByIds(
   ids: string[],

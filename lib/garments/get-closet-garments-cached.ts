@@ -1,10 +1,9 @@
 import { cacheTag } from "next/cache";
 
+import { CLOSET_GARMENTS_TAG } from "@/lib/garments/closet-garments-cache-tag";
 import { getSql } from "@/lib/db";
 import { garmentRowToCardData, type GarmentRow } from "@/lib/garments/map-row";
 import type { ClothingCardData } from "@/lib/garments/types";
-
-const CLOSET_GARMENTS_TAG = "closet-garments";
 
 export { CLOSET_GARMENTS_TAG };
 

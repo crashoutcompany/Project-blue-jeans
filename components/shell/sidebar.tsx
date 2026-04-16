@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarDays,
   LayoutDashboard,
   LifeBuoy,
   Palette,
@@ -31,6 +32,8 @@ function navIcon(label: string) {
   switch (label) {
     case "Dashboard":
       return <LayoutDashboard className="size-4 shrink-0 opacity-80" />;
+    case "Calendar":
+      return <CalendarDays className="size-4 shrink-0 opacity-80" />;
     case "Digital Closet":
       return <Shirt className="size-4 shrink-0 opacity-80" />;
     case "Outfit Generator":
@@ -78,8 +81,8 @@ export function AppSidebar() {
             <SidebarMenu className="gap-1">
               {MAIN_NAV.map((item) => {
                 const active =
-                  item.href === "/"
-                    ? pathname === "/"
+                  item.href === "/dashboard"
+                    ? pathname === "/dashboard"
                     : pathname.startsWith(item.href);
                 return (
                   <SidebarMenuItem key={item.href}>
