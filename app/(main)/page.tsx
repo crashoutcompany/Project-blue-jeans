@@ -41,15 +41,17 @@ export default async function DashboardPage() {
   const colorSegments = mainColorSegments(garments);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-12 lg:max-w-none">
-      <section className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-xl space-y-3">
-          <h1 className="font-serif text-4xl leading-tight text-foreground sm:text-5xl">
-            Overview
+    <div className="page-canvas flex min-w-0 flex-col gap-9">
+      <section className="flex flex-col gap-5 border-b border-foreground/8 pb-7 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-xl">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Personal collection
+          </p>
+          <h1 className="mt-1.5 text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
+            Your wardrobe, reimagined
           </h1>
-          <p className="text-base leading-relaxed text-muted-foreground">
-            Jump into the generator with your closet, or add pieces you want
-            styled.
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Build new combinations from the pieces you already own.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -57,7 +59,7 @@ export default async function DashboardPage() {
             href="/generator"
             className={cn(
               buttonVariants({ size: "lg" }),
-              "inline-flex gap-2 rounded-full bg-gradient-to-br from-primary to-[#064e3b] text-primary-foreground shadow-[0_12px_40px_rgba(26,28,27,0.06)] hover:from-[#064e3b] hover:to-primary",
+              "inline-flex gap-2 rounded-full bg-foreground text-background hover:bg-foreground/85",
             )}
           >
             <Aperture className="size-4" />
@@ -76,10 +78,10 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Card className="border-0 bg-muted/40 shadow-none">
-          <CardContent className="space-y-6 p-6 sm:p-8">
-            <div className="relative overflow-hidden rounded-3xl border border-dashed border-border bg-muted/60">
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
+        <Card className="rounded-2xl bg-foreground/[0.025] py-0 ring-0">
+          <CardContent className="space-y-6 p-5 sm:p-6">
+            <div className="relative overflow-hidden rounded-xl border border-dashed border-foreground/12 bg-background/60">
               <div className="flex aspect-[16/10] flex-col items-center justify-center gap-2 px-6 text-center">
                 <p className="font-serif text-lg text-foreground">
                   No spotlight look yet
@@ -101,8 +103,8 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <div className="flex flex-col gap-6">
-          <Card className="border-0 bg-[#501e12] text-primary-foreground shadow-[0_12px_40px_rgba(26,28,27,0.08)]">
+        <div className="flex flex-col gap-5">
+          <Card className="rounded-2xl bg-foreground text-background ring-0">
             <CardContent className="space-y-4 p-6">
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-white/80">
                 AI style recommendation
@@ -122,7 +124,7 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 bg-card shadow-[0_12px_40px_rgba(26,28,27,0.04)]">
+          <Card className="rounded-2xl bg-foreground/[0.04] ring-0">
             <CardContent className="space-y-6 p-6">
               <h3 className="text-sm font-semibold text-foreground">
                 Closet composition
@@ -166,8 +168,8 @@ export default async function DashboardPage() {
 
       <section className="space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <h2 className="font-serif text-2xl text-foreground">
-            Recent archive additions
+          <h2 className="text-xl font-medium tracking-tight text-foreground">
+            Recently added
           </h2>
           <Link
             href="/closet"
