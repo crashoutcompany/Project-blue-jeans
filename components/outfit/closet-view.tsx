@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ClothingCard } from "@/components/outfit/clothing-card";
+import { GarmentDetailSheet } from "@/components/outfit/garment-detail-sheet";
 import {
   FilterPills,
   type CategoryFilterId,
@@ -53,6 +54,8 @@ export function ClosetView({
   const [pendingDrafts, setPendingDrafts] = useState<GarmentUploadDraft[]>([]);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [savingDrafts, setSavingDrafts] = useState(false);
+  const [selectedGarment, setSelectedGarment] =
+    useState<ClothingCardData | null>(null);
 
   const previewUrlsRef = useRef<Set<string>>(new Set());
   previewUrlsRef.current = new Set(pendingDrafts.map((d) => d.previewUrl));
@@ -186,7 +189,14 @@ export function ClosetView({
 
   async function handleToggleFavorite(id: string) {
     const result = await toggleGarmentFavorite(id);
-    if (result.ok) router.refresh();
+    if (result.ok) {
+      setSelectedGarment((current) =>
+        current?.id === id
+          ? { ...current, isFavorite: !current.isFavorite }
+          : current,
+      );
+      router.refresh();
+    }
   }
 
   return (
@@ -264,7 +274,7 @@ export function ClosetView({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         <Card
           className={cn(
             "rounded-xl border border-dashed border-foreground/15 bg-foreground/[0.018] py-0 ring-0",
@@ -342,10 +352,18 @@ export function ClosetView({
           <ClothingCard
             key={g.id}
             garment={g}
-            onToggleFavorite={handleToggleFavorite}
+            selected={selectedGarment?.id === g.id}
+            onSelect={setSelectedGarment}
           />
         ))}
       </div>
+      <GarmentDetailSheet
+        garment={selectedGarment}
+        onOpenChange={(open) => {
+          if (!open) setSelectedGarment(null);
+        }}
+        onToggleFavorite={(id) => void handleToggleFavorite(id)}
+      />
     </div>
   );
 }
