@@ -23,12 +23,15 @@ export function StyleProfileView() {
   const [tags] = useState<string[]>([]);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:max-w-none">
-      <header className="max-w-2xl space-y-3">
-        <h1 className="font-serif text-4xl text-[#003527] sm:text-5xl">
+    <div className="page-canvas flex min-w-0 flex-col gap-8">
+      <header className="max-w-2xl border-b border-foreground/8 pb-7">
+        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Preferences
+        </p>
+        <h1 className="mt-1.5 text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
           Style identity
         </h1>
-        <p className="text-base leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Shape the signals that steer recommendations—aesthetic, palette,
           silhouette, and inspiration. Preferences are not saved to the server
           yet.
@@ -36,7 +39,7 @@ export function StyleProfileView() {
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="border-0 bg-card shadow-[0_12px_40px_rgba(26,28,27,0.04)]">
+        <Card className="rounded-2xl bg-foreground/[0.03] ring-0">
           <CardContent className="space-y-6 p-6 sm:p-8">
             <h2 className="font-serif text-xl text-foreground">
               Visual aesthetic
@@ -90,7 +93,7 @@ export function StyleProfileView() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-card shadow-[0_12px_40px_rgba(26,28,27,0.04)]">
+        <Card className="rounded-2xl bg-foreground/[0.03] ring-0">
           <CardContent className="space-y-6 p-6 sm:p-8">
             <div className="flex items-center gap-2">
               <h2 className="font-serif text-xl text-foreground">
@@ -119,7 +122,7 @@ export function StyleProfileView() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="border-0 bg-card shadow-[0_12px_40px_rgba(26,28,27,0.04)]">
+        <Card className="rounded-2xl bg-foreground/[0.03] ring-0">
           <CardContent className="space-y-6 p-6 sm:p-8">
             <h2 className="font-serif text-xl">Silhouette profile</h2>
             <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
@@ -173,7 +176,7 @@ export function StyleProfileView() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-[#501e12] text-white shadow-[0_12px_40px_rgba(26,28,27,0.08)]">
+        <Card className="rounded-2xl bg-foreground text-background ring-0">
           <CardContent className="flex h-full flex-col gap-4 p-6 sm:p-8">
             <div className="flex items-center gap-2 text-white/90">
               <Flower2 className="size-5" />
@@ -225,7 +228,7 @@ export function StyleProfileView() {
         </div>
       </section>
 
-      <footer className="border-t border-border/60 pt-8">
+      <footer className="border-t border-foreground/8 pt-7">
         <p className="max-w-lg text-sm text-muted-foreground">
           Profile fields are for preview only until persistence and AI hooks are
           wired to your account.

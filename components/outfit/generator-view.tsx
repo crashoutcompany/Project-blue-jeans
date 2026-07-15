@@ -5,8 +5,8 @@ import {
   useCallback,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
-  useTransition,
 } from "react";
 import { Sparkles } from "lucide-react";
 
@@ -16,7 +16,6 @@ import type { OutfitLook } from "@/lib/outfits/types";
 import { ChipGroup } from "@/components/outfit/chip-group";
 import { OutfitCard } from "@/components/outfit/outfit-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -100,21 +99,20 @@ function GeneratorClosetScope({
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-2">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Closet scope
+            Select wardrobe
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            All pieces are included by default. Uncheck any you want to exclude
-            from this run.
+            Choose the pieces the model can style.
           </p>
         </div>
         {closetGarments.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               className="rounded-full text-xs"
               disabled={pending || allSelected}
@@ -124,7 +122,7 @@ function GeneratorClosetScope({
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               className="rounded-full text-xs"
               disabled={pending || selectedIds.size === 0}
@@ -142,17 +140,17 @@ function GeneratorClosetScope({
           the generator.
         </p>
       ) : (
-        <ScrollArea className="h-[min(280px,40vh)] rounded-2xl border border-border bg-card/50">
-          <ul className="divide-y divide-border p-2">
+        <ScrollArea className="h-[min(570px,62vh)]">
+          <ul className="grid grid-cols-2 gap-3 pr-3 sm:grid-cols-3 xl:grid-cols-4">
             {closetGarments.map((g) => {
               const checked = selectedIds.has(g.id);
               const hasImage = Boolean(g.imageUrl);
               return (
-                <li key={g.id}>
+                <li key={g.id} className="min-w-0">
                   <label
                     className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2.5 transition-colors",
-                      "hover:bg-muted/60",
+                      "group relative flex cursor-pointer flex-col gap-2 rounded-xl outline-none transition-opacity",
+                      !checked && "opacity-45",
                       pending && "pointer-events-none opacity-60",
                     )}
                   >
@@ -167,17 +165,17 @@ function GeneratorClosetScope({
                           return next;
                         })
                       }
-                      className="size-4 shrink-0 rounded border-input accent-primary"
+                      className="absolute right-2 top-2 z-10 size-4 rounded border-input accent-foreground"
                       disabled={pending}
                     />
-                    <div className="relative size-12 shrink-0 overflow-hidden rounded-xl bg-muted">
+                    <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl bg-foreground/[0.04]">
                       {hasImage ? (
                         <Image
                           src={g.imageUrl!}
                           alt={g.name}
                           fill
-                          className="object-cover"
-                          sizes="48px"
+                          className="object-contain p-2"
+                          sizes="(max-width: 640px) 45vw, 18vw"
                         />
                       ) : (
                         <div
@@ -190,11 +188,11 @@ function GeneratorClosetScope({
                         </div>
                       )}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-foreground">
+                    <div className="min-w-0 px-0.5">
+                      <p className="truncate text-xs font-medium text-foreground">
                         {g.name}
                       </p>
-                      <p className="truncate text-xs capitalize text-muted-foreground">
+                      <p className="truncate text-[0.65rem] capitalize text-muted-foreground">
                         {g.category}
                       </p>
                     </div>
@@ -226,7 +224,8 @@ export function GeneratorView({
   const [looks, setLooks] = useState<OutfitLook[]>([]);
   const [curatorNote, setCuratorNote] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const generationRequestIdRef = useRef(0);
 
   const closetSig = useMemo(() => idsSignature(closetGarments), [closetGarments]);
 
@@ -250,13 +249,16 @@ export function GeneratorView({
     selectedIds.size === allClosetIds.size &&
     [...selectedIds].every((id) => allClosetIds.has(id));
 
-  function handleGenerate() {
+  async function handleGenerate() {
     setError(null);
     if (closetGarments.length > 0 && selectedIds.size === 0) {
       setError("Select at least one piece to include in generation.");
       return;
     }
-    startTransition(async () => {
+
+    const requestId = ++generationRequestIdRef.current;
+    setIsGenerating(true);
+    try {
       const result = await generateLookbook({
         climate: climateLabel(climate),
         context: contextLabel(context),
@@ -265,111 +267,123 @@ export function GeneratorView({
           ? { includedGarmentIds: [...selectedIds] }
           : {}),
       });
+      if (requestId !== generationRequestIdRef.current) return;
       if (!result.ok) {
         setError(result.message);
         return;
       }
       setLooks(result.looks);
       setCuratorNote(result.curatorNote);
-    });
+    } finally {
+      if (requestId === generationRequestIdRef.current) {
+        setIsGenerating(false);
+      }
+    }
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-12 lg:max-w-none">
-      <div className="space-y-2">
+    <div className="page-canvas flex min-w-0 flex-col gap-8">
+      <header>
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          Outfit generator
+          Studio
         </p>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Set the climate and context, add a short style narrative, and generate
-          a three-look concept deck. The hero look uses{" "}
-          <span className="font-medium text-foreground">Gemini 2.5 Flash Image</span>{" "}
-          (Nano Banana) when your API key is configured.
-        </p>
-      </div>
+        <h1 className="mt-1.5 text-2xl font-medium tracking-tight sm:text-3xl">
+          Build an outfit
+        </h1>
+      </header>
 
-      <section className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.75fr)] lg:items-start">
-        <div className="space-y-8">
+      <section className="grid min-h-[calc(100svh-11rem)] gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.7fr)] lg:items-start">
+        <div className="min-w-0 rounded-2xl bg-foreground/[0.022] p-4 sm:p-5">
+          <div className="space-y-3">
+            <GeneratorClosetScope
+              key={closetSig}
+              closetGarments={closetGarments}
+              pending={isGenerating}
+              onSelectionChange={onClosetSelectionChange}
+            />
+          </div>
+        </div>
+
+        <aside className="space-y-7 rounded-2xl bg-foreground/[0.04] p-5 lg:sticky lg:top-20 lg:p-6">
+          <div>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Direction
+            </p>
+            <h2 className="mt-1.5 text-xl font-medium tracking-tight">
+              Describe the look
+            </h2>
+          </div>
           <ChipGroup
-            label="Current climate"
+            label="Climate"
             options={CLIMATE}
             value={climate}
             onChange={setClimate}
           />
           <ChipGroup
-            label="The context"
+            label="Context"
             options={CONTEXT}
             value={context}
             onChange={setContext}
           />
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Style narrative
-              </p>
+              <label
+                htmlFor="style-notes"
+                className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+              >
+                Notes
+              </label>
               <span className="flex items-center gap-1 text-[0.65rem] text-muted-foreground">
                 <Sparkles className="size-3.5" />
-                Gemini
+                AI styled
               </span>
             </div>
             <Textarea
+              id="style-notes"
               value={narrative}
               onChange={(e) => setNarrative(e.target.value)}
-              placeholder="E.g. Minimalist with a touch of Bohemian texture…"
-              className="min-h-[120px] rounded-2xl border-border bg-card text-base"
-              disabled={pending}
+              placeholder="Clean layers, relaxed proportions…"
+              className="min-h-[116px] resize-none rounded-xl border-0 bg-background/80 text-sm shadow-none"
+              disabled={isGenerating}
             />
           </div>
-
           <div className="space-y-3">
-            <GeneratorClosetScope
-              key={closetSig}
-              closetGarments={closetGarments}
-              pending={pending}
-              onSelectionChange={onClosetSelectionChange}
-            />
-          </div>
-        </div>
-
-        <Card className="border-0 bg-primary text-primary-foreground shadow-[0_12px_40px_rgba(26,28,27,0.08)]">
-          <CardContent className="flex flex-col gap-4 p-6 sm:p-8">
-            <h2 className="font-serif text-2xl text-primary-foreground">
-              Fabricate ensembles
-            </h2>
-            <p className="text-sm leading-relaxed text-primary-foreground/85">
-              We&apos;ll blend your narrative with the climate and context you
-              choose—structured copy from Gemini Flash, optional hero render from
-              Flash Image.
-            </p>
             {error ? (
-              <p className="text-sm text-primary-foreground/90" role="alert">
+              <p className="text-sm text-destructive" role="alert">
                 {error}
               </p>
             ) : null}
             <Button
               type="button"
-              onClick={handleGenerate}
+              onClick={() => void handleGenerate()}
               disabled={
-                pending ||
+                isGenerating ||
                 (closetGarments.length > 0 && selectedIds.size === 0)
               }
-              className="mt-2 h-11 rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 disabled:opacity-60"
+              className="h-11 w-full rounded-full bg-foreground text-background hover:bg-foreground/85 disabled:opacity-60"
             >
               <Sparkles className="size-4" />
-              {pending ? "Generating…" : "Generate lookbook"}
+              {isGenerating ? "Styling…" : "Generate looks"}
             </Button>
-          </CardContent>
-        </Card>
+            <p className="text-center text-[0.65rem] leading-relaxed text-muted-foreground">
+              {selectedIds.size} pieces selected · powered by Gemini
+            </p>
+          </div>
+        </aside>
       </section>
 
-      <section className="space-y-6">
-        <h2 className="font-serif text-2xl text-foreground">
-          Generated narratives
-        </h2>
+      <section className="space-y-5 border-t border-foreground/8 pt-7">
+        <div>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Lookbook
+          </p>
+          <h2 className="mt-1 text-xl font-medium tracking-tight text-foreground">
+            Generated looks
+          </h2>
+        </div>
         {looks.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
-            Run <span className="font-medium text-foreground">Generate lookbook</span>{" "}
-            to see structured looks here.
+          <p className="rounded-xl border border-dashed border-foreground/12 px-4 py-10 text-center text-sm text-muted-foreground">
+            Your generated looks will appear here.
           </p>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
@@ -390,12 +404,12 @@ export function GeneratorView({
       </section>
 
       {looks.length > 0 && curatorNote.trim().length > 0 ? (
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#fde7dc] via-[#fceee8] to-[#f8ddd4] px-6 py-8 sm:px-10">
+        <section className="relative overflow-hidden rounded-2xl bg-foreground/[0.04] px-6 py-7 sm:px-8">
           <div className="max-w-xl space-y-3">
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[#501e12]/80">
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Curator&apos;s note
             </p>
-            <p className="text-sm leading-relaxed text-[#3a3a38]">
+            <p className="text-sm leading-relaxed text-foreground">
               {curatorNote}
             </p>
           </div>
