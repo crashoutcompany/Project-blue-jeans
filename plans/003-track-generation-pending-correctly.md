@@ -1,6 +1,6 @@
 # 003 — Track generation pending state correctly
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: 0fc9854
 - **Severity**: HIGH
 - **Category**: Bugs & correctness

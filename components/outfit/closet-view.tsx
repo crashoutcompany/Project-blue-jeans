@@ -60,8 +60,9 @@ export function ClosetView({
   const previewUrlsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    const previewUrls = previewUrlsRef.current;
     return () => {
-      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 

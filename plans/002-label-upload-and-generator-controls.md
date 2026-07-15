@@ -1,6 +1,6 @@
 # 002 — Label upload and generator controls
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: 0fc9854
 - **Severity**: MEDIUM
 - **Category**: Accessibility

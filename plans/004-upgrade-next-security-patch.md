@@ -1,6 +1,6 @@
 # 004 — Upgrade the Next.js security patch
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: 0fc9854
 - **Severity**: HIGH
 - **Category**: Security
