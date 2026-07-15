@@ -21,7 +21,7 @@ export function FilterPills({
   onChange: (id: CategoryFilterId) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1 rounded-full bg-foreground/[0.045] p-1">
       {CATEGORIES.map((cat) => {
         const active = value === cat.id;
         return (
@@ -29,12 +29,13 @@ export function FilterPills({
             key={cat.id}
             type="button"
             size="sm"
-            variant={active ? "default" : "secondary"}
+            variant="ghost"
             onClick={() => onChange(cat.id)}
+            aria-pressed={active}
             className={cn(
-              "rounded-full px-4 text-[0.65rem] font-semibold uppercase tracking-[0.14em]",
+              "rounded-full px-3.5 text-xs font-medium text-muted-foreground",
               active &&
-                "bg-primary text-primary-foreground hover:bg-primary/90"
+                "bg-background text-foreground shadow-[0_1px_4px_rgba(26,28,27,0.08)] hover:bg-background",
             )}
           >
             {cat.label}

@@ -135,6 +135,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    min-width: 320px;
   }
   html {
     @apply font-sans;
@@ -144,5 +145,47 @@
   h3,
   .font-display {
     @apply font-serif tracking-tight;
+  }
+}
+
+@layer utilities {
+  .page-canvas {
+    animation: canvas-in 320ms cubic-bezier(.215, .61, .355, 1) both;
+  }
+
+  .garment-tile {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 320px;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .garment-tile [data-garment-image] {
+    transition: transform 300ms cubic-bezier(.215, .61, .355, 1);
+  }
+
+  .garment-tile:hover [data-garment-image] {
+    transform: scale(1.018);
+  }
+}
+
+@keyframes canvas-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-canvas {
+    animation: none;
+  }
+
+  .garment-tile [data-garment-image] {
+    transition: none;
   }
 }

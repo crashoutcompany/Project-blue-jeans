@@ -190,101 +190,102 @@ export function ClosetView({
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:max-w-none">
-      <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-2xl space-y-3">
-          <h1 className="font-serif text-4xl leading-tight sm:text-5xl">
-            Your closet
-          </h1>
-          <p className="text-base leading-relaxed text-muted-foreground">
-            Pieces load from your Neon database. Choose photos, add details,
-            then add to closet — we upload and save only when you confirm.
-            Filter by category and color.
+    <div className="page-canvas flex min-w-0 flex-col gap-5">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Collection · {initialGarments.length} pieces
           </p>
+          <h1 className="mt-1.5 text-2xl font-medium tracking-tight sm:text-3xl">
+            Wardrobe
+          </h1>
         </div>
-        <div className="relative w-full max-w-md lg:w-72">
+        <div className="relative w-full sm:w-64">
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search your closet…"
-            className="h-11 rounded-full border border-border bg-card pl-4"
+            placeholder="Search wardrobe"
+            className="h-9 rounded-full border-0 bg-foreground/[0.045] px-4 text-xs shadow-none"
             aria-label="Search closet"
           />
         </div>
       </header>
 
-      <div className="space-y-6">
+      <div className="flex flex-col gap-3 border-b border-foreground/8 pb-4 lg:flex-row lg:items-center lg:justify-between">
         <FilterPills value={category} onChange={setCategory} />
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
-            <div className="space-y-1.5">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Color
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setColorId("all")}
-                  className={cn(
-                    "flex size-9 items-center justify-center rounded-full ring-2 ring-offset-2 ring-offset-background transition",
-                    colorId === "all" ? "ring-primary" : "ring-transparent",
-                  )}
-                  aria-label="All colors"
-                  title="All colors"
-                >
-                  <span
-                    className="size-7 rounded-full border border-border/40"
-                    style={{ backgroundColor: "#e2e3e0" }}
-                  />
-                </button>
-                {dynamicColorFacets.map((c) => {
-                  const active = colorId === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setColorId(c.id)}
-                      className={cn(
-                        "flex size-9 items-center justify-center rounded-full ring-2 ring-offset-2 ring-offset-background transition",
-                        active ? "ring-primary" : "ring-transparent",
-                      )}
-                      aria-label={`Color: ${c.label}`}
-                      title={c.label}
-                    >
-                      <span
-                        className="size-7 rounded-full border border-border/40"
-                        style={{ backgroundColor: c.hex }}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[0.65rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Color
+          </span>
+          <button
+            type="button"
+            onClick={() => setColorId("all")}
+            className={cn(
+              "flex size-7 items-center justify-center rounded-full ring-1 ring-offset-1 ring-offset-background transition",
+              colorId === "all" ? "ring-primary" : "ring-transparent",
+            )}
+            aria-label="All colors"
+            title="All colors"
+          >
+            <span
+              className="size-5 rounded-full border border-border/40"
+              style={{ backgroundColor: "#e2e3e0" }}
+            />
+          </button>
+          {dynamicColorFacets.map((c) => {
+            const active = colorId === c.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setColorId(c.id)}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-full ring-1 ring-offset-1 ring-offset-background transition",
+                  active ? "ring-primary" : "ring-transparent",
+                )}
+                aria-label={`Color: ${c.label}`}
+                title={c.label}
+              >
+                <span
+                    className="size-5 rounded-full border border-border/40"
+                  style={{ backgroundColor: c.hex }}
+                />
+              </button>
+            );
+          })}
           <Button
             variant="ghost"
-            className="gap-2 self-start text-muted-foreground"
+            size="sm"
+            className="ml-auto gap-1.5 rounded-full text-xs text-muted-foreground"
           >
-            <Settings2 className="size-4" />
-            Advanced filters
+            <Settings2 className="size-3.5" />
+            Filters
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <Card className="border-2 border-dashed border-border/80 bg-transparent shadow-none">
-          <CardContent className="flex h-full min-h-[320px] flex-col items-center justify-center gap-4 p-6 text-center">
-            <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-              <Plus className="size-6 text-muted-foreground" />
+      <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        <Card
+          className={cn(
+            "rounded-xl border border-dashed border-foreground/15 bg-foreground/[0.018] py-0 ring-0",
+            pendingDrafts.length > 0 && "col-span-full",
+          )}
+        >
+          <CardContent
+            className={cn(
+              "flex h-full flex-col items-center justify-center gap-3 p-4 text-center",
+              pendingDrafts.length === 0 && "aspect-[4/5]",
+            )}
+          >
+            <div className="flex size-9 items-center justify-center rounded-full bg-foreground/[0.06]">
+              <Plus className="size-4 text-muted-foreground" />
             </div>
-            <div className="space-y-2">
-              <p className="font-serif text-lg text-foreground">
-                New archive piece
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">
+                Add pieces
               </p>
-              <p className="text-sm text-muted-foreground">
-                Photos are compressed on your device. Nothing is sent to the
-                cloud until you tap Add to closet — then we upload and save to
-                your database.
+              <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
+                Select photos from your camera roll
               </p>
             </div>
             <ClosetImageUpload
