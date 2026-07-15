@@ -29,6 +29,7 @@ export function ChipGroup<T extends string>({
               size="sm"
               variant={active ? "default" : "secondary"}
               onClick={() => onChange(opt.id)}
+              aria-pressed={active}
               className={cn(
                 "rounded-full px-4 text-[0.65rem] font-semibold uppercase tracking-[0.12em]",
                 active &&

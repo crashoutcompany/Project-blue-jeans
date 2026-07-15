@@ -65,6 +65,7 @@ export function ClosetImageUpload({
         accept="image/*"
         multiple
         className="sr-only"
+        aria-label="Choose clothing photos"
         onChange={onPick}
         disabled={busy}
       />
@@ -79,7 +80,9 @@ export function ClosetImageUpload({
         {label}
       </Button>
       {error ? (
-        <p className="max-w-xs text-sm text-destructive">{error}</p>
+        <p className="max-w-xs text-sm text-destructive" role="alert">
+          {error}
+        </p>
       ) : null}
     </div>
   );

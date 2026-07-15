@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Settings2 } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import {
   createGarmentsFromUpload,
@@ -58,7 +58,6 @@ export function ClosetView({
     useState<ClothingCardData | null>(null);
 
   const previewUrlsRef = useRef<Set<string>>(new Set());
-  previewUrlsRef.current = new Set(pendingDrafts.map((d) => d.previewUrl));
 
   useEffect(() => {
     return () => {
@@ -105,10 +104,11 @@ export function ClosetView({
 
   function handleFilesReady(items: ClosetPendingLocalImage[]) {
     setPersistError(null);
-    setPendingDrafts((prev) => [
-      ...prev,
-      ...items.map(garmentDraftFromLocalPick),
-    ]);
+    const drafts = items.map(garmentDraftFromLocalPick);
+    for (const draft of drafts) {
+      previewUrlsRef.current.add(draft.previewUrl);
+    }
+    setPendingDrafts((prev) => [...prev, ...drafts]);
   }
 
   async function handleSavePendingToCloset() {
@@ -152,8 +152,14 @@ export function ClosetView({
 
       const result = await createGarmentsFromUpload(payload);
       if (result.ok) {
-        draftsSnapshot.forEach((d) => URL.revokeObjectURL(d.previewUrl));
-        setPendingDrafts([]);
+        draftsSnapshot.forEach((d) => {
+          URL.revokeObjectURL(d.previewUrl);
+          previewUrlsRef.current.delete(d.previewUrl);
+        });
+        const savedKeys = new Set(draftsSnapshot.map((d) => d.clientKey));
+        setPendingDrafts((current) =>
+          current.filter((draft) => !savedKeys.has(draft.clientKey)),
+        );
         router.refresh();
       } else {
         setPersistError(result.message);
@@ -167,7 +173,10 @@ export function ClosetView({
 
   function handleClearPending() {
     setPendingDrafts((prev) => {
-      prev.forEach((d) => URL.revokeObjectURL(d.previewUrl));
+      prev.forEach((d) => {
+        URL.revokeObjectURL(d.previewUrl);
+        previewUrlsRef.current.delete(d.previewUrl);
+      });
       return [];
     });
     setPersistError(null);
@@ -182,7 +191,10 @@ export function ClosetView({
   function removeDraft(clientKey: string) {
     setPendingDrafts((prev) => {
       const target = prev.find((d) => d.clientKey === clientKey);
-      if (target) URL.revokeObjectURL(target.previewUrl);
+      if (target) {
+        URL.revokeObjectURL(target.previewUrl);
+        previewUrlsRef.current.delete(target.previewUrl);
+      }
       return prev.filter((d) => d.clientKey !== clientKey);
     });
   }
@@ -235,6 +247,7 @@ export function ClosetView({
               colorId === "all" ? "ring-primary" : "ring-transparent",
             )}
             aria-label="All colors"
+            aria-pressed={colorId === "all"}
             title="All colors"
           >
             <span
@@ -254,6 +267,7 @@ export function ClosetView({
                   active ? "ring-primary" : "ring-transparent",
                 )}
                 aria-label={`Color: ${c.label}`}
+                aria-pressed={active}
                 title={c.label}
               >
                 <span
@@ -263,14 +277,6 @@ export function ClosetView({
               </button>
             );
           })}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto gap-1.5 rounded-full text-xs text-muted-foreground"
-          >
-            <Settings2 className="size-3.5" />
-            Filters
-          </Button>
         </div>
       </div>
 

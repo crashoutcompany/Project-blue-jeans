@@ -5,8 +5,8 @@ import {
   useCallback,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
-  useTransition,
 } from "react";
 import { Sparkles } from "lucide-react";
 
@@ -224,7 +224,8 @@ export function GeneratorView({
   const [looks, setLooks] = useState<OutfitLook[]>([]);
   const [curatorNote, setCuratorNote] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const generationRequestIdRef = useRef(0);
 
   const closetSig = useMemo(() => idsSignature(closetGarments), [closetGarments]);
 
@@ -248,13 +249,16 @@ export function GeneratorView({
     selectedIds.size === allClosetIds.size &&
     [...selectedIds].every((id) => allClosetIds.has(id));
 
-  function handleGenerate() {
+  async function handleGenerate() {
     setError(null);
     if (closetGarments.length > 0 && selectedIds.size === 0) {
       setError("Select at least one piece to include in generation.");
       return;
     }
-    startTransition(async () => {
+
+    const requestId = ++generationRequestIdRef.current;
+    setIsGenerating(true);
+    try {
       const result = await generateLookbook({
         climate: climateLabel(climate),
         context: contextLabel(context),
@@ -263,13 +267,18 @@ export function GeneratorView({
           ? { includedGarmentIds: [...selectedIds] }
           : {}),
       });
+      if (requestId !== generationRequestIdRef.current) return;
       if (!result.ok) {
         setError(result.message);
         return;
       }
       setLooks(result.looks);
       setCuratorNote(result.curatorNote);
-    });
+    } finally {
+      if (requestId === generationRequestIdRef.current) {
+        setIsGenerating(false);
+      }
+    }
   }
 
   return (
@@ -289,7 +298,7 @@ export function GeneratorView({
             <GeneratorClosetScope
               key={closetSig}
               closetGarments={closetGarments}
-              pending={pending}
+              pending={isGenerating}
               onSelectionChange={onClosetSelectionChange}
             />
           </div>
@@ -318,20 +327,24 @@ export function GeneratorView({
           />
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <label
+                htmlFor="style-notes"
+                className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+              >
                 Notes
-              </p>
+              </label>
               <span className="flex items-center gap-1 text-[0.65rem] text-muted-foreground">
                 <Sparkles className="size-3.5" />
                 AI styled
               </span>
             </div>
             <Textarea
+              id="style-notes"
               value={narrative}
               onChange={(e) => setNarrative(e.target.value)}
               placeholder="Clean layers, relaxed proportions…"
               className="min-h-[116px] resize-none rounded-xl border-0 bg-background/80 text-sm shadow-none"
-              disabled={pending}
+              disabled={isGenerating}
             />
           </div>
           <div className="space-y-3">
@@ -342,15 +355,15 @@ export function GeneratorView({
             ) : null}
             <Button
               type="button"
-              onClick={handleGenerate}
+              onClick={() => void handleGenerate()}
               disabled={
-                pending ||
+                isGenerating ||
                 (closetGarments.length > 0 && selectedIds.size === 0)
               }
               className="h-11 w-full rounded-full bg-foreground text-background hover:bg-foreground/85 disabled:opacity-60"
             >
               <Sparkles className="size-4" />
-              {pending ? "Styling…" : "Generate looks"}
+              {isGenerating ? "Styling…" : "Generate looks"}
             </Button>
             <p className="text-center text-[0.65rem] leading-relaxed text-muted-foreground">
               {selectedIds.size} pieces selected · powered by Gemini

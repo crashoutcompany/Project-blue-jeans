@@ -35,16 +35,17 @@ export function GarmentDetailSheet({
       >
         {garment ? (
           <>
-            <div className="relative min-h-[42svh] bg-foreground/[0.045]">
+            <div className="relative min-h-[52svh] overflow-hidden bg-foreground/[0.045]">
               <div className="absolute left-4 top-4 z-10 rounded-sm bg-background px-3 py-2 text-xs font-medium capitalize shadow-sm">
                 {garment.category.replace(/s$/, "")}
               </div>
               {garment.imageUrl ? (
+                // TODO: Replace this garment image with a generated image of the user wearing the complete outfit.
                 <Image
                   src={garment.imageUrl}
                   alt={garment.name}
                   fill
-                  className="object-contain p-8 sm:p-12"
+                  className="object-contain p-8 pb-16 sm:p-12 sm:pb-20"
                   sizes="(max-width: 640px) 100vw, 44vw"
                   priority
                 />
@@ -53,6 +54,21 @@ export function GarmentDetailSheet({
                   {garment.imageHint ?? garment.category}
                 </div>
               )}
+              <div
+                className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-36 bg-gradient-to-b from-transparent via-popover/70 to-popover backdrop-blur-[3px] [mask-image:linear-gradient(to_bottom,transparent,black_42%)]"
+                aria-hidden
+              />
+              {garment.imageUrl ? (
+                <div className="absolute bottom-3 right-5 z-20 h-36 w-32 sm:bottom-4 sm:right-7 sm:h-44 sm:w-40">
+                  <Image
+                    src={garment.imageUrl}
+                    alt={`${garment.name} item preview`}
+                    fill
+                    className="object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
+                    sizes="160px"
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="p-5 sm:p-7">
