@@ -60,6 +60,7 @@ export function TopHeader() {
         <div className="flex items-center justify-end gap-0.5">
           <ModeToggle />
           <Button
+            nativeButton={false}
             render={<Link href="/closet" />}
             variant="ghost"
             size="icon-sm"
