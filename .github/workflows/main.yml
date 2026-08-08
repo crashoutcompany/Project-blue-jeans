@@ -1,6 +1,7 @@
 # Fork PRs do not receive repository secrets. Lint/test/e2e use stub Neon Auth env.
-# Build runs only for push to main and same-repo PRs. It needs VERCEL_TOKEN; app env
-# comes from `vercel pull`. Fork PRs: lint + test (+ e2e) only.
+# Build runs only for push to main and same-repo PRs. Needs VERCEL_TOKEN,
+# VERCEL_ORG_ID, and VERCEL_PROJECT_ID; app env comes from `vercel pull`.
+# Fork PRs: lint + test (+ e2e) only.
 name: Actions CI
 
 on:
@@ -35,6 +36,9 @@ jobs:
   build:
     if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -52,14 +56,10 @@ jobs:
         run: npm ci
 
       - name: Pull Vercel Environment Variables
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel pull --yes --token ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build with Vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel build --token ${{ secrets.VERCEL_TOKEN }} --prod
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }} --prod
 
   test:
     runs-on: ubuntu-latest
