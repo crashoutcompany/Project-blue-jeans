@@ -1,6 +1,7 @@
 # Fork PRs do not receive repository secrets. Lint/test/e2e use stub Neon Auth env.
 # Build runs only for push to main and same-repo PRs. Needs VERCEL_TOKEN,
-# VERCEL_ORG_ID, and VERCEL_PROJECT_ID; app env comes from `vercel pull`.
+# VERCEL_ORG_ID, VERCEL_PROJECT_ID, plus Neon Auth secrets (Sensitive Vercel env
+# vars pull as "[SENSITIVE]" placeholders, so they must come from GitHub secrets).
 # Fork PRs: lint + test (+ e2e) only.
 name: Actions CI
 
@@ -39,6 +40,8 @@ jobs:
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      NEON_AUTH_BASE_URL: ${{ secrets.NEON_AUTH_BASE_URL }}
+      NEON_AUTH_COOKIE_SECRET: ${{ secrets.NEON_AUTH_COOKIE_SECRET }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
