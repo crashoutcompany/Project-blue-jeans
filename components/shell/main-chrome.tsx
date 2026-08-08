@@ -6,7 +6,11 @@ import { TopHeader } from "@/components/shell/top-header";
 
 export function MainChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const hideFooter = pathname === "/closet" || pathname.startsWith("/closet/");
+  const hideFooter =
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname === "/closet" ||
+    pathname.startsWith("/closet/");
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">

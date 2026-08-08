@@ -1,4 +1,7 @@
+import { cacheTag } from "next/cache";
+
 import { getSql } from "@/lib/db";
+import { CLOSET_SAVED_OUTFITS_TAG } from "@/lib/outfits/closet-saved-outfits-cache-tag";
 
 export type ClosetSavedOutfit = {
   id: string;
@@ -19,6 +22,9 @@ const DEFAULT_LIMIT = 48;
 export async function loadSavedOutfitsForCloset(
   limit = DEFAULT_LIMIT,
 ): Promise<ClosetSavedOutfit[]> {
+  "use cache";
+  cacheTag(CLOSET_SAVED_OUTFITS_TAG);
+
   const sql = getSql();
   if (!sql) return [];
 
@@ -51,8 +57,6 @@ export async function loadSavedOutfitsForCloset(
       occasion: string;
       fallback_garment_image_url: string | null;
     }[];
-
-    console.log(rows);
 
     return rows.map((r) => ({
       id: r.id,

@@ -1,7 +1,6 @@
 export const MAIN_NAV = [
-  { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard", label: "Digital Closet" },
   { href: "/calendar", label: "Calendar" },
-  { href: "/closet", label: "Digital Closet" },
   { href: "/generator", label: "Outfit Generator" },
 ] as const;
 

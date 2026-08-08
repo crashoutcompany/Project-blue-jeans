@@ -85,7 +85,7 @@ export function NavUserMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuItem render={<Link href="/dashboard" />}>
-          Dashboard
+          Digital Closet
         </DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/auth/sign-out" />}>
           <LogOut className="mr-2 size-4 opacity-70" />

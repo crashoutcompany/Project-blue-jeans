@@ -21,7 +21,7 @@ There is one local process — the **Next.js dev server**. Everything else is a 
 
 ### Non-obvious notes
 
-- **The app degrades gracefully with no secrets set**: routes like `/`, `/closet`, and `/generator` render, the closet is empty, and `GET /api/db/ping` returns `{"ok":false,...}` instead of crashing. Runtime errors only surface when you exercise a feature whose secret is missing (e.g. saving a garment, generating a lookbook).
+- **The app degrades gracefully with no secrets set**: routes like `/`, `/dashboard` (closet), and `/generator` render, the closet is empty, and `GET /api/db/ping` returns `{"ok":false,...}` instead of crashing. Runtime errors only surface when you exercise a feature whose secret is missing (e.g. saving a garment, generating a lookbook).
 - **The client-side closet "add garment" flow works without any secrets**: choosing photos compresses them on-device (`browser-image-compression`) and queues editable draft cards. Only the final **"Add to closet"** step needs `UPLOADTHING_TOKEN` (upload) + `DATABASE_URL` (persist). This is the best secret-free smoke test of core UI.
 - **Full end-to-end testing requires user-provided secrets**: `DATABASE_URL`, `UPLOADTHING_TOKEN`, and Vertex AI credentials. Add them via the Secrets panel; env vars are injected into the VM.
 - **Store secret values raw — no surrounding quotes.** `lib/ai/gemini-provider.ts` strips wrapping quotes from `GOOGLE_VERTEX_PROJECT` only. It does **not** strip quotes from `GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON` (a leading `'`/`"` makes `JSON.parse` fail → Vertex silently falls back to ADC and errors), and the UploadThing SDK reads `UPLOADTHING_TOKEN` verbatim (a stray quote breaks uploads). Paste these two as the bare value.

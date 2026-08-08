@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { connection, NextResponse } from "next/server";
 
 import { isAdminUser } from "@/lib/auth/admin";
@@ -7,11 +7,14 @@ import {
   approveGeneratorPayloadSchema,
   executeApproveGeneratorOutfit,
 } from "@/lib/outfits/persist-generator-outfit";
+import { CALENDAR_MONTH_TAG } from "@/lib/outfits/calendar-month-cache-tag";
+import { CLOSET_SAVED_OUTFITS_TAG } from "@/lib/outfits/closet-saved-outfits-cache-tag";
 
 function revalidateAfterOutfitWrite() {
   try {
+    revalidateTag(CLOSET_SAVED_OUTFITS_TAG, "max");
+    revalidateTag(CALENDAR_MONTH_TAG, "max");
     revalidatePath("/calendar");
-    revalidatePath("/closet");
     revalidatePath("/dashboard");
   } catch (e) {
     console.error("[api/outfits/approve-generator] revalidate failed", e);

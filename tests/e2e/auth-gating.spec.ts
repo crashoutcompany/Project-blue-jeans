@@ -10,9 +10,9 @@ test.describe("guest (no cookies)", () => {
 test.describe("admin session", () => {
   test.use({ storageState: "tests/e2e/.auth/admin.json" });
 
-  test("loads dashboard overview", async ({ page }) => {
+  test("loads closet on dashboard", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: /overview/i })).toBeVisible();
+    await expect(page.getByLabel("Add clothes")).toBeVisible();
   });
 });
 

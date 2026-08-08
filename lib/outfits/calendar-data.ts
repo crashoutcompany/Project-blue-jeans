@@ -1,4 +1,7 @@
+import { cacheTag } from "next/cache";
+
 import { getSql } from "@/lib/db";
+import { CALENDAR_MONTH_TAG } from "@/lib/outfits/calendar-month-cache-tag";
 
 export type CalendarSavedOutfit = {
   id: string;
@@ -31,6 +34,9 @@ export async function loadCalendarMonthData(
   year: number,
   month: number,
 ): Promise<{ saved: CalendarSavedOutfit[]; weeklyDrafts: CalendarWeeklyLook[] }> {
+  "use cache";
+  cacheTag(CALENDAR_MONTH_TAG);
+
   const sql = getSql();
   if (!sql) {
     return { saved: [], weeklyDrafts: [] };

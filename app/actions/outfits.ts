@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { assertAdminForServerAction } from "@/lib/auth/admin";
@@ -10,6 +10,8 @@ import {
   APPROVE_OUTFIT_MAX_IMAGE_URL_LEN,
   APPROVE_OUTFIT_MAX_NAME,
 } from "@/lib/outfits/approve-outfit-limits";
+import { CALENDAR_MONTH_TAG } from "@/lib/outfits/calendar-month-cache-tag";
+import { CLOSET_SAVED_OUTFITS_TAG } from "@/lib/outfits/closet-saved-outfits-cache-tag";
 import {
   insertOutfitWithGarments,
   type ApproveOutfitResult,
@@ -92,8 +94,9 @@ export async function approveWeeklyPlanLook(
       garmentIds,
     });
 
+    revalidateTag(CLOSET_SAVED_OUTFITS_TAG, "max");
+    revalidateTag(CALENDAR_MONTH_TAG, "max");
     revalidatePath("/calendar");
-    revalidatePath("/closet");
     revalidatePath("/dashboard");
     return { ok: true, outfitId };
   } catch (e) {

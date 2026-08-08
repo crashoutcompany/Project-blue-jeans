@@ -1,13 +1,11 @@
+import { Suspense } from "react";
+
 import { AppSidebar } from "@/components/shell/sidebar";
 import { MainChrome } from "@/components/shell/main-chrome";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { requireAdminAccess } from "@/lib/auth/admin";
 
-export default async function MainLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+async function MainShell({ children }: { children: React.ReactNode }) {
   await requireAdminAccess();
 
   return (
@@ -17,5 +15,17 @@ export default async function MainLayout({
         <MainChrome>{children}</MainChrome>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+export default function MainLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense fallback={<div className="min-h-svh bg-background" />}>
+      <MainShell>{children}</MainShell>
+    </Suspense>
   );
 }

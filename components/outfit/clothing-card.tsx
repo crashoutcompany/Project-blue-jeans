@@ -53,7 +53,7 @@ export function ClothingCard({
   if (!onSelect) {
     return (
       <Link
-        href="/closet"
+        href="/dashboard"
         aria-label={`Open wardrobe to view ${garment.name}`}
         className={tileClassName}
         style={tileStyle}

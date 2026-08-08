@@ -13,8 +13,8 @@ import { isGarmentCategoryDb } from "@/lib/garments/types";
 function revalidateClosetAfterWrite() {
   try {
     revalidateTag(CLOSET_GARMENTS_TAG, "max");
-    // Tag alone can leave the `/closet` PPR shell stale; path revalidation refreshes the segment.
-    revalidatePath("/closet", "page");
+    // Tag alone can leave the closet PPR shell stale; path revalidation refreshes the segment.
+    revalidatePath("/dashboard", "page");
   } catch (e) {
     console.error("[api/closet/garments] revalidate failed", e);
   }
