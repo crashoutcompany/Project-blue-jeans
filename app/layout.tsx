@@ -26,7 +26,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "The Digital Atelier",
   description:
-    "Your personal fashion curator—digital closet, intelligent styling, and a living style profile.",
+    "Your personal fashion curator—digital closet and intelligent styling.",
 };
 
 export default function RootLayout({

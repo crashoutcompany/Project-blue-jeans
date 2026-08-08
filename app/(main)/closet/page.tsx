@@ -1,6 +1,5 @@
 import { connection } from "next/server";
 
-import { SavedOutfitsClosetSection } from "@/components/outfit/saved-outfits-closet-section";
 import { ClosetView } from "@/components/outfit/closet-view";
 import { getClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
 import { loadSavedOutfitsForCloset } from "@/lib/outfits/closet-saved-outfits";
@@ -13,9 +12,8 @@ export default async function ClosetPage() {
   ]);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:max-w-none">
-      <SavedOutfitsClosetSection outfits={savedOutfits} />
-      <ClosetView initialGarments={garments} />
+    <div className="-mx-4 -my-8 min-h-[calc(100svh-5rem)] bg-background px-3 pb-28 pt-2 sm:-mx-6 sm:px-5 sm:pt-4 lg:-mx-10 lg:px-8 lg:pt-6">
+      <ClosetView initialGarments={garments} savedOutfits={savedOutfits} />
     </div>
   );
 }

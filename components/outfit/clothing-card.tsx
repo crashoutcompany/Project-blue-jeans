@@ -20,23 +20,24 @@ export function ClothingCard({
   const swatchHex = garment.colorHex ?? "#e8e8e6";
   const hasRemoteImage = Boolean(garment.imageUrl);
   const tileClassName = cn(
-    "garment-tile group relative aspect-[4/5] min-w-0 overflow-hidden rounded-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+    "garment-tile group relative aspect-[0.78] min-w-0 overflow-hidden rounded-none bg-transparent p-2.5 outline-none transition-[border-color] duration-160 ease-[ease] focus-visible:outline-1 focus-visible:outline-offset-3 focus-visible:outline-foreground sm:p-3",
+    onSelect ? "cursor-zoom-in" : null,
     selected
-      ? "ring-1 ring-foreground"
-      : "ring-1 ring-transparent hover:ring-foreground/20",
+      ? "border border-foreground"
+      : "border border-transparent",
     className,
   );
   const tileStyle = hasRemoteImage
     ? undefined
-    : { backgroundColor: `${swatchHex}33` };
+    : { backgroundColor: `${swatchHex}22` };
   const content = hasRemoteImage ? (
     <Image
       src={garment.imageUrl!}
       alt=""
       fill
       data-garment-image
-      className="object-contain p-1.5 sm:p-2"
-      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 16vw"
+      className="object-contain"
+      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 165px"
     />
   ) : (
     <div
@@ -67,6 +68,7 @@ export function ClothingCard({
       type="button"
       onClick={() => onSelect(garment)}
       aria-label={`View details for ${garment.name}`}
+      aria-pressed={selected}
       className={tileClassName}
       style={tileStyle}
     >

@@ -104,19 +104,22 @@ export default async function DashboardPage() {
         </Card>
 
         <div className="flex flex-col gap-5">
-          <Card className="rounded-2xl bg-foreground text-background ring-0">
-            <CardContent className="space-y-4 p-6">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-white/80">
-                AI style recommendation
-              </p>
-              <p className="text-sm leading-relaxed text-white/85">
-                Recommendations appear after you generate looks from your closet.
-              </p>
+          <Card className="rounded-2xl border border-foreground/10 bg-transparent py-0 ring-0">
+            <CardContent className="flex flex-col gap-5 p-6">
+              <div className="space-y-2">
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  AI style recommendation
+                </p>
+                <p className="text-sm leading-relaxed text-foreground">
+                  Recommendations appear after you generate looks from your
+                  closet.
+                </p>
+              </div>
               <Link
                 href="/generator"
                 className={cn(
-                  buttonVariants({ variant: "link" }),
-                  "h-auto p-0 text-white underline-offset-4 hover:text-white",
+                  buttonVariants({ size: "sm" }),
+                  "w-fit rounded-full bg-foreground text-background hover:bg-foreground/90",
                 )}
               >
                 Go to generator

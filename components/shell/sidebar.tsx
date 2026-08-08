@@ -5,9 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   CalendarDays,
   LayoutDashboard,
-  LifeBuoy,
-  Palette,
-  Settings,
   Shirt,
   Sparkles,
 } from "lucide-react";
@@ -16,7 +13,6 @@ import { MAIN_NAV } from "@/lib/nav";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -38,8 +34,6 @@ function navIcon(label: string) {
       return <Shirt className="size-4 shrink-0 opacity-80" />;
     case "Outfit Generator":
       return <Sparkles className="size-4 shrink-0 opacity-80" />;
-    case "Style Profile":
-      return <Palette className="size-4 shrink-0 opacity-80" />;
     default:
       return null;
   }
@@ -101,40 +95,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="gap-3 p-2 group-data-[collapsible=icon]:gap-2 group-data-[collapsible=icon]:p-1">
-        <SidebarMenu className="gap-1">
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="New collection"
-              className="bg-gradient-to-br from-primary to-[#064e3b] text-primary-foreground shadow-sm hover:from-[#064e3b] hover:to-primary hover:text-primary-foreground data-active:from-primary data-active:to-[#064e3b] data-active:text-primary-foreground group-data-[collapsible=icon]:shadow-md"
-            >
-              <Sparkles className="size-4 shrink-0 text-primary-foreground" />
-              <span>New collection</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <SidebarSeparator className="bg-sidebar-border/60" />
-        <SidebarMenu className="gap-1">
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Settings"
-              render={<Link href="#" />}
-            >
-              <Settings className="size-4 shrink-0" />
-              <span>Settings</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Support"
-              render={<Link href="#" />}
-            >
-              <LifeBuoy className="size-4 shrink-0" />
-              <span>Support</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
     </Sidebar>
   );
 }
