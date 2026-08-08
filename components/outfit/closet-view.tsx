@@ -551,7 +551,10 @@ export function ClosetView({
         <span className="grid size-10 shrink-0 place-items-center rounded-full transition-colors duration-160 group-hover/tray:bg-white/12 group-focus-visible/tray:bg-white/12">
           <Plus className="size-[19px]" strokeWidth={2} />
         </span>
-        <span className="flex max-w-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity] duration-320 ease-[cubic-bezier(0.2,0.7,0.2,1)] group-hover/tray:max-w-[11rem] group-hover/tray:opacity-100 group-focus-visible/tray:max-w-[11rem] group-focus-visible/tray:opacity-100">
+        <span
+          aria-hidden
+          className="flex max-w-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity] duration-320 ease-[cubic-bezier(0.2,0.7,0.2,1)] group-hover/tray:max-w-[11rem] group-hover/tray:opacity-100 group-focus-visible/tray:max-w-[11rem] group-focus-visible/tray:opacity-100"
+        >
           <span className="whitespace-nowrap px-2.5 pr-3 text-xs tracking-[0.01em]">
             Add clothes
           </span>

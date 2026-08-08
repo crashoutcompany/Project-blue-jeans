@@ -8,12 +8,16 @@ test.describe("closet (admin)", () => {
 
   test("shows closet on dashboard", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByLabel("Add clothes")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add clothes" }),
+    ).toBeVisible();
   });
 
   test("redirects /closet to dashboard", async ({ page }) => {
     await page.goto("/closet");
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByLabel("Add clothes")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add clothes" }),
+    ).toBeVisible();
   });
 });

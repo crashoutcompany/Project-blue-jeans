@@ -12,7 +12,9 @@ test.describe("admin session", () => {
 
   test("loads closet on dashboard", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByLabel("Add clothes")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add clothes" }),
+    ).toBeVisible();
   });
 });
 
