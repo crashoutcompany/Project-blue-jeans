@@ -18,6 +18,7 @@ vi.mock("@/lib/outfits/persist-generator-outfit", async (orig) => {
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
 
 import { auth } from "@/lib/auth/server";

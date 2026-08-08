@@ -14,6 +14,18 @@ vi.mock("@/lib/uploadthing", () => ({
   }),
 }));
 
+vi.mock("@/components/ui/sidebar", () => ({
+  useSidebar: () => ({
+    state: "expanded",
+    isMobile: false,
+    open: true,
+    setOpen: vi.fn(),
+    openMobile: false,
+    setOpenMobile: vi.fn(),
+    toggleSidebar: vi.fn(),
+  }),
+}));
+
 import { ClosetView } from "@/components/outfit/closet-view";
 
 describe("ClosetView", () => {
@@ -33,6 +45,9 @@ describe("ClosetView", () => {
           },
         ]}
       />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: /view details for shirt/i }),
     );
     await user.click(
       screen.getByRole("button", { name: /add to favorites/i }),
