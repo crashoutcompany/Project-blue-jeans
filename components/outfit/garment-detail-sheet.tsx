@@ -96,9 +96,10 @@ function GarmentDetailEditor({
   );
   const [notes, setNotes] = useState(garment.notes?.trim() || "");
   const [generateName, setGenerateName] = useState(false);
-  const [useAi, setUseAi] = useState(false);
+  const [generateDescription, setGenerateDescription] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(Boolean(garment.isFavorite));
+  const [favoritePending, setFavoritePending] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const previewColor =
@@ -109,7 +110,7 @@ function GarmentDetailEditor({
   const productUrls = extractProductUrls(notes);
   const isPendingUpload = garment.id.startsWith("pending:");
   const canEdit = !isPendingUpload;
-  const anyAi = generateName || useAi;
+  const anyAi = generateName || generateDescription;
 
   function handleSave() {
     if (!canEdit) return;
@@ -124,7 +125,7 @@ function GarmentDetailEditor({
           notes,
           description,
           regenerateNameWithAi: generateName,
-          regenerateDescriptionWithAi: useAi,
+          regenerateDescriptionWithAi: generateDescription,
         });
         if (!result.ok) {
           setError(result.message);
@@ -143,7 +144,7 @@ function GarmentDetailEditor({
         setNotes(result.garment.notes?.trim() || "");
         setIsFavorite(Boolean(result.garment.isFavorite));
         setGenerateName(false);
-        setUseAi(false);
+        setGenerateDescription(false);
       } catch (e) {
         console.error("[closet] save garment editor", e);
         setError("Could not save that piece. Try again in a moment.");
@@ -208,11 +209,15 @@ function GarmentDetailEditor({
             }
             aria-pressed={isFavorite}
             onClick={() => {
-              void onToggleFavorite(garment.id).then((ok) => {
-                if (ok) setIsFavorite((v) => !v);
-              });
+              if (favoritePending || isPendingUpload) return;
+              setFavoritePending(true);
+              void onToggleFavorite(garment.id)
+                .then((ok) => {
+                  if (ok) setIsFavorite((v) => !v);
+                })
+                .finally(() => setFavoritePending(false));
             }}
-            disabled={isPendingUpload}
+            disabled={isPendingUpload || favoritePending}
           >
             <Heart
               className={
@@ -272,8 +277,14 @@ function GarmentDetailEditor({
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">Category</span>
-            <div className="flex flex-wrap gap-1.5">
+            <span id={`${formId}-category`} className="text-sm font-medium">
+              Category
+            </span>
+            <div
+              role="group"
+              aria-labelledby={`${formId}-category`}
+              className="flex flex-wrap gap-1.5"
+            >
               {GARMENT_CATEGORY_VALUES.map((cat) => {
                 const active = category === cat;
                 return (
@@ -283,6 +294,7 @@ function GarmentDetailEditor({
                     size="sm"
                     variant={active ? "default" : "secondary"}
                     disabled={!canEdit || isPending}
+                    aria-pressed={active}
                     onClick={() => setCategory(cat)}
                     className={cn(
                       "rounded-full px-3 text-[0.65rem] font-semibold uppercase tracking-[0.12em]",
@@ -305,12 +317,12 @@ function GarmentDetailEditor({
               id={`${formId}-description`}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              disabled={!canEdit || isPending || useAi}
+              disabled={!canEdit || isPending || generateDescription}
               placeholder="Catalog copy used when planning outfits"
               rows={3}
               className="min-h-20 resize-y rounded-sm border-foreground/10 bg-transparent text-sm shadow-none"
             />
-            {useAi ? (
+            {generateDescription ? (
               <p className="text-xs text-muted-foreground">
                 Description will be rewritten from the photo
                 {productUrls.length > 0
@@ -370,8 +382,8 @@ function GarmentDetailEditor({
               </div>
               <Switch
                 id={`${formId}-ai`}
-                checked={useAi}
-                onCheckedChange={setUseAi}
+                checked={generateDescription}
+                onCheckedChange={setGenerateDescription}
                 disabled={!canEdit || isPending}
               />
             </div>

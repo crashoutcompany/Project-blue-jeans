@@ -8,10 +8,10 @@ import {
   persistUploadedGarmentItems,
   type CreateGarmentItemInput,
 } from "@/lib/garments/persist-uploaded-garments";
-import { updateGarmentFields } from "@/lib/garments/update-garment";
+import { updateGarmentFields, GARMENT_FIELD_LIMITS } from "@/lib/garments/update-garment";
 import { isGarmentCategoryDb } from "@/lib/garments/types";
 
-/** Allow Vertex describe + optional url_context on PATCH. */
+/** Allow Vertex describe + optional product-page context on PATCH. */
 export const maxDuration = 60;
 
 function revalidateClosetAfterWrite(userId: string) {
@@ -22,6 +22,24 @@ function revalidateClosetAfterWrite(userId: string) {
     revalidatePath("/", "page");
   } catch (e) {
     console.error("[api/closet/garments] revalidate failed", e);
+  }
+}
+
+async function readJsonBody(
+  request: Request,
+): Promise<
+  { ok: true; json: unknown } | { ok: false; response: NextResponse }
+> {
+  try {
+    return { ok: true, json: await request.json() };
+  } catch {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { ok: false as const, message: "Invalid JSON body." },
+        { status: 400 },
+      ),
+    };
   }
 }
 
@@ -113,6 +131,10 @@ function parsePatchBody(json: unknown): PatchBody | null {
   if (typeof r.color !== "string") return null;
   if (typeof r.notes !== "string") return null;
   if (typeof r.description !== "string") return null;
+  if (r.name.length > GARMENT_FIELD_LIMITS.name) return null;
+  if (r.color.length > GARMENT_FIELD_LIMITS.color) return null;
+  if (r.notes.length > GARMENT_FIELD_LIMITS.notes) return null;
+  if (r.description.length > GARMENT_FIELD_LIMITS.description) return null;
   return {
     id: r.id,
     name: r.name,
@@ -135,17 +157,10 @@ export async function POST(request: Request) {
   const gate = await requireAdminUserId();
   if (!gate.ok) return gate.response;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json(
-      { ok: false as const, message: "Invalid JSON body." },
-      { status: 400 },
-    );
-  }
+  const body = await readJsonBody(request);
+  if (!body.ok) return body.response;
 
-  const items = parseCreateBody(json);
+  const items = parseCreateBody(body.json);
   if (!items) {
     return NextResponse.json(
       { ok: false as const, message: "Invalid request body." },
@@ -171,17 +186,10 @@ export async function PATCH(request: Request) {
   const gate = await requireAdminUserId();
   if (!gate.ok) return gate.response;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json(
-      { ok: false as const, message: "Invalid JSON body." },
-      { status: 400 },
-    );
-  }
+  const bodyRead = await readJsonBody(request);
+  if (!bodyRead.ok) return bodyRead.response;
 
-  const body = parsePatchBody(json);
+  const body = parsePatchBody(bodyRead.json);
   if (!body) {
     return NextResponse.json(
       { ok: false as const, message: "Invalid request body." },
@@ -201,7 +209,8 @@ export async function PATCH(request: Request) {
   });
 
   if (!result.ok) {
-    return NextResponse.json(result, { status: 422 });
+    const status = result.message === "Garment not found." ? 404 : 422;
+    return NextResponse.json(result, { status });
   }
 
   revalidateClosetAfterWrite(gate.userId);

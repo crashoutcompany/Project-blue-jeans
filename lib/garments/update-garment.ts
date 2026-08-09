@@ -9,10 +9,20 @@ import {
 } from "@/lib/garments/types";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
-const MAX_NAME_LEN = 200;
-const MAX_COLOR_LEN = 120;
-const MAX_NOTES_LEN = 4000;
-const MAX_DESCRIPTION_LEN = 4000;
+export const GARMENT_FIELD_LIMITS = {
+  name: 200,
+  color: 120,
+  notes: 4000,
+  description: 4000,
+} as const;
+
+const MAX_NAME_LEN = GARMENT_FIELD_LIMITS.name;
+const MAX_COLOR_LEN = GARMENT_FIELD_LIMITS.color;
+const MAX_NOTES_LEN = GARMENT_FIELD_LIMITS.notes;
+const MAX_DESCRIPTION_LEN = GARMENT_FIELD_LIMITS.description;
+
+/** Stay under route `maxDuration` (60s) so the client gets a JSON error, not a gateway cut. */
+const AI_UPDATE_TIMEOUT_MS = 45_000;
 
 export type UpdateGarmentFieldsInput = {
   id: string;
@@ -64,27 +74,6 @@ export async function updateGarmentFields(
 
   try {
     const sql = requireSql();
-    const existing = (await sql`
-      SELECT
-        id,
-        image_url,
-        uploadthing_key,
-        category::text AS category,
-        color,
-        is_favorite,
-        name,
-        notes,
-        description
-      FROM garments
-      WHERE id = ${id}
-        AND user_id = ${userId}
-      LIMIT 1
-    `) as GarmentRow[];
-
-    const row = existing[0];
-    if (!row) {
-      return { ok: false, message: "Garment not found." };
-    }
 
     if (fillName || fillDescription) {
       if (!hasGeminiCredentials()) {
@@ -94,6 +83,30 @@ export async function updateGarmentFields(
             "Missing Vertex credentials. Set GOOGLE_VERTEX_PROJECT and authenticate (see docs/vertex-ai-env.md).",
         };
       }
+
+      const existing = (await sql`
+        SELECT
+          id,
+          image_url,
+          uploadthing_key,
+          category::text AS category,
+          color,
+          is_favorite,
+          name,
+          notes,
+          description
+        FROM garments
+        WHERE id = ${id}
+          AND user_id = ${userId}
+        LIMIT 1
+      `) as GarmentRow[];
+
+      const row = existing[0];
+      if (!row) {
+        return { ok: false, message: "Garment not found." };
+      }
+
+      const abortSignal = AbortSignal.timeout(AI_UPDATE_TIMEOUT_MS);
       try {
         const ai = await analyzeGarmentFromImageUrl({
           imageUrl: row.image_url,
@@ -106,6 +119,7 @@ export async function updateGarmentFields(
           fillName,
           fillDescription,
           fillColor: !color,
+          abortSignal,
         });
         if (fillName) {
           name = ai.name.trim() || name;

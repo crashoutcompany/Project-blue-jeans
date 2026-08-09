@@ -1,6 +1,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 
+import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import { fetchUrlAsImagePart } from "@/lib/ai/fetch-image-part";
 import { geminiModel } from "@/lib/ai/gemini-provider";
 import { GEMINI_STRUCTURE_MODEL } from "@/lib/ai/gemini-models";
@@ -9,6 +10,8 @@ import {
   MAX_PRODUCT_URLS,
 } from "@/lib/ai/garments/extract-product-urls";
 import { fetchProductPageText } from "@/lib/ai/garments/fetch-product-page-text";
+
+const PRODUCT_PAGE_FETCH_CONCURRENCY = 3;
 
 const garmentVisionSchema = z.object({
   name: z
@@ -58,6 +61,7 @@ export type AnalyzeGarmentFromImageParams = {
   notes?: string | null;
   /** Explicit product URLs (merged with any found in notes). */
   productUrls?: string[];
+  abortSignal?: AbortSignal;
 };
 
 export type GarmentImageAnalysis = {
@@ -84,15 +88,18 @@ function resolveProductUrls(params: AnalyzeGarmentFromImageParams): string[] {
 
 async function loadProductExcerpts(
   urls: string[],
+  abortSignal?: AbortSignal,
 ): Promise<Array<{ url: string; text: string }>> {
   if (urls.length === 0) return [];
-  const settled = await Promise.all(
-    urls.map(async (url) => {
-      const text = await fetchProductPageText(url);
+  const results = await mapWithConcurrency(
+    urls,
+    PRODUCT_PAGE_FETCH_CONCURRENCY,
+    async (url) => {
+      const text = await fetchProductPageText(url, { abortSignal });
       return text ? { url, text } : null;
-    }),
+    },
   );
-  return settled.filter((x): x is { url: string; text: string } => x !== null);
+  return results.filter((x): x is { url: string; text: string } => x !== null);
 }
 
 function buildUserText(
@@ -112,10 +119,7 @@ function buildUserText(
       ? "Infer the dominant garment color for the database (hex or short name).\n"
       : "The user already entered a color — set field color to exactly an empty string.\n");
 
-  if (
-    excerpts.length > 0 &&
-    (params.fillName || params.fillDescription)
-  ) {
+  if (excerpts.length > 0 && (params.fillName || params.fillDescription)) {
     text += "\nProduct page excerpts (fetched server-side):\n";
     for (const ex of excerpts) {
       text += `\n--- ${ex.url} ---\n${ex.text}\n`;
@@ -133,16 +137,19 @@ function buildUserText(
 export async function analyzeGarmentFromImageUrl(
   params: AnalyzeGarmentFromImageParams,
 ): Promise<GarmentImageAnalysis> {
-  const part = await fetchUrlAsImagePart(params.imageUrl);
+  const part = await fetchUrlAsImagePart(params.imageUrl, {
+    abortSignal: params.abortSignal,
+  });
   const needsPageContext = params.fillName || params.fillDescription;
   const productUrls = needsPageContext ? resolveProductUrls(params) : [];
-  const excerpts = await loadProductExcerpts(productUrls);
+  const excerpts = await loadProductExcerpts(productUrls, params.abortSignal);
   const userText = buildUserText(params, excerpts);
 
   const { object } = await generateObject({
     model: geminiModel(GEMINI_STRUCTURE_MODEL),
     system: SYSTEM,
     schema: garmentVisionSchema,
+    abortSignal: params.abortSignal,
     messages: [
       {
         role: "user",
