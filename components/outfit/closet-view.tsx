@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { CalendarDays, Plus, Search, X } from "lucide-react";
+import { CalendarDays, Search, X } from "lucide-react";
 
 import { toggleGarmentFavorite } from "@/app/actions/garments";
+import type {
+  GarmentEditSaveInput,
+  GarmentEditSaveResult,
+} from "@/components/outfit/garment-detail-sheet";
 import {
   ClosetImageUpload,
   type ClosetPendingLocalImage,
@@ -19,7 +23,6 @@ import type { ClothingCardData } from "@/lib/garments/types";
 import type { ClosetSavedOutfit } from "@/lib/outfits/closet-saved-outfits";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useSidebar } from "@/components/ui/sidebar";
 import { ClothingCard } from "@/components/outfit/clothing-card";
 import { GarmentDetailSheet } from "@/components/outfit/garment-detail-sheet";
 import { OutfitDetailSheet } from "@/components/outfit/outfit-detail-sheet";
@@ -58,6 +61,7 @@ function optimisticGarmentFromDraft(
     isFavorite: false,
     color: draft.color?.trim() || null,
     description: draft.description?.trim() || null,
+    notes: draft.notes?.trim() || null,
   };
 }
 
@@ -82,10 +86,8 @@ export function ClosetView({
   savedOutfits?: ClosetSavedOutfit[];
 }) {
   const [, startTransition] = useTransition();
-  const { state: sidebarState, isMobile } = useSidebar();
   const [serverGarments, setServerGarments] = useState(initialGarments);
   const [outfitArchive, setOutfitArchive] = useState(savedOutfits);
-  const addZoneRef = useRef<HTMLDivElement>(null);
 
   const outfitSignature = useMemo(
     () =>
@@ -122,7 +124,6 @@ export function ClosetView({
   const [pendingDrafts, setPendingDrafts] = useState<GarmentUploadDraft[]>([]);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [savingDrafts, setSavingDrafts] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
 
   const previewUrlsRef = useRef<Set<string>>(new Set());
   previewUrlsRef.current = new Set(pendingDrafts.map((d) => d.previewUrl));
@@ -160,7 +161,15 @@ export function ClosetView({
       if (!garmentMatchesColorFacet(g, colorId)) return false;
       if (query.trim()) {
         const q = query.toLowerCase();
-        const hay = [g.name, g.category, g.color, g.colorLabel, g.material]
+        const hay = [
+          g.name,
+          g.category,
+          g.color,
+          g.colorLabel,
+          g.material,
+          g.description,
+          g.notes,
+        ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -178,21 +187,8 @@ export function ClosetView({
   const pieceLabel =
     garments.length === 1 ? "1 piece" : `${garments.length} pieces`;
 
-  function openAddZone() {
-    setMode("pieces");
-    setAddOpen(true);
-    setCategory("all");
-    requestAnimationFrame(() => {
-      addZoneRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-  }
-
   function handleFilesReady(items: ClosetPendingLocalImage[]) {
     setPersistError(null);
-    setAddOpen(true);
     setPendingDrafts((prev) => [
       ...prev,
       ...items.map(garmentDraftFromLocalPick),
@@ -261,7 +257,6 @@ export function ClosetView({
         );
         draftsSnapshot.forEach((d) => URL.revokeObjectURL(d.previewUrl));
         setPendingDrafts([]);
-        setAddOpen(false);
         // Update base state only — also calling useOptimistic with the same
         // rows would duplicate garments until the next server refresh.
         startTransition(() => {
@@ -306,8 +301,8 @@ export function ClosetView({
     });
   }
 
-  async function handleToggleFavorite(id: string) {
-    if (id.startsWith("pending:")) return;
+  async function handleToggleFavorite(id: string): Promise<boolean> {
+    if (id.startsWith("pending:")) return false;
     const result = await toggleGarmentFavorite(id);
     if (result.ok) {
       setServerGarments((prev) =>
@@ -315,6 +310,51 @@ export function ClosetView({
           g.id === id ? { ...g, isFavorite: !g.isFavorite } : g,
         ),
       );
+      return true;
+    }
+    return false;
+  }
+
+  async function handleSaveGarment(
+    input: GarmentEditSaveInput,
+  ): Promise<GarmentEditSaveResult> {
+    if (input.id.startsWith("pending:")) {
+      return { ok: false, message: "Finish uploading before editing." };
+    }
+    try {
+      const res = await fetch("/api/closet/garments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      let result: GarmentEditSaveResult | null = null;
+      try {
+        result = (await res.json()) as GarmentEditSaveResult;
+      } catch {
+        return {
+          ok: false,
+          message: `Save failed (${res.status}). Try again.`,
+        };
+      }
+      if (!result?.ok) {
+        return {
+          ok: false,
+          message:
+            result && "message" in result && typeof result.message === "string"
+              ? result.message
+              : `Save failed (${res.status}). Try again.`,
+        };
+      }
+      setServerGarments((prev) =>
+        prev.map((g) => (g.id === result.garment.id ? result.garment : g)),
+      );
+      return result;
+    } catch (error) {
+      console.error("[closet] update garment", error);
+      return {
+        ok: false,
+        message: "Could not save that piece. Try again in a moment.",
+      };
     }
   }
 
@@ -331,7 +371,7 @@ export function ClosetView({
       : (outfitArchive.find((o) => o.id === selectedOutfitId) ?? null);
 
   return (
-    <div className="relative flex flex-col pb-8">
+    <div className="relative flex min-h-[calc(100svh-5rem)] flex-col">
       <header className="flex flex-col px-1 pt-2 sm:px-0 sm:pt-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="text-[13px] font-medium uppercase tracking-[0.1em] leading-none text-foreground">
@@ -438,80 +478,6 @@ export function ClosetView({
         </div>
       </header>
 
-      {addOpen || pendingDrafts.length > 0 ? (
-        <div
-          ref={addZoneRef}
-          className="mt-10 border border-dashed border-border/70 bg-background/40 px-5 py-8 sm:px-8"
-        >
-          <div className="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
-            <p className="text-[0.7rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-              New archive piece
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Photos stay on your device until you add them to the closet.
-            </p>
-            <ClosetImageUpload
-              onFilesReady={handleFilesReady}
-              disabled={savingDrafts}
-            />
-            {persistError ? (
-              <p className="max-w-xs text-sm text-destructive">
-                {persistError}
-              </p>
-            ) : null}
-            {pendingDrafts.length === 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
-                onClick={() => setAddOpen(false)}
-              >
-                Cancel
-              </Button>
-            ) : null}
-          </div>
-
-          {pendingDrafts.length > 0 ? (
-            <div className="mt-8 flex min-h-0 w-full flex-col gap-4 border-t border-border/50 pt-6">
-              <p className="text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Ready to save
-              </p>
-              <div className="flex max-h-[min(70vh,640px)] flex-col gap-4 overflow-y-auto overscroll-y-contain pr-1">
-                {pendingDrafts.map((d) => (
-                  <ClosetGarmentDraftCard
-                    key={d.clientKey}
-                    draft={d}
-                    disabled={savingDrafts}
-                    onChange={(patch) => updateDraft(d.clientKey, patch)}
-                    onRemove={() => removeDraft(d.clientKey)}
-                  />
-                ))}
-              </div>
-              <div className="flex shrink-0 flex-col gap-3 pt-2 sm:flex-row sm:justify-center">
-                <Button
-                  type="button"
-                  className="rounded-none"
-                  disabled={savingDrafts}
-                  onClick={() => void handleSavePendingToCloset()}
-                >
-                  {savingDrafts ? "Uploading & saving…" : "Add to closet"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-none"
-                  disabled={savingDrafts}
-                  onClick={handleClearPending}
-                >
-                  Clear queue
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
       {mode === "outfits" ? (
         <section className="mt-11 sm:mt-12" aria-label="Saved outfits">
           {outfitArchive.length === 0 ? (
@@ -592,39 +558,72 @@ export function ClosetView({
         </div>
       ) : null}
 
-      {showGarments && filtered.length === 0 && !addOpen ? (
+      {showGarments && filtered.length === 0 ? (
         <p className="mt-16 px-1 text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground sm:px-0">
           No pieces in this filter
         </p>
       ) : null}
 
-      {/* Fixed FAB clears the sidebar; expands to “Add clothes” on hover like wardrobe. */}
-      {showGarments ? (
-        <button
-          type="button"
-          onClick={openAddZone}
-          aria-label="Add clothes"
-          style={{
-            left:
-              isMobile || sidebarState === "collapsed"
-                ? "1.125rem"
-                : "calc(var(--sidebar-width) + 1.125rem)",
-          }}
-          className="group/tray fixed bottom-[max(1.125rem,env(safe-area-inset-bottom))] z-30 flex min-h-12 items-center gap-0 overflow-hidden rounded-full border border-white/10 bg-foreground p-1 text-background shadow-[0_8px_28px_rgba(25,23,18,0.2)] transition-[left,box-shadow] duration-220 ease-out hover:shadow-[0_12px_36px_rgba(25,23,18,0.26)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
-        >
-          <span className="grid size-10 shrink-0 place-items-center rounded-full transition-colors duration-160 group-hover/tray:bg-white/12 group-focus-visible/tray:bg-white/12">
-            <Plus className="size-[19px]" strokeWidth={2} />
-          </span>
-          <span
-            aria-hidden
-            className="flex max-w-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity] duration-320 ease-[cubic-bezier(0.2,0.7,0.2,1)] group-hover/tray:max-w-[11rem] group-hover/tray:opacity-100 group-focus-visible/tray:max-w-[11rem] group-focus-visible/tray:opacity-100"
-          >
-            <span className="whitespace-nowrap px-2.5 pr-3 text-xs tracking-[0.01em]">
-              Add clothes
-            </span>
-          </span>
-        </button>
-      ) : null}
+
+      {/* Always docked at the bottom of the closet shell. */}
+      <div
+        className="sticky bottom-0 z-20 mt-auto border border-dashed border-border/70 bg-background/95 px-5 py-6 backdrop-blur-sm sm:px-8"
+        data-testid="closet-add-zone"
+      >
+        <div className="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
+          <p className="text-[0.7rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            New archive piece
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Photos stay on your device until you add them to the closet.
+          </p>
+          <ClosetImageUpload
+            onFilesReady={handleFilesReady}
+            disabled={savingDrafts}
+          />
+          {persistError ? (
+            <p className="max-w-xs text-sm text-destructive">{persistError}</p>
+          ) : null}
+        </div>
+
+        {pendingDrafts.length > 0 ? (
+          <div className="mt-8 flex min-h-0 w-full flex-col gap-4 border-t border-border/50 pt-6">
+            <p className="text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Ready to save
+            </p>
+            <div className="flex max-h-[min(50vh,480px)] flex-col gap-4 overflow-y-auto overscroll-y-contain pr-1">
+              {pendingDrafts.map((d) => (
+                <ClosetGarmentDraftCard
+                  key={d.clientKey}
+                  draft={d}
+                  disabled={savingDrafts}
+                  onChange={(patch) => updateDraft(d.clientKey, patch)}
+                  onRemove={() => removeDraft(d.clientKey)}
+                />
+              ))}
+            </div>
+            <div className="flex shrink-0 flex-col gap-3 pt-2 sm:flex-row sm:justify-center">
+              <Button
+                type="button"
+                className="rounded-none"
+                disabled={savingDrafts}
+                onClick={() => void handleSavePendingToCloset()}
+              >
+                {savingDrafts ? "Uploading & saving…" : "Add to closet"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none"
+                disabled={savingDrafts}
+                onClick={handleClearPending}
+              >
+                Clear queue
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <GarmentDetailSheet
         garment={selectedGarment}
@@ -632,6 +631,7 @@ export function ClosetView({
           if (!open) setSelectedId(null);
         }}
         onToggleFavorite={handleToggleFavorite}
+        onSave={handleSaveGarment}
       />
 
       <OutfitDetailSheet

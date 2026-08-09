@@ -13,7 +13,7 @@ test.describe("admin session", () => {
   test("loads closet", async ({ page }) => {
     await page.goto("/closet");
     await expect(
-      page.getByRole("button", { name: "Add clothes" }),
+      page.getByRole("button", { name: "Choose photos" }),
     ).toBeVisible();
   });
 

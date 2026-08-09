@@ -57,7 +57,7 @@ export function ClosetGarmentDraftCard({
   disabled,
 }: ClosetGarmentDraftCardProps) {
   return (
-    <Card className="overflow-hidden border border-border/80 bg-card shadow-sm">
+    <Card className="shrink-0 overflow-hidden border border-border/80 bg-card shadow-sm">
       <CardContent className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
           <div className="relative mx-auto aspect-square w-full max-w-[140px] shrink-0 overflow-hidden rounded-2xl bg-muted sm:mx-0">
@@ -161,7 +161,7 @@ export function ClosetGarmentDraftCard({
                 value={draft.notes}
                 onChange={(e) => onChange({ notes: e.target.value })}
                 disabled={disabled}
-                placeholder="Fit, fabric, care…"
+                placeholder="Fit, fabric, care, or a product page URL…"
                 rows={2}
                 className="min-h-[4.5rem] resize-y rounded-lg text-sm"
               />

@@ -9,7 +9,7 @@ test.describe("closet (admin)", () => {
   test("shows closet on /closet", async ({ page }) => {
     await page.goto("/closet");
     await expect(
-      page.getByRole("button", { name: "Add clothes" }),
+      page.getByRole("button", { name: "Choose photos" }),
     ).toBeVisible();
   });
 
@@ -17,7 +17,7 @@ test.describe("closet (admin)", () => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/closet/);
     await expect(
-      page.getByRole("button", { name: "Add clothes" }),
+      page.getByRole("button", { name: "Choose photos" }),
     ).toBeVisible();
   });
 });

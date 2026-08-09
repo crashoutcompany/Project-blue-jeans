@@ -1,5 +1,6 @@
 import { analyzeGarmentFromImageUrl } from "@/lib/ai/garments/describe-from-image";
 import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
+import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import { requireSql } from "@/lib/db";
 import {
   isGarmentCategoryDb,
@@ -11,6 +12,8 @@ const MAX_NAME_LEN = 200;
 const MAX_COLOR_LEN = 120;
 const MAX_NOTES_LEN = 4000;
 const MAX_DESCRIPTION_LEN = 4000;
+/** Cap parallel Vertex describe calls so a 24-file batch stays within route time limits. */
+const AI_DESCRIBE_CONCURRENCY = 3;
 
 function canUseGemini(): boolean {
   return hasGeminiCredentials();
@@ -54,8 +57,11 @@ async function resolveGarmentAiFields(
       imageUrl: item.url.trim(),
       name: displayName,
       category: item.category,
+      notes: item.notes,
+      maxNameLen: MAX_NAME_LEN,
       maxDescriptionLen: MAX_DESCRIPTION_LEN,
       maxColorLen: MAX_COLOR_LEN,
+      fillName: false,
       fillDescription: !hasDesc,
       fillColor: !hasColor,
     });
@@ -122,8 +128,10 @@ export async function persistUploadedGarmentItems(
   try {
     const sql = requireSql();
 
-    const rows = await Promise.all(
-      items.map(async (item) => {
+    const rows = await mapWithConcurrency(
+      items,
+      AI_DESCRIBE_CONCURRENCY,
+      async (item) => {
         const displayName =
           item.name.trim().slice(0, MAX_NAME_LEN) || "Untitled";
         const colorRaw = item.color?.trim().slice(0, MAX_COLOR_LEN) ?? "";
@@ -145,7 +153,7 @@ export async function persistUploadedGarmentItems(
           notes,
           description,
         };
-      }),
+      },
     );
 
     const inserts = rows.map(
