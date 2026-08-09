@@ -22,7 +22,11 @@ describe("isAdminUser", () => {
   const prev = process.env.APP_ADMIN_EMAILS;
 
   afterEach(() => {
-    process.env.APP_ADMIN_EMAILS = prev;
+    if (prev === undefined) {
+      delete process.env.APP_ADMIN_EMAILS;
+    } else {
+      process.env.APP_ADMIN_EMAILS = prev;
+    }
   });
 
   it("returns true when role is admin", () => {

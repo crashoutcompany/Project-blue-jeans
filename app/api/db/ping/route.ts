@@ -11,7 +11,13 @@ import { safeClientMessage } from "@/lib/server/safe-client-error";
  */
 export async function GET() {
   await connection();
-  const { data } = await auth.getSession();
+  let data: Awaited<ReturnType<typeof auth.getSession>>["data"];
+  try {
+    ({ data } = await auth.getSession());
+  } catch (e) {
+    console.error("[api/db/ping] getSession failed", e);
+    return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
+  }
   if (!data?.user) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }

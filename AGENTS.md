@@ -17,7 +17,7 @@ There is one local process — the **Next.js dev server**. Everything else is a 
 - Run (dev): `npm run dev` → http://localhost:3000
 - Lint: `npm run lint`
 - Build: `npm run build`
-- There is **no test suite / `test` script**.
+- Unit tests: `npm run test` (Vitest). E2E: `npm run build:instant` then `npm run test:e2e` (Playwright; needs `EXPOSE_TESTING_API=1` / `E2E_PLAYWRIGHT=1` as in CI).
 
 ### Non-obvious notes
 

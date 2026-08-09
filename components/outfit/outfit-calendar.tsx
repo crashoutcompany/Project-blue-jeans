@@ -101,6 +101,8 @@ export function OutfitCalendar({
           return;
         }
         router.refresh();
+      } catch {
+        setActionError("Could not save this outfit. Try again.");
       } finally {
         setPendingLookId(null);
       }

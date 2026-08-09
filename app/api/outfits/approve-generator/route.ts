@@ -68,7 +68,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await executeApproveGeneratorOutfit(userId, parsed.data);
+  let result;
+  try {
+    result = await executeApproveGeneratorOutfit(userId, parsed.data);
+  } catch (e) {
+    console.error("[api/outfits/approve-generator] save failed", e);
+    return NextResponse.json(
+      { ok: false as const, message: "Could not save this outfit." },
+      { status: 500 },
+    );
+  }
   if (!result.ok) {
     return NextResponse.json(result, { status: 422 });
   }

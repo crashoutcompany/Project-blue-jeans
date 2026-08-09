@@ -32,17 +32,21 @@ export function createE2ePlaywrightAuth() {
         };
       }
 
-      return {
-        data: {
-          user: {
-            id: "e2e-admin",
-            email:
-              process.env.E2E_ADMIN_EMAIL?.trim() || "e2e-admin@example.com",
-            role: "admin",
-            name: "E2E Admin",
+      if (role === "admin") {
+        return {
+          data: {
+            user: {
+              id: "e2e-admin",
+              email:
+                process.env.E2E_ADMIN_EMAIL?.trim() || "e2e-admin@example.com",
+              role: "admin",
+              name: "E2E Admin",
+            },
           },
-        },
-      };
+        };
+      }
+
+      return { data: null };
     },
 
     middleware: (opts: { loginUrl: string }) => {

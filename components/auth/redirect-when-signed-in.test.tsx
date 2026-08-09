@@ -33,7 +33,7 @@ describe("RedirectWhenSignedIn", () => {
     });
   });
 
-  it("redirects to dashboard when session exists on sign-in", async () => {
+  it("redirects to Today when session exists on sign-in", async () => {
     hoisted.getSession.mockResolvedValue({ data: { session: { id: "s" } } });
     render(<RedirectWhenSignedIn path="sign-in" />);
     await waitFor(() => {

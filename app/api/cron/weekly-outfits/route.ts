@@ -66,29 +66,42 @@ export async function GET(request: Request) {
     error?: string;
   }> = [];
 
+  const startTime = Date.now();
+  const maxRuntimeMs =
+    typeof maxDuration === "number" ? maxDuration * 1000 : 280_000;
+
   for (const userId of userIds) {
-    const result = await runWeeklyOutfitsJob({
-      userId,
-      weekStart,
-      climate: "Temperate",
-      context: "Everyday week",
-      narrative: "",
-    });
-    if (!result.ok) {
+    if (Date.now() - startTime >= maxRuntimeMs) {
+      break;
+    }
+
+    try {
+      const result = await runWeeklyOutfitsJob({
+        userId,
+        weekStart,
+        climate: "Temperate",
+        context: "Everyday week",
+        narrative: "",
+      });
+      if (!result.ok) {
+        results.push({
+          userId,
+          ok: false,
+          planId: result.planId,
+          error: result.error,
+        });
+        continue;
+      }
       results.push({
         userId,
-        ok: false,
+        ok: true,
+        skipped: result.skipped,
         planId: result.planId,
-        error: result.error,
       });
-      continue;
+    } catch (e) {
+      console.error("[cron/weekly-outfits] job failed", { userId, error: e });
+      results.push({ userId, ok: false, error: "Unexpected error" });
     }
-    results.push({
-      userId,
-      ok: true,
-      skipped: result.skipped,
-      planId: result.planId,
-    });
   }
 
   const failed = results.filter((r) => !r.ok);

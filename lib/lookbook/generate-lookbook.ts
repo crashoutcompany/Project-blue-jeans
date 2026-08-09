@@ -59,7 +59,10 @@ export async function generateLookbook(
     };
   }
 
-  const lookCount = input.lookCount ?? 3;
+  const rawLookCount = input.lookCount ?? 3;
+  const lookCount = Number.isFinite(rawLookCount)
+    ? Math.min(3, Math.max(1, Math.floor(rawLookCount)))
+    : 3;
   const narrative = input.narrative.trim().slice(0, MAX_NARRATIVE);
   const climate = (input.climate?.trim() || DEFAULT_CLIMATE).slice(0, 80);
   const context = (input.context?.trim() || DEFAULT_CONTEXT).slice(0, 80);

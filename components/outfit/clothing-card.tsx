@@ -68,7 +68,7 @@ export function ClothingCard({
       type="button"
       onClick={() => onSelect(garment)}
       aria-label={`View details for ${garment.name}`}
-      aria-pressed={selected}
+      aria-current={selected ? "true" : undefined}
       className={tileClassName}
       style={tileStyle}
     >

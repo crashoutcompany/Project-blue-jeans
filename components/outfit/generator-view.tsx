@@ -295,6 +295,10 @@ export function GeneratorView({
         }
         setApprovedByMessage((prev) => ({ ...prev, [messageId]: look.id }));
         onApproved?.();
+      } catch {
+        setError(
+          "Could not reach the server. Check your connection and try again.",
+        );
       } finally {
         setApproveSavingLookId(null);
       }
@@ -320,7 +324,8 @@ export function GeneratorView({
 
   function buildNarrative(latest: string) {
     const thread = [...pastUserPrompts, latest].join("\n\n");
-    return thread.slice(0, MAX_NARRATIVE);
+    if (thread.length <= MAX_NARRATIVE) return thread;
+    return thread.slice(thread.length - MAX_NARRATIVE);
   }
 
   function runGeneration(userText: string) {

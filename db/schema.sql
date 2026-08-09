@@ -98,13 +98,17 @@ CREATE INDEX IF NOT EXISTS outfit_garments_garment_idx ON outfit_garments (garme
 CREATE INDEX IF NOT EXISTS outfit_garments_outfit_sort_idx ON outfit_garments (outfit_id, sort_order);
 
 -- Day a Wearer committed an Outfit (one Outfit identity, many wear dates).
+-- Composite FK keeps wear.user_id aligned with the parent outfit owner.
+CREATE UNIQUE INDEX IF NOT EXISTS outfits_id_user_uidx ON outfits (id, user_id);
+
 CREATE TABLE IF NOT EXISTS outfit_wears (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  outfit_id uuid NOT NULL REFERENCES outfits (id) ON DELETE CASCADE,
+  outfit_id uuid NOT NULL,
   user_id text NOT NULL,
   worn_on date NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (user_id, worn_on)
+  UNIQUE (user_id, worn_on),
+  FOREIGN KEY (outfit_id, user_id) REFERENCES outfits (id, user_id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS outfit_wears_outfit_idx ON outfit_wears (outfit_id);

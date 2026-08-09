@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   useEffect,
   useMemo,
-  useOptimistic,
   useRef,
   useState,
   useTransition,
@@ -38,6 +37,7 @@ import {
   buildColorFacetsFromGarments,
   garmentMatchesColorFacet,
 } from "@/lib/garments/color-facets";
+import { PRODUCT_TIME_ZONE } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -70,11 +70,14 @@ function optimisticGarmentFromDraft(
 function formatWornOn(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return iso;
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+  // Noon UTC + product TZ avoids browser-local day shifts for YYYY-MM-DD.
+  const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: PRODUCT_TIME_ZONE,
     weekday: "short",
     month: "short",
     day: "numeric",
-  });
+  }).format(utc);
 }
 
 export function ClosetView({
@@ -106,14 +109,14 @@ export function ClosetView({
       `${initialGarments.length}\0${[...initialGarments.map((g) => g.id)].sort().join("\0")}`,
     [initialGarments],
   );
-  useEffect(() => {
+  const [seenGarmentSignature, setSeenGarmentSignature] =
+    useState(garmentSignature);
+  if (garmentSignature !== seenGarmentSignature) {
+    setSeenGarmentSignature(garmentSignature);
     setServerGarments(initialGarments);
-  }, [initialGarments, garmentSignature]);
+  }
 
-  const [garments, addOptimisticGarments] = useOptimistic(
-    serverGarments,
-    (current, toAdd: ClothingCardData[]) => [...toAdd, ...current],
-  );
+  const garments = serverGarments;
 
   const [mode, setMode] = useState<ClosetMode>("pieces");
   const [category, setCategory] = useState<CategoryFilterId>("all");
@@ -261,8 +264,9 @@ export function ClosetView({
         draftsSnapshot.forEach((d) => URL.revokeObjectURL(d.previewUrl));
         setPendingDrafts([]);
         setAddOpen(false);
+        // Update base state only — also calling useOptimistic with the same
+        // rows would duplicate garments until the next server refresh.
         startTransition(() => {
-          addOptimisticGarments(added);
           setServerGarments((prev) => [...added, ...prev]);
         });
       } else {

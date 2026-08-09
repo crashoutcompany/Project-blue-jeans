@@ -72,6 +72,7 @@ async function loadOutfitForDay(
     INNER JOIN outfits o ON o.id = w.outfit_id
     LEFT JOIN outfit_garments og ON og.outfit_id = o.id
     WHERE w.user_id = ${userId}
+      AND o.user_id = ${userId}
       AND w.worn_on = ${wornOn}::date
     GROUP BY o.id
     ORDER BY o.created_at DESC

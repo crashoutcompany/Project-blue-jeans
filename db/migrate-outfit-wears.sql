@@ -1,12 +1,18 @@
 -- Migrate existing Neon DBs: Outfit identity + many wear dates.
 -- Run once in the Neon SQL editor after pulling this change.
 -- Fresh installs: prefer db/schema.sql (already includes these objects).
+--
+-- REQUIRED ORDER: run this file, then migrate-wearer-profile.sql, then
+-- migrate-per-account.sql. Until per-account runs, UNIQUE(worn_on) and
+-- outfits_garment_set_key_uidx are GLOBAL (pre-user_id). migrate-per-account
+-- replaces them with per-user uniqueness and scopes garment-set dedupe.
 
 CREATE TABLE IF NOT EXISTS outfit_wears (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   outfit_id uuid NOT NULL REFERENCES outfits (id) ON DELETE CASCADE,
   worn_on date NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
+  -- Temporary global day uniqueness; migrate-per-account → (user_id, worn_on).
   UNIQUE (worn_on)
 );
 
@@ -37,7 +43,8 @@ FROM (
 WHERE o.id = sub.outfit_id
   AND (o.garment_set_key IS NULL OR o.garment_set_key = '');
 
--- Merge duplicate garment sets: keep the newest outfit, move wears, drop extras.
+-- Merge duplicate garment sets (global; pre-user_id): keep newest, move wears, drop extras.
+-- After migrate-per-account, uniqueness is (user_id, garment_set_key).
 DO $$
 DECLARE
   r record;

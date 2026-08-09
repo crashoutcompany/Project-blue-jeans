@@ -82,7 +82,7 @@ export function OutfitDetailSheet({
         return;
       }
       setConfirmReplace(false);
-      onOpenChange(false);
+      handleOpenChange(false);
       router.push("/");
       router.refresh();
     });
@@ -102,7 +102,7 @@ export function OutfitDetailSheet({
         setError(res.message);
         return;
       }
-      onOpenChange(false);
+      handleOpenChange(false);
       router.push("/");
       router.refresh();
     });

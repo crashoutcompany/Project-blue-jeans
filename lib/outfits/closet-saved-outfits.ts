@@ -57,7 +57,9 @@ export async function loadSavedOutfitsForCloset(
           '{}'
         ) AS garment_ids
       FROM outfits o
-      INNER JOIN outfit_wears w ON w.outfit_id = o.id
+      INNER JOIN outfit_wears w
+        ON w.outfit_id = o.id
+       AND w.user_id = ${userId}
       WHERE o.user_id = ${userId}
       GROUP BY o.id
       ORDER BY max(w.worn_on) DESC, o.created_at DESC

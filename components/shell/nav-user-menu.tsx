@@ -53,8 +53,8 @@ export function NavUserMenu({
 
   const user = data.user;
   const initial =
-    user.name?.trim()?.charAt(0)?.toUpperCase() ??
-    user.email?.charAt(0)?.toUpperCase() ??
+    user.name?.trim().charAt(0).toUpperCase() ||
+    user.email?.trim().charAt(0).toUpperCase() ||
     "?";
 
   return (

@@ -149,8 +149,8 @@ export async function persistUploadedGarmentItems(
       }),
     );
 
-    for (const row of rows) {
-      await sql`
+    const inserts = rows.map(
+      (row) => sql`
         INSERT INTO garments (
           image_url,
           uploadthing_key,
@@ -171,7 +171,14 @@ export async function persistUploadedGarmentItems(
           ${row.description},
           ${userId}
         )
-      `;
+      `,
+    );
+    if (typeof sql.transaction === "function") {
+      await sql.transaction(inserts);
+    } else {
+      for (const q of inserts) {
+        await q;
+      }
     }
 
     return { ok: true };

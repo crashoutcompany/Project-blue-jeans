@@ -56,7 +56,11 @@ export function ClosetImageUpload({
 
   const prepareAndEmit = useCallback(
     async (files: File[]) => {
-      if (!files.length || disabled || inFlightRef.current) return;
+      if (!files.length || disabled) return;
+      if (inFlightRef.current) {
+        setError("Still preparing the previous images. Wait, then try again.");
+        return;
+      }
       inFlightRef.current = true;
       setError(null);
       setPhase("preparing");

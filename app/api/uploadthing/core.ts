@@ -1,5 +1,6 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 
+import { isAdminUser } from "@/lib/auth/admin";
 import { auth } from "@/lib/auth/server";
 
 const f = createUploadthing();
@@ -17,8 +18,9 @@ export const ourFileRouter = {
       if (!data?.user) {
         throw new Error("Unauthorized");
       }
-      // Closet UI is admin-only; `role` is sometimes missing from session in this
-      // route context — requiring admin here caused uploads to fail while the DB save path worked.
+      if (!isAdminUser(data.user)) {
+        throw new Error("Forbidden");
+      }
       return { source: "closet" as const };
     })
     .onUploadComplete(async ({ metadata, file }) => {
@@ -40,6 +42,9 @@ export const ourFileRouter = {
       const { data } = await auth.getSession();
       if (!data?.user) {
         throw new Error("Unauthorized");
+      }
+      if (!isAdminUser(data.user)) {
+        throw new Error("Forbidden");
       }
       return { source: "wearer" as const };
     })
