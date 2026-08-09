@@ -28,6 +28,7 @@ export default defineConfig({
       E2E_PLAYWRIGHT: "1",
       PORT: "3000",
       HOSTNAME: "127.0.0.1",
+      EXPOSE_TESTING_API: process.env.EXPOSE_TESTING_API ?? "1",
       NEON_AUTH_BASE_URL:
         process.env.NEON_AUTH_BASE_URL ?? "https://example.invalid",
       NEON_AUTH_COOKIE_SECRET:

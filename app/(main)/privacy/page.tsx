@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function PrivacyPage() {
   return (
-    <div className="mx-auto max-w-lg px-4 py-16 text-center">
+    <div className="mx-auto max-w-lg px-4 py-16 text-center" data-testid="privacy-shell-marker">
       <h1 className="font-serif text-2xl text-foreground">Privacy</h1>
       <p className="mt-3 text-sm text-muted-foreground">
         This policy is being prepared. Check back soon.

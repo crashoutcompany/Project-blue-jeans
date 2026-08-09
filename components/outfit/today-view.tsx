@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
@@ -19,16 +19,29 @@ import { Button, buttonVariants } from "@/components/ui/button";
 export function TodayView({
   data,
   closetGarments,
-  initialChangeLookOpen = false,
 }: {
   data: TodayPageData;
   closetGarments: ClothingCardData[];
-  initialChangeLookOpen?: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const changeLookFromUrl = searchParams.get("change-look") === "1";
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [changeLookOpen, setChangeLookOpen] = useState(initialChangeLookOpen);
+  const [manualChangeLookOpen, setManualChangeLookOpen] = useState(false);
+  // URL deep-link (?change-look=1) or in-page "Change look" — no effect sync.
+  const changeLookOpen = changeLookFromUrl || manualChangeLookOpen;
+
+  function setChangeLookOpen(open: boolean) {
+    if (open) {
+      setManualChangeLookOpen(true);
+      return;
+    }
+    setManualChangeLookOpen(false);
+    if (changeLookFromUrl) {
+      router.replace("/");
+    }
+  }
 
   if (data.garmentCount === 0) {
     return (

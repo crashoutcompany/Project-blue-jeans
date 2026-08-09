@@ -1,11 +1,9 @@
 import react from "@vitejs/plugin-react";
+import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  resolve: {
-    tsconfigPaths: true,
-  },
-  plugins: [react()],
+  plugins: [tsconfigPaths({ projects: ["./tsconfig.vitest.json"] }), react()],
   test: {
     globals: true,
     exclude: [
@@ -17,10 +15,10 @@ export default defineConfig({
     ],
     projects: [
       {
-        resolve: {
-          tsconfigPaths: true,
-        },
-        plugins: [react()],
+        plugins: [
+          tsconfigPaths({ projects: ["./tsconfig.vitest.json"] }),
+          react(),
+        ],
         test: {
           name: "node",
           environment: "node",
@@ -29,10 +27,10 @@ export default defineConfig({
         },
       },
       {
-        resolve: {
-          tsconfigPaths: true,
-        },
-        plugins: [react()],
+        plugins: [
+          tsconfigPaths({ projects: ["./tsconfig.vitest.json"] }),
+          react(),
+        ],
         test: {
           name: "components",
           environment: "jsdom",

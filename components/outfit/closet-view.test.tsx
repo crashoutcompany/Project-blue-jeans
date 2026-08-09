@@ -20,17 +20,24 @@ vi.mock("@/lib/uploadthing", () => ({
   }),
 }));
 
-vi.mock("@/components/ui/sidebar", () => ({
-  useSidebar: () => ({
-    state: "expanded",
-    isMobile: false,
-    open: true,
-    setOpen: vi.fn(),
-    openMobile: false,
-    setOpenMobile: vi.fn(),
-    toggleSidebar: vi.fn(),
-  }),
-}));
+vi.mock("@/components/ui/sidebar", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/components/ui/sidebar")>(
+      "@/components/ui/sidebar",
+    );
+  return {
+    ...actual,
+    useSidebar: () => ({
+      state: "expanded",
+      open: true,
+      setOpen: vi.fn(),
+      openMobile: false,
+      setOpenMobile: vi.fn(),
+      isMobile: false,
+      toggleSidebar: vi.fn(),
+    }),
+  };
+});
 
 import { ClosetView } from "@/components/outfit/closet-view";
 

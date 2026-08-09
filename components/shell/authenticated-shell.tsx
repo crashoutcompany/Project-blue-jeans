@@ -5,21 +5,31 @@ import { MainChrome } from "@/components/shell/main-chrome";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { requireAdminAccess } from "@/lib/auth/admin";
 
+/** Request-time admin gate; suspends during prerender so the shell can build. */
+async function AdminAccessGate() {
+  await requireAdminAccess();
+  return null;
+}
+
 /**
  * Authenticated app chrome (sidebar + header). Used by `(main)` layout and
  * signed-in `/` (Today).
  */
-export async function AuthenticatedShell({
+export function AuthenticatedShell({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireAdminAccess();
-
   return (
     <SidebarProvider defaultOpen>
       <AppSidebar />
-      <SidebarInset className="min-h-svh overflow-x-hidden">
+      <SidebarInset
+        className="min-h-svh overflow-x-hidden"
+        data-testid="main-shell-marker"
+      >
+        <Suspense fallback={null}>
+          <AdminAccessGate />
+        </Suspense>
         <MainChrome>{children}</MainChrome>
       </SidebarInset>
     </SidebarProvider>
@@ -31,9 +41,5 @@ export function AuthenticatedShellSuspense({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <Suspense fallback={<div className="min-h-svh bg-background" />}>
-      <AuthenticatedShell>{children}</AuthenticatedShell>
-    </Suspense>
-  );
+  return <AuthenticatedShell>{children}</AuthenticatedShell>;
 }

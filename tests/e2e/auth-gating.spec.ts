@@ -29,8 +29,6 @@ test.describe("admin session", () => {
   });
 });
 
-
-
 test.describe("non-admin session", () => {
   test.use({ storageState: "tests/e2e/.auth/non-admin.json" });
 

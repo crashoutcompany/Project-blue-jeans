@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { connection } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
@@ -17,11 +18,15 @@ export const metadata: Metadata = {
     "Decide what to wear today — from clothes you already own.",
 };
 
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ "change-look"?: string }>;
-}) {
+function LandingShell() {
+  return (
+    <div data-testid="landing-shell-marker">
+      <LandingPage />
+    </div>
+  );
+}
+
+async function HomeContent() {
   await connection();
   noStore();
   const { data } = await auth.getSession();
@@ -36,21 +41,33 @@ export default async function HomePage({
     if (!userId) {
       redirect("/auth/sign-in");
     }
-    const params = await searchParams;
     const [todayData, closetGarments] = await Promise.all([
       loadTodayPageData(userId),
       getClosetGarmentsCached(userId),
     ]);
     return (
       <AuthenticatedShellSuspense>
-        <TodayView
-          data={todayData}
-          closetGarments={closetGarments}
-          initialChangeLookOpen={params["change-look"] === "1"}
-        />
+        <div data-testid="today-shell-marker">
+          <Suspense fallback={<div className="min-h-[70svh] bg-background" />}>
+            <TodayView data={todayData} closetGarments={closetGarments} />
+          </Suspense>
+        </div>
       </AuthenticatedShellSuspense>
     );
   }
 
-  return <LandingPage />;
+  return <LandingShell />;
+}
+
+/**
+ * No `searchParams` on this page — that would dynamize the whole segment and
+ * drop the landing shell from the initial-load instant() guard. `change-look`
+ * is read in TodayView via useSearchParams.
+ */
+export default function HomePage() {
+  return (
+    <Suspense fallback={<LandingShell />}>
+      <HomeContent />
+    </Suspense>
+  );
 }

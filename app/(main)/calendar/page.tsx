@@ -22,22 +22,11 @@ function clampMonthYear(sp: Search) {
 }
 
 function CalendarFallback() {
-  return (
-    <div className="mx-auto w-full max-w-[min(100%,88rem)] px-1 pb-10 sm:px-2">
-      <div className="h-10 w-48 animate-pulse rounded-md bg-muted" />
-      <div className="mt-6 grid grid-cols-7 gap-2">
-        {Array.from({ length: 42 }, (_, i) => (
-          <div
-            key={i}
-            className="aspect-square animate-pulse rounded-md bg-muted/60"
-          />
-        ))}
-      </div>
-    </div>
-  );
+  // Static placeholder month for the prerendered shell (no Date.now()).
+  return <OutfitCalendar year={2026} month={1} saved={[]} weeklyDrafts={[]} />;
 }
 
-async function CalendarMonth({
+async function CalendarContent({
   searchParams,
 }: {
   searchParams: Promise<Search>;
@@ -55,7 +44,7 @@ async function CalendarMonth({
   );
 
   return (
-    <div className="mx-auto w-full max-w-[min(100%,88rem)] px-1 pb-10 sm:px-2">
+    <div data-testid="calendar-content">
       <OutfitCalendar
         year={year}
         month={month}
@@ -73,7 +62,7 @@ export default function CalendarPage({
 }) {
   return (
     <Suspense fallback={<CalendarFallback />}>
-      <CalendarMonth searchParams={searchParams} />
+      <CalendarContent searchParams={searchParams} />
     </Suspense>
   );
 }

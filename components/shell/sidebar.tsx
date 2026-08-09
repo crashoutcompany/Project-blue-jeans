@@ -77,6 +77,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={active}
                       tooltip={item.label}
+                      data-testid={`nav-${item.label.toLowerCase()}-link`}
                       render={<Link href={item.href} />}
                     >
                       {navIcon(item.label)}
