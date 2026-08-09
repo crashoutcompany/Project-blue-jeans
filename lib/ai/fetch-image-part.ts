@@ -1,12 +1,15 @@
 /**
  * Fetch a remote image for multimodal model input (Gemini via AI SDK).
  */
-export async function fetchUrlAsImagePart(url: string): Promise<{
+export async function fetchUrlAsImagePart(
+  url: string,
+  options?: { abortSignal?: AbortSignal },
+): Promise<{
   type: "image";
   image: Uint8Array;
   mediaType?: string;
 }> {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: options?.abortSignal });
   if (!res.ok) {
     throw new Error(`Failed to fetch image (${res.status})`);
   }
