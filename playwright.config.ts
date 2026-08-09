@@ -19,7 +19,9 @@ export default defineConfig({
   webServer: {
     command: "npm run start",
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse `next dev` — it lacks E2E_PLAYWRIGHT auth stub and 127.0.0.1→localhost redirects break Playwright.
+    // Opt in with PW_REUSE_SERVER=1 only for an already-running `next start` with E2E_PLAYWRIGHT=1.
+    reuseExistingServer: process.env.PW_REUSE_SERVER === "1",
     timeout: 120_000,
     env: {
       ...process.env,
@@ -34,3 +36,4 @@ export default defineConfig({
     },
   },
 });
+

@@ -14,7 +14,7 @@ import type { ClothingCardData } from "@/lib/garments/types";
 import type { TodayPageData } from "@/lib/outfits/today-data";
 import { cn } from "@/lib/utils";
 import { GeneratorSheet } from "@/components/outfit/generator-sheet";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export function TodayView({
   data,
@@ -32,18 +32,26 @@ export function TodayView({
 
   if (data.garmentCount === 0) {
     return (
-      <div className="page-canvas mx-auto flex min-h-[70svh] max-w-lg flex-col items-center justify-center gap-6 px-4 text-center">
-        <p className="text-muted-foreground">
-          Add clothes to your closet to get started.
-        </p>
-        <Button
-          render={<Link href="/closet" />}
-          nativeButton={false}
-          size="lg"
-        >
-          Add clothes
-        </Button>
-      </div>
+      <>
+        <div className="page-canvas mx-auto flex min-h-[70svh] max-w-lg flex-col items-center justify-center gap-6 px-4 text-center">
+          <p className="text-muted-foreground">
+            Add clothes to your closet to get started.
+          </p>
+          <Link
+            href="/closet"
+            className={cn(buttonVariants({ size: "lg" }))}
+          >
+            Add clothes
+          </Link>
+        </div>
+        <GeneratorSheet
+          open={changeLookOpen}
+          onOpenChange={setChangeLookOpen}
+          closetGarments={closetGarments}
+          wornOn={data.todayIso}
+          onApproved={() => router.refresh()}
+        />
+      </>
     );
   }
 

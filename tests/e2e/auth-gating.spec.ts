@@ -19,13 +19,17 @@ test.describe("admin session", () => {
 
   test("loads Today on /", async ({ page }) => {
     await page.goto("/");
+    await expect(page.getByRole("link", { name: "Today" }).first()).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Today" }).or(
-        page.getByRole("button", { name: /Plan my week|Add clothes|Wear this|Change look/ }),
-      ),
+      page
+        .getByRole("button", { name: /Plan my week|Wear this|Change look/ })
+        .or(page.getByRole("link", { name: "Add clothes" }))
+        .first(),
     ).toBeVisible();
   });
 });
+
+
 
 test.describe("non-admin session", () => {
   test.use({ storageState: "tests/e2e/.auth/non-admin.json" });
