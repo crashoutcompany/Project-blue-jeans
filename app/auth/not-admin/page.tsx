@@ -22,7 +22,7 @@ export default async function NotAdminPage() {
     redirect("/auth/sign-in");
   }
   if (isAdminUser(data.user)) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   return (

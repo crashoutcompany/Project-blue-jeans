@@ -12,13 +12,13 @@ export function TopHeader() {
       <div className="flex items-center gap-3 px-4 py-4 sm:px-6 lg:px-8">
         <SidebarTrigger className="shrink-0" />
         <Link
-          href="/dashboard"
+          href="/"
           className={cn(
             "font-serif text-xl tracking-tight text-foreground sm:text-2xl",
             "italic",
           )}
         >
-          Curated
+          Blue Jeans
         </Link>
         <div className="min-w-0 flex-1" />
         <NavUserMenu />

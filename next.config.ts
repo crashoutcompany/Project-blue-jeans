@@ -4,9 +4,16 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   async redirects() {
     return [
-      // Closet UI lives on /dashboard (post-login home). Keep /closet as an alias.
-      { source: "/closet", destination: "/dashboard", permanent: false },
-      { source: "/closet/:path*", destination: "/dashboard", permanent: false },
+      {
+        source: "/dashboard",
+        destination: "/closet",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/:path*",
+        destination: "/closet",
+        permanent: false,
+      },
     ];
   },
   images: {

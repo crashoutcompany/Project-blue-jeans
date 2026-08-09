@@ -8,7 +8,7 @@ export default function PrivacyPage() {
         This policy is being prepared. Check back soon.
       </p>
       <Link
-        href="/dashboard"
+        href="/closet"
         className="mt-8 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
       >
         Back to app

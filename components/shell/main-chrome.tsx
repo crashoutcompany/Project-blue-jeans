@@ -7,8 +7,7 @@ import { TopHeader } from "@/components/shell/top-header";
 export function MainChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const hideFooter =
-    pathname === "/dashboard" ||
-    pathname.startsWith("/dashboard/") ||
+    pathname === "/" ||
     pathname === "/closet" ||
     pathname.startsWith("/closet/");
 
@@ -21,9 +20,9 @@ export function MainChrome({ children }: { children: React.ReactNode }) {
         </div>
         {hideFooter ? null : (
           <footer className="border-t border-border/50 px-4 py-8 text-center sm:px-6 lg:px-10">
-            <p className="font-serif text-sm text-foreground">Curated</p>
+            <p className="font-serif text-sm text-foreground">Blue Jeans</p>
             <p className="mt-1 text-[0.65rem] font-medium uppercase tracking-[0.24em] text-muted-foreground">
-              Crafting digital elegance since 2024
+              What to wear today
             </p>
           </footer>
         )}

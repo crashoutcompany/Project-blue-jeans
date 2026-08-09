@@ -15,7 +15,7 @@ function revalidateAfterOutfitWrite() {
     revalidateTag(CLOSET_SAVED_OUTFITS_TAG, "max");
     revalidateTag(CALENDAR_MONTH_TAG, "max");
     revalidatePath("/calendar");
-    revalidatePath("/dashboard");
+    revalidatePath("/closet");
   } catch (e) {
     console.error("[api/outfits/approve-generator] revalidate failed", e);
   }

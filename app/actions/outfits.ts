@@ -97,7 +97,8 @@ export async function approveWeeklyPlanLook(
     revalidateTag(CLOSET_SAVED_OUTFITS_TAG, "max");
     revalidateTag(CALENDAR_MONTH_TAG, "max");
     revalidatePath("/calendar");
-    revalidatePath("/dashboard");
+    revalidatePath("/");
+    revalidatePath("/closet");
     return { ok: true, outfitId };
   } catch (e) {
     logServerError("approveWeeklyPlanLook", e);

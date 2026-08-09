@@ -17,7 +17,7 @@ export function RedirectWhenSignedIn({ path }: { path: string }) {
     if (!REDIRECT_PATHS.has(path)) return;
 
     void authClient.getSession().then(({ data }) => {
-      if (data?.session) router.replace("/dashboard");
+      if (data?.session) router.replace("/");
     });
   }, [path, router]);
 

@@ -14,7 +14,8 @@ function revalidateClosetAfterWrite() {
   try {
     revalidateTag(CLOSET_GARMENTS_TAG, "max");
     // Tag alone can leave the closet PPR shell stale; path revalidation refreshes the segment.
-    revalidatePath("/dashboard", "page");
+    revalidatePath("/closet", "page");
+    revalidatePath("/", "page");
   } catch (e) {
     console.error("[api/closet/garments] revalidate failed", e);
   }

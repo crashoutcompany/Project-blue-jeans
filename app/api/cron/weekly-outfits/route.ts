@@ -13,18 +13,13 @@
  */
 import { NextResponse } from "next/server";
 
+import {
+  productTodayIso,
+  sundayWeekStartIso,
+} from "@/lib/time/product-timezone";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
 
 export const maxDuration = 300;
-
-function mondayUtcIso(d = new Date()): string {
-  const day = d.getUTCDay();
-  const diff = (day + 6) % 7;
-  const mon = new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - diff),
-  );
-  return mon.toISOString().slice(0, 10);
-}
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -40,7 +35,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const weekStart = mondayUtcIso();
+  const weekStart = sundayWeekStartIso(productTodayIso());
 
   const result = await runWeeklyOutfitsJob({
     weekStart,
