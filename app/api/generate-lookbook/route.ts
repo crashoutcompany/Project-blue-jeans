@@ -48,7 +48,17 @@ export async function POST(request: Request) {
     );
   }
 
+  const userId =
+    typeof data.user.id === "string" ? data.user.id.trim() : "";
+  if (!userId) {
+    return NextResponse.json(
+      { ok: false as const, message: "Session is missing a user id." },
+      { status: 401 },
+    );
+  }
+
   const input: GenerateLookbookInput = {
+    userId,
     narrative: body.narrative,
   };
 

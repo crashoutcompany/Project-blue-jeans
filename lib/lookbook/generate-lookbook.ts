@@ -5,11 +5,13 @@ import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
 import { loadGarmentCatalog, loadGarmentsByIds } from "@/lib/garments/load-catalog";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 import type { OutfitLook } from "@/lib/outfits/types";
+import { getWearerPhoto } from "@/lib/wearer/profile";
 
 const DEFAULT_CLIMATE = "Temperate";
 const DEFAULT_CONTEXT = "Versatile day-to-night";
 
 export type GenerateLookbookInput = {
+  userId: string;
   climate?: string;
   context?: string;
   narrative: string;
@@ -62,7 +64,11 @@ export async function generateLookbook(
   const climate = (input.climate?.trim() || DEFAULT_CLIMATE).slice(0, 80);
   const context = (input.context?.trim() || DEFAULT_CONTEXT).slice(0, 80);
 
-  let garments = await loadGarmentCatalog();
+  if (!input.userId) {
+    return { ok: false, message: "Sign in to continue." };
+  }
+
+  let garments = await loadGarmentCatalog(input.userId);
   if (garments.length === 0) {
     return {
       ok: false,
@@ -102,7 +108,7 @@ export async function generateLookbook(
 
     if (!input.skipHeroImage) {
       const hero = looks[0]!;
-      const rows = await loadGarmentsByIds(hero.garmentIds ?? []);
+      const rows = await loadGarmentsByIds(input.userId, hero.garmentIds ?? []);
       const idOrder = new Map(hero.garmentIds?.map((id, i) => [id, i]) ?? []);
       rows.sort(
         (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
@@ -110,6 +116,7 @@ export async function generateLookbook(
 
       let heroImage: string | undefined;
       try {
+        const wearer = await getWearerPhoto(input.userId);
         heroImage = await runHeroImageStep({
           title: hero.title,
           description: hero.description,
@@ -122,6 +129,7 @@ export async function generateLookbook(
             name: r.name,
             imageUrl: r.image_url,
           })),
+          wearerPhotoUrl: wearer?.imageUrl,
         });
       } catch {
         // Image is optional

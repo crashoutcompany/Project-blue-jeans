@@ -49,7 +49,7 @@ export async function requireAdminAccess(): Promise<void> {
  * response protocol and surfaces as “An unexpected response was received from the server.”
  */
 export async function assertAdminForServerAction(): Promise<
-  { ok: true } | { ok: false; message: string }
+  { ok: true; userId: string } | { ok: false; message: string }
 > {
   const { data } = await auth.getSession();
   if (!data?.user) {
@@ -61,7 +61,12 @@ export async function assertAdminForServerAction(): Promise<
       message: "Admin access is required. Sign out and use an admin account.",
     };
   }
-  return { ok: true };
+  const userId =
+    typeof data.user.id === "string" ? data.user.id.trim() : "";
+  if (!userId) {
+    return { ok: false, message: "Session is missing a user id." };
+  }
+  return { ok: true, userId };
 }
 
 /**

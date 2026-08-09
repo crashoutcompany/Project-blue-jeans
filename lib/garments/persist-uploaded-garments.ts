@@ -103,8 +103,12 @@ export type CreateGarmentsResult =
  * Inserts garment rows from UploadThing URLs/keys. Caller handles auth and cache revalidation.
  */
 export async function persistUploadedGarmentItems(
+  userId: string,
   items: CreateGarmentItemInput[],
 ): Promise<CreateGarmentsResult> {
+  if (!userId) {
+    return { ok: false, message: "Missing user id." };
+  }
   if (items.length === 0) return { ok: true };
 
   for (const item of items) {
@@ -154,7 +158,8 @@ export async function persistUploadedGarmentItems(
           name,
           color,
           notes,
-          description
+          description,
+          user_id
         )
         VALUES (
           ${row.item.url.trim()},
@@ -163,7 +168,8 @@ export async function persistUploadedGarmentItems(
           ${row.displayName},
           ${row.color},
           ${row.notes},
-          ${row.description}
+          ${row.description},
+          ${userId}
         )
       `;
     }

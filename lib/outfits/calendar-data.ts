@@ -1,7 +1,7 @@
 import { cacheTag } from "next/cache";
 
 import { getSql } from "@/lib/db";
-import { CALENDAR_MONTH_TAG } from "@/lib/outfits/calendar-month-cache-tag";
+import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
 
 export type CalendarSavedOutfit = {
   id: string;
@@ -31,14 +31,15 @@ function monthRangeIso(year: number, month: number): { start: string; end: strin
  * Weekly rows are only returned for days that have no saved outfit yet.
  */
 export async function loadCalendarMonthData(
+  userId: string,
   year: number,
   month: number,
 ): Promise<{ saved: CalendarSavedOutfit[]; weeklyDrafts: CalendarWeeklyLook[] }> {
   "use cache";
-  cacheTag(CALENDAR_MONTH_TAG);
+  cacheTag(calendarMonthTag(userId));
 
   const sql = getSql();
-  if (!sql) {
+  if (!sql || !userId) {
     return { saved: [], weeklyDrafts: [] };
   }
 
@@ -47,14 +48,16 @@ export async function loadCalendarMonthData(
   try {
     const savedRows = (await sql`
       SELECT
-        id,
-        worn_on::text AS worn_on,
-        image_url,
-        name,
-        occasion::text AS occasion
-      FROM outfits
-      WHERE worn_on BETWEEN ${start}::date AND ${end}::date
-      ORDER BY worn_on ASC, created_at ASC
+        o.id,
+        w.worn_on::text AS worn_on,
+        o.image_url,
+        o.name,
+        o.occasion::text AS occasion
+      FROM outfit_wears w
+      INNER JOIN outfits o ON o.id = w.outfit_id
+      WHERE w.user_id = ${userId}
+        AND w.worn_on BETWEEN ${start}::date AND ${end}::date
+      ORDER BY w.worn_on ASC, o.created_at ASC
     `) as {
       id: string;
       worn_on: string;
@@ -82,7 +85,8 @@ export async function loadCalendarMonthData(
         l.garment_ids
       FROM weekly_plan_looks l
       INNER JOIN weekly_outfit_plans p ON p.id = l.plan_id
-      WHERE p.status IN ('completed', 'draft')
+      WHERE p.user_id = ${userId}
+        AND p.status IN ('completed', 'draft')
         AND (p.week_start + l.sort_order) BETWEEN ${start}::date AND ${end}::date
       ORDER BY worn_on ASC, l.sort_order ASC
     `) as {
