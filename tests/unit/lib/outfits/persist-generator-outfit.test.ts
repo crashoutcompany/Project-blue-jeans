@@ -7,8 +7,8 @@ vi.mock("@/lib/db", () => ({
 import { requireSql } from "@/lib/db";
 import {
   approveGeneratorPayloadSchema,
+  commitOutfitForDay,
   executeApproveGeneratorOutfit,
-  insertOutfitWithGarments,
 } from "@/lib/outfits/persist-generator-outfit";
 
 const sqlRequire = vi.mocked(requireSql);
@@ -42,24 +42,55 @@ describe("approveGeneratorPayloadSchema", () => {
   });
 });
 
-describe("insertOutfitWithGarments", () => {
-  it("inserts outfit and garment links", async () => {
+describe("commitOutfitForDay", () => {
+  it("creates a new outfit when the garment set is new", async () => {
+    const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const outfitId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+    const sql = vi
+      .fn()
+      // find existing by key → none
+      .mockResolvedValueOnce([])
+      // insert outfit
+      .mockResolvedValueOnce([{ id: outfitId }])
+      // insert garment link
+      .mockResolvedValueOnce(undefined)
+      // prior wear that day
+      .mockResolvedValueOnce([])
+      // upsert wear
+      .mockResolvedValueOnce(undefined)
+      // syncLastWorn
+      .mockResolvedValueOnce(undefined);
+    sqlRequire.mockReturnValue(sql as never);
+
+    const id = await commitOutfitForDay({
+      userId: "u1",
+      wornOn: "2025-01-01",
+      garmentIds: [gid],
+      imageUrl: null,
+      occasion: "casual",
+    });
+    expect(id).toBe(outfitId);
+    expect(sql).toHaveBeenCalled();
+  });
+
+  it("reuses an existing outfit for the same garment set", async () => {
     const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
     const outfitId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
     const sql = vi
       .fn()
       .mockResolvedValueOnce([{ id: outfitId }])
-      .mockResolvedValue(undefined);
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined);
     sqlRequire.mockReturnValue(sql as never);
-    const id = await insertOutfitWithGarments({
-      wornOn: "2025-01-01",
-      name: "Test",
-      occasion: "casual",
-      imageUrl: null,
+
+    const id = await commitOutfitForDay({
+      userId: "u1",
+      wornOn: "2025-01-08",
       garmentIds: [gid],
+      imageUrl: null,
     });
     expect(id).toBe(outfitId);
-    expect(sql).toHaveBeenCalled();
   });
 });
 
@@ -68,7 +99,7 @@ describe("executeApproveGeneratorOutfit", () => {
     const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
     const sql = vi.fn().mockResolvedValueOnce([{ n: 0 }]);
     sqlRequire.mockReturnValue(sql as never);
-    const res = await executeApproveGeneratorOutfit({
+    const res = await executeApproveGeneratorOutfit("u1", {
       wornOn: "2025-01-01",
       garmentIds: [gid],
       occasion: "casual",

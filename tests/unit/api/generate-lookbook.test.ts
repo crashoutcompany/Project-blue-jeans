@@ -49,7 +49,7 @@ describe("POST /api/generate-lookbook", () => {
 
   it("returns 400 for invalid JSON", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     const res = await POST(
       new Request("http://localhost/api/generate-lookbook", {
@@ -62,7 +62,7 @@ describe("POST /api/generate-lookbook", () => {
 
   it("returns 400 when narrative missing", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     const res = await POST(
       new Request("http://localhost/api/generate-lookbook", {
@@ -75,7 +75,7 @@ describe("POST /api/generate-lookbook", () => {
 
   it("calls generateLookbook for admin", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     generateLookbookMock.mockResolvedValue({
       ok: true,
@@ -90,7 +90,7 @@ describe("POST /api/generate-lookbook", () => {
     );
     expect(res.status).toBe(200);
     expect(generateLookbookMock).toHaveBeenCalledWith(
-      expect.objectContaining({ narrative: "Summer brunch" }),
+      expect.objectContaining({ userId: "u1", narrative: "Summer brunch" }),
     );
   });
 });

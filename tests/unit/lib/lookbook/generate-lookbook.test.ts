@@ -35,7 +35,7 @@ describe("generateLookbook", () => {
 
   it("returns error when Vertex credentials missing", async () => {
     hasGemini.mockReturnValue(false);
-    const res = await generateLookbook({ narrative: "x" });
+    const res = await generateLookbook({ userId: "u1", narrative: "x" });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.message).toContain("Vertex");
   });
@@ -43,7 +43,7 @@ describe("generateLookbook", () => {
   it("returns error when closet empty", async () => {
     hasGemini.mockReturnValue(true);
     loadCatalog.mockResolvedValue([]);
-    const res = await generateLookbook({ narrative: "x" });
+    const res = await generateLookbook({ userId: "u1", narrative: "x" });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.message).toContain("empty");
   });
@@ -72,6 +72,7 @@ describe("generateLookbook", () => {
       curatorNote: "note",
     });
     const res = await generateLookbook({
+      userId: "u1",
       narrative: "Brunch",
       skipHeroImage: true,
     });

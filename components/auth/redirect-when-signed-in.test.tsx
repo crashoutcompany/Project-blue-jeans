@@ -37,7 +37,7 @@ describe("RedirectWhenSignedIn", () => {
     hoisted.getSession.mockResolvedValue({ data: { session: { id: "s" } } });
     render(<RedirectWhenSignedIn path="sign-in" />);
     await waitFor(() => {
-      expect(hoisted.replace).toHaveBeenCalledWith("/dashboard");
+      expect(hoisted.replace).toHaveBeenCalledWith("/");
     });
   });
 });

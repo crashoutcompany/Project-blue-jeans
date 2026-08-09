@@ -26,12 +26,12 @@ describe("persistUploadedGarmentItems", () => {
   });
 
   it("returns ok for empty items", async () => {
-    const res = await persistUploadedGarmentItems([]);
+    const res = await persistUploadedGarmentItems("u1", []);
     expect(res.ok).toBe(true);
   });
 
   it("returns error when url missing", async () => {
-    const res = await persistUploadedGarmentItems([
+    const res = await persistUploadedGarmentItems("u1", [
       {
         url: "   ",
         key: "k",
@@ -44,7 +44,7 @@ describe("persistUploadedGarmentItems", () => {
   });
 
   it("returns error for invalid category", async () => {
-    const res = await persistUploadedGarmentItems([
+    const res = await persistUploadedGarmentItems("u1", [
       {
         url: "https://x.com/a.jpg",
         key: "k",
@@ -60,7 +60,7 @@ describe("persistUploadedGarmentItems", () => {
     hasGemini.mockReturnValue(false);
     const sql = vi.fn().mockResolvedValue(undefined);
     requireSqlMock.mockReturnValue(sql as never);
-    const res = await persistUploadedGarmentItems([
+    const res = await persistUploadedGarmentItems("u1", [
       {
         url: "https://x.com/a.jpg",
         key: "k",

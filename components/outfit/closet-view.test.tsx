@@ -8,6 +8,12 @@ vi.mock("@/app/actions/garments", () => ({
   toggleGarmentFavorite: (...args: unknown[]) => toggleGarmentFavorite(...args),
 }));
 
+vi.mock("@/app/actions/outfits", () => ({
+  wearOutfitToday: vi.fn(),
+  renameOutfit: vi.fn(),
+  getTodaysOutfitId: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/lib/uploadthing", () => ({
   useUploadThing: () => ({
     startUpload: vi.fn(),
