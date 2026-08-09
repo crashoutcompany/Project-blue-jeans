@@ -61,7 +61,7 @@ describe("POST /api/closet/garments", () => {
 
   it("returns 400 for invalid body", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     const res = await POST(
       new Request("http://localhost/api/closet/garments", {
@@ -74,7 +74,7 @@ describe("POST /api/closet/garments", () => {
 
   it("calls persistUploadedGarmentItems and returns 200", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     persistMock.mockResolvedValue({ ok: true });
     const res = await POST(
@@ -84,12 +84,15 @@ describe("POST /api/closet/garments", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(persistMock).toHaveBeenCalled();
+    expect(persistMock).toHaveBeenCalledWith(
+      "u1",
+      expect.arrayContaining([expect.objectContaining({ key: "k1" })]),
+    );
   });
 
   it("returns 422 when persist fails", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     persistMock.mockResolvedValue({ ok: false, message: "bad" });
     const res = await POST(

@@ -33,7 +33,7 @@ describe("toggleGarmentFavorite", () => {
 
   it("updates and returns ok", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     const sql = vi.fn().mockResolvedValue(undefined);
     requireSqlMock.mockReturnValue(sql as never);

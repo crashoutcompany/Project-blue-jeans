@@ -16,18 +16,31 @@ vi.mock("@/lib/outfits/persist-generator-outfit", async (orig) => {
   >();
   return {
     ...actual,
-    insertOutfitWithGarments: vi.fn(),
+    commitOutfitForDay: vi.fn(),
   };
 });
 
 import { auth } from "@/lib/auth/server";
 import { requireSql } from "@/lib/db";
-import { insertOutfitWithGarments } from "@/lib/outfits/persist-generator-outfit";
+import { commitOutfitForDay } from "@/lib/outfits/persist-generator-outfit";
 import { approveWeeklyPlanLook } from "@/app/actions/outfits";
 
 const getSession = vi.mocked(auth.getSession);
 const sqlMock = vi.mocked(requireSql);
-const insertMock = vi.mocked(insertOutfitWithGarments);
+const commitMock = vi.mocked(commitOutfitForDay);
+
+function adminSession() {
+  return {
+    data: {
+      user: {
+        id: "u1",
+        email: "a@x.com",
+        role: "admin",
+        name: "Admin",
+      },
+    },
+  };
+}
 
 describe("approveWeeklyPlanLook", () => {
   const planLookId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
@@ -35,31 +48,29 @@ describe("approveWeeklyPlanLook", () => {
   beforeEach(() => {
     getSession.mockReset();
     sqlMock.mockReset();
-    insertMock.mockReset();
+    commitMock.mockReset();
   });
 
   it("returns error when not admin", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "u@x.com", role: "user" } },
+      data: {
+        user: { id: "u1", email: "u@x.com", role: "user", name: "User" },
+      },
     });
     const res = await approveWeeklyPlanLook(planLookId);
     expect(res.ok).toBe(false);
-    expect(res.message).toBeDefined();
+    if (!res.ok) expect(res.message).toBeDefined();
   });
 
   it("returns error for invalid uuid", async () => {
-    getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
-    });
+    getSession.mockResolvedValue(adminSession());
     const res = await approveWeeklyPlanLook("not-a-uuid");
     expect(res.ok).toBe(false);
-    expect(res.message).toContain("Invalid");
+    if (!res.ok) expect(res.message).toContain("Invalid");
   });
 
   it("returns not found when no row", async () => {
-    getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
-    });
+    getSession.mockResolvedValue(adminSession());
     const sql = vi.fn().mockResolvedValueOnce([]);
     sqlMock.mockReturnValue(sql as never);
     const res = await approveWeeklyPlanLook(planLookId);
@@ -68,13 +79,10 @@ describe("approveWeeklyPlanLook", () => {
   });
 
   it("returns error when garment_ids empty", async () => {
-    getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
-    });
+    getSession.mockResolvedValue(adminSession());
     const sql = vi.fn().mockResolvedValueOnce([
       {
         id: planLookId,
-        title: "Look",
         hero_image_url: null,
         garment_ids: [],
         worn_on: "2025-01-01",
@@ -87,16 +95,13 @@ describe("approveWeeklyPlanLook", () => {
   });
 
   it("returns error when garment count mismatch", async () => {
-    getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
-    });
+    getSession.mockResolvedValue(adminSession());
     const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
     const sql = vi
       .fn()
       .mockResolvedValueOnce([
         {
           id: planLookId,
-          title: "Look",
           hero_image_url: null,
           garment_ids: [gid],
           worn_on: "2025-01-01",
@@ -109,10 +114,8 @@ describe("approveWeeklyPlanLook", () => {
     if (!res.ok) expect(res.message).toContain("missing");
   });
 
-  it("inserts outfit and returns ok", async () => {
-    getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
-    });
+  it("commits outfit and returns ok", async () => {
+    getSession.mockResolvedValue(adminSession());
     const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
     const outfitId = "b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
     const sql = vi
@@ -120,7 +123,6 @@ describe("approveWeeklyPlanLook", () => {
       .mockResolvedValueOnce([
         {
           id: planLookId,
-          title: "Look",
           hero_image_url: null,
           garment_ids: [gid],
           worn_on: "2025-01-01",
@@ -128,10 +130,10 @@ describe("approveWeeklyPlanLook", () => {
       ])
       .mockResolvedValueOnce([{ n: 1 }]);
     sqlMock.mockReturnValue(sql as never);
-    insertMock.mockResolvedValue(outfitId);
+    commitMock.mockResolvedValue(outfitId);
     const res = await approveWeeklyPlanLook(planLookId);
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.outfitId).toBe(outfitId);
-    expect(insertMock).toHaveBeenCalled();
+    expect(commitMock).toHaveBeenCalled();
   });
 });

@@ -67,9 +67,22 @@ describe("assertAdminForServerAction", () => {
 
   it("returns ok when admin by role", async () => {
     getSession.mockResolvedValue({
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
+    });
+    await expect(assertAdminForServerAction()).resolves.toEqual({
+      ok: true,
+      userId: "u1",
+    });
+  });
+
+  it("returns error when admin session lacks user id", async () => {
+    getSession.mockResolvedValue({
       data: { user: { email: "a@x.com", role: "admin" } },
     });
-    await expect(assertAdminForServerAction()).resolves.toEqual({ ok: true });
+    await expect(assertAdminForServerAction()).resolves.toEqual({
+      ok: false,
+      message: "Session is missing a user id.",
+    });
   });
 });
 

@@ -18,6 +18,7 @@ vi.mock("@/lib/outfits/persist-generator-outfit", async (orig) => {
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
 
 import { auth } from "@/lib/auth/server";
@@ -68,7 +69,7 @@ describe("POST /api/outfits/approve-generator", () => {
 
   it("returns 400 when payload invalid", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     const res = await POST(
       new Request("http://localhost/api/outfits/approve-generator", {
@@ -81,7 +82,7 @@ describe("POST /api/outfits/approve-generator", () => {
 
   it("returns 200 when approve succeeds", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     approveMock.mockResolvedValue({ ok: true, outfitId: uuid });
     const res = await POST(
@@ -95,12 +96,15 @@ describe("POST /api/outfits/approve-generator", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(approveMock).toHaveBeenCalled();
+    expect(approveMock).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ wornOn: "2025-01-15" }),
+    );
   });
 
   it("returns 422 when approve returns failure", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     approveMock.mockResolvedValue({ ok: false, message: "missing" });
     const res = await POST(
