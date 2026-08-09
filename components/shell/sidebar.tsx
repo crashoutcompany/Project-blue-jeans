@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Shirt, Sparkles } from "lucide-react";
+import { CalendarDays, Shirt, Sun } from "lucide-react";
 
 import { MAIN_NAV } from "@/lib/nav";
 import {
@@ -21,15 +21,22 @@ import {
 
 function navIcon(label: string) {
   switch (label) {
-    case "Digital Closet":
+    case "Today":
+      return <Sun className="size-4 shrink-0 opacity-80" />;
+    case "Closet":
       return <Shirt className="size-4 shrink-0 opacity-80" />;
     case "Calendar":
       return <CalendarDays className="size-4 shrink-0 opacity-80" />;
-    case "Outfit Generator":
-      return <Sparkles className="size-4 shrink-0 opacity-80" />;
     default:
       return null;
   }
+}
+
+function isNavActive(href: string, pathname: string) {
+  if (href === "/") {
+    return pathname === "/";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function AppSidebar() {
@@ -44,17 +51,14 @@ export function AppSidebar() {
       <SidebarRail />
       <SidebarHeader className="gap-3 px-3 pt-4 pb-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:pb-2 group-data-[collapsible=icon]:pt-3">
         <div className="flex flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
-          <p className="font-serif text-lg text-sidebar-foreground">Curated</p>
-          <p className="text-[0.65rem] font-medium uppercase tracking-[0.2em] text-sidebar-foreground/60">
-            Canvas
-          </p>
+          <p className="font-serif text-lg text-sidebar-foreground">Blue Jeans</p>
         </div>
         <div className="hidden justify-center group-data-[collapsible=icon]:flex">
           <div
             className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent font-serif text-sm font-semibold leading-none text-sidebar-accent-foreground"
             aria-hidden
           >
-            C
+            BJ
           </div>
         </div>
       </SidebarHeader>
@@ -67,10 +71,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               {MAIN_NAV.map((item) => {
-                const active =
-                  item.href === "/dashboard"
-                    ? pathname === "/dashboard" || pathname.startsWith("/closet")
-                    : pathname.startsWith(item.href);
+                const active = isNavActive(item.href, pathname);
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton

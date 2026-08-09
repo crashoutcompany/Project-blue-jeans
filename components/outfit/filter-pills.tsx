@@ -2,13 +2,12 @@
 
 import { cn } from "@/lib/utils";
 
-/** Matches `garment_category` enum in db/schema.sql, plus gallery tabs. */
+/** Matches `garment_category` enum in db/schema.sql (Pieces mode only). */
 const CATEGORIES = [
   { id: "all", label: "All" },
   { id: "tops", label: "Tops" },
   { id: "bottoms", label: "Bottoms" },
   { id: "shoes", label: "Shoes" },
-  { id: "outfits", label: "Outfits" },
 ] as const;
 
 export type CategoryFilterId = (typeof CATEGORIES)[number]["id"];
@@ -25,7 +24,7 @@ export function FilterPills({
   return (
     <div
       role="tablist"
-      aria-label="Closet categories"
+      aria-label="Piece categories"
       className={cn(
         "flex w-max max-w-full items-stretch overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className,

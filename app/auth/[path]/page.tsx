@@ -12,7 +12,7 @@ export default async function AuthPage({
   return (
     <>
       <RedirectWhenSignedIn path={path} />
-      <AuthView path={path} redirectTo="/dashboard" />
+      <AuthView path={path} redirectTo="/" />
     </>
   );
 }

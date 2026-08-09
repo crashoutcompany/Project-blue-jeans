@@ -42,7 +42,7 @@ export function NavUserMenu({
         className={cn(
           buttonVariants({ size: "sm" }),
           variant === "landing" &&
-            "rounded-full border-0 bg-[#003527] px-6 text-white hover:bg-[#064e3b]",
+            "rounded-none border border-[#f4f0e8]/30 bg-transparent px-5 text-[#f4f0e8] hover:bg-[#f4f0e8]/10",
           signInClassName,
         )}
       >
@@ -77,15 +77,18 @@ export function NavUserMenu({
         <span
           className={cn(
             "hidden min-w-0 truncate text-sm font-medium sm:inline",
-            variant === "landing" && "text-[#003527] dark:text-[#f9f9f6]",
+            variant === "landing" && "text-[#f4f0e8]",
           )}
         >
           {user.name || user.email}
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
-        <DropdownMenuItem render={<Link href="/dashboard" />}>
-          Digital Closet
+        <DropdownMenuItem render={<Link href="/closet" />}>
+          Closet
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/settings" />}>
+          Settings
         </DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/auth/sign-out" />}>
           <LogOut className="mr-2 size-4 opacity-70" />

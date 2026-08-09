@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { useSidebar } from "@/components/ui/sidebar";
 import { ClothingCard } from "@/components/outfit/clothing-card";
 import { GarmentDetailSheet } from "@/components/outfit/garment-detail-sheet";
+import { OutfitDetailSheet } from "@/components/outfit/outfit-detail-sheet";
 import {
   FilterPills,
   type CategoryFilterId,
@@ -38,6 +39,9 @@ import {
   garmentMatchesColorFacet,
 } from "@/lib/garments/color-facets";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type ClosetMode = "pieces" | "outfits";
 
 function publicImageUrl(file: {
   ufsUrl?: string;
@@ -83,7 +87,19 @@ export function ClosetView({
   const [, startTransition] = useTransition();
   const { state: sidebarState, isMobile } = useSidebar();
   const [serverGarments, setServerGarments] = useState(initialGarments);
+  const [outfitArchive, setOutfitArchive] = useState(savedOutfits);
   const addZoneRef = useRef<HTMLDivElement>(null);
+
+  const outfitSignature = useMemo(
+    () =>
+      `${savedOutfits.length}\0${[...savedOutfits.map((o) => `${o.id}:${o.name ?? ""}:${o.wornOn}`)].sort().join("\0")}`,
+    [savedOutfits],
+  );
+  const [seenOutfitSignature, setSeenOutfitSignature] = useState(outfitSignature);
+  if (outfitSignature !== seenOutfitSignature) {
+    setSeenOutfitSignature(outfitSignature);
+    setOutfitArchive(savedOutfits);
+  }
 
   const garmentSignature = useMemo(
     () =>
@@ -99,10 +115,12 @@ export function ClosetView({
     (current, toAdd: ClothingCardData[]) => [...toAdd, ...current],
   );
 
+  const [mode, setMode] = useState<ClosetMode>("pieces");
   const [category, setCategory] = useState<CategoryFilterId>("all");
   const [colorId, setColorId] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null);
   const [pendingDrafts, setPendingDrafts] = useState<GarmentUploadDraft[]>([]);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [savingDrafts, setSavingDrafts] = useState(false);
@@ -140,8 +158,7 @@ export function ClosetView({
 
   const filtered = useMemo(() => {
     return garments.filter((g) => {
-      if (category !== "all" && category !== "outfits" && g.category !== category)
-        return false;
+      if (category !== "all" && g.category !== category) return false;
       if (!garmentMatchesColorFacet(g, colorId)) return false;
       if (query.trim()) {
         const q = query.toLowerCase();
@@ -164,6 +181,7 @@ export function ClosetView({
     garments.length === 1 ? "1 piece" : `${garments.length} pieces`;
 
   function openAddZone() {
+    setMode("pieces");
     setAddOpen(true);
     setCategory("all");
     requestAnimationFrame(() => {
@@ -298,43 +316,83 @@ export function ClosetView({
     }
   }
 
-  const showGarments = category !== "outfits";
+  const showGarments = mode === "pieces";
+  const headerLabel =
+    mode === "pieces"
+      ? pieceLabel
+      : outfitArchive.length === 1
+        ? "1 outfit"
+        : `${outfitArchive.length} outfits`;
+  const selectedOutfit =
+    selectedOutfitId === null
+      ? null
+      : (outfitArchive.find((o) => o.id === selectedOutfitId) ?? null);
 
   return (
     <div className="relative flex flex-col pb-8">
       <header className="flex flex-col px-1 pt-2 sm:px-0 sm:pt-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="text-[13px] font-medium uppercase tracking-[0.1em] leading-none text-foreground">
-            {pieceLabel}
+            {headerLabel}
           </p>
-          <label className="group/search relative flex w-full max-w-[15rem] items-center gap-2.5 border-b border-border/55 pb-2 transition-[border-color] duration-160 ease-[ease] focus-within:border-foreground">
-            <Search
-              className="size-3.5 shrink-0 text-muted-foreground transition-colors duration-160 group-focus-within/search:text-foreground"
-              strokeWidth={1.75}
-              aria-hidden
-            />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search pieces"
-              className="h-7 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-[13px] tracking-[0.02em] shadow-none placeholder:text-muted-foreground/65 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
-              aria-label="Search closet"
-            />
-            {query ? (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="grid size-6 shrink-0 place-items-center text-muted-foreground transition-colors duration-160 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
-                aria-label="Clear search"
-              >
-                <X className="size-3.5" strokeWidth={1.75} />
-              </button>
-            ) : null}
-          </label>
+          {showGarments ? (
+            <label className="group/search relative flex w-full max-w-[15rem] items-center gap-2.5 border-b border-border/55 pb-2 transition-[border-color] duration-160 ease-[ease] focus-within:border-foreground">
+              <Search
+                className="size-3.5 shrink-0 text-muted-foreground transition-colors duration-160 group-focus-within/search:text-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search pieces"
+                className="h-7 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-[13px] tracking-[0.02em] shadow-none placeholder:text-muted-foreground/65 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+                aria-label="Search closet"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="grid size-6 shrink-0 place-items-center text-muted-foreground transition-colors duration-160 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+                  aria-label="Clear search"
+                >
+                  <X className="size-3.5" strokeWidth={1.75} />
+                </button>
+              ) : null}
+            </label>
+          ) : null}
         </div>
 
         <div className="mt-10 flex flex-col gap-5 sm:mt-12">
-          <FilterPills value={category} onChange={setCategory} />
+          <Tabs
+            value={mode}
+            onValueChange={(value) => {
+              if (value === "pieces" || value === "outfits") setMode(value);
+            }}
+          >
+            <TabsList
+              variant="line"
+              aria-label="Closet modes"
+              className="h-auto w-full justify-start gap-6 rounded-none border-b border-border/60 p-0"
+            >
+              <TabsTrigger
+                value="pieces"
+                className="rounded-none px-0 pb-2.5 text-xs font-medium uppercase tracking-[0.08em]"
+              >
+                Pieces
+              </TabsTrigger>
+              <TabsTrigger
+                value="outfits"
+                className="rounded-none px-0 pb-2.5 text-xs font-medium uppercase tracking-[0.08em]"
+              >
+                Outfits
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {showGarments ? (
+            <FilterPills value={category} onChange={setCategory} />
+          ) : null}
           {showGarments && dynamicColorFacets.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -450,36 +508,37 @@ export function ClosetView({
         </div>
       ) : null}
 
-      {category === "outfits" ? (
+      {mode === "outfits" ? (
         <section className="mt-11 sm:mt-12" aria-label="Saved outfits">
-          {savedOutfits.length === 0 ? (
+          {outfitArchive.length === 0 ? (
             <div className="px-1 py-16 text-center sm:px-0">
               <p className="text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
                 No outfits yet
               </p>
               <p className="mx-auto mt-3 max-w-sm text-sm text-muted-foreground">
-                Approve looks from the generator and they will land here.
+                Commit a look from Today and it will land here.
               </p>
               <Link
-                href="/generator"
+                href="/?change-look=1"
                 className={cn(
                   buttonVariants({ size: "sm" }),
                   "mt-6 rounded-none",
                 )}
               >
-                Open generator
+                Change look
               </Link>
             </div>
           ) : (
             <ul className="grid grid-cols-2 gap-x-[14px] gap-y-[18px] sm:grid-cols-3 sm:gap-x-[18px] md:grid-cols-4 xl:grid-cols-5">
-              {savedOutfits.map((o) => {
+              {outfitArchive.map((o) => {
                 const src = o.imageUrl ?? o.fallbackGarmentImageUrl;
                 const title = o.name?.trim() || "Outfit";
                 return (
                   <li key={o.id}>
-                    <Link
-                      href="/calendar"
-                      className="group flex flex-col gap-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOutfitId(o.id)}
+                      className="group flex w-full flex-col gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <div className="relative aspect-[0.78] overflow-hidden bg-foreground/[0.03]">
                         {src ? (
@@ -501,10 +560,10 @@ export function ClosetView({
                         </p>
                         <p className="mt-0.5 flex items-center gap-1 text-[0.65rem] uppercase tracking-[0.08em] text-muted-foreground">
                           <CalendarDays className="size-3" />
-                          {formatWornOn(o.wornOn)}
+                          Last worn {formatWornOn(o.wornOn)}
                         </p>
                       </div>
-                    </Link>
+                    </button>
                   </li>
                 );
               })}
@@ -536,6 +595,7 @@ export function ClosetView({
       ) : null}
 
       {/* Fixed FAB clears the sidebar; expands to “Add clothes” on hover like wardrobe. */}
+      {showGarments ? (
       <button
         type="button"
         onClick={openAddZone}
@@ -560,6 +620,7 @@ export function ClosetView({
           </span>
         </span>
       </button>
+      ) : null}
 
       <GarmentDetailSheet
         garment={selectedGarment}
@@ -567,6 +628,19 @@ export function ClosetView({
           if (!open) setSelectedId(null);
         }}
         onToggleFavorite={handleToggleFavorite}
+      />
+
+      <OutfitDetailSheet
+        outfit={selectedOutfit}
+        garments={garments}
+        onOpenChange={(open) => {
+          if (!open) setSelectedOutfitId(null);
+        }}
+        onRenamed={(outfitId, name) => {
+          setOutfitArchive((prev) =>
+            prev.map((o) => (o.id === outfitId ? { ...o, name } : o)),
+          );
+        }}
       />
     </div>
   );
