@@ -3,10 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { assertAdminForServerAction } from "@/lib/auth/admin";
-import {
-  clearWearerPhoto,
-  saveWearerPhoto,
-} from "@/lib/wearer/profile";
+import { clearWearerPhoto, saveWearerPhoto } from "@/lib/wearer/profile";
 
 const putSchema = z.object({
   url: z.string().url().max(2048),
@@ -16,7 +13,10 @@ const putSchema = z.object({
 export async function PUT(request: Request) {
   const gate = await assertAdminForServerAction();
   if (!gate.ok) {
-    return NextResponse.json({ ok: false, message: gate.message }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, message: gate.message },
+      { status: 401 },
+    );
   }
 
   let body: unknown;
@@ -54,7 +54,10 @@ export async function PUT(request: Request) {
 export async function DELETE() {
   const gate = await assertAdminForServerAction();
   if (!gate.ok) {
-    return NextResponse.json({ ok: false, message: gate.message }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, message: gate.message },
+      { status: 401 },
+    );
   }
 
   const result = await clearWearerPhoto(gate.userId);

@@ -1,4 +1,6 @@
-export function adminUser(overrides?: Partial<{ email: string; role: string }>) {
+export function adminUser(
+  overrides?: Partial<{ email: string; role: string }>,
+) {
   return {
     id: "user-admin",
     email: overrides?.email ?? "admin@test.com",

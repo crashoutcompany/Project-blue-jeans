@@ -19,7 +19,9 @@ test.describe("admin session", () => {
 
   test("loads Today on /", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "Today" }).first()).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Today" }).first(),
+    ).toBeVisible();
     await expect(
       page
         .getByRole("button", { name: /Plan my week|Wear this|Change look/ })

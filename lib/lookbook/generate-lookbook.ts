@@ -2,7 +2,10 @@ import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
-import { loadGarmentCatalog, loadGarmentsByIds } from "@/lib/garments/load-catalog";
+import {
+  loadGarmentCatalog,
+  loadGarmentsByIds,
+} from "@/lib/garments/load-catalog";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 import type { OutfitLook } from "@/lib/outfits/types";
 import { getWearerPhoto } from "@/lib/wearer/profile";
@@ -75,7 +78,8 @@ export async function generateLookbook(
   if (garments.length === 0) {
     return {
       ok: false,
-      message: "Your closet is empty. Add garments before generating a lookbook.",
+      message:
+        "Your closet is empty. Add garments before generating a lookbook.",
     };
   }
 
@@ -113,9 +117,7 @@ export async function generateLookbook(
       const hero = looks[0]!;
       const rows = await loadGarmentsByIds(input.userId, hero.garmentIds ?? []);
       const idOrder = new Map(hero.garmentIds?.map((id, i) => [id, i]) ?? []);
-      rows.sort(
-        (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
-      );
+      rows.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
 
       let heroImage: string | undefined;
       try {

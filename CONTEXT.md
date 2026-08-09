@@ -76,7 +76,7 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 - Re-running **Weekly Fits** **replaces Fits** but never overwrites committed **Outfits**
 - Re-run / refresh **Weekly Fits** lives on **Calendar** (week overview action), not as a mid-week control on **Today** (empty **Today** still has the primary generate CTA)
 - On **Today**, “Wear this” promotes a **Fit** to today’s **Outfit** (no Calendar required)
-- **Outfit Generator** revises the *current day’s* answer; **Weekly Fits** fills the week when nothing exists yet
+- **Outfit Generator** revises the _current day’s_ answer; **Weekly Fits** fills the week when nothing exists yet
 - **Outfit Generator** UI: short prompt + optional chips (**Include** / **Avoid**) → **up to three** options (fewer OK if the closet can’t support three) → approve (hybrid, not free chat or one-tap-only)
 - **Outfit Generator** opens as a **sheet/modal** over **Today** (not a full-page default); approve dismisses back to the updated hero
 - Approving in **Outfit Generator** writes today’s **Outfit** immediately (same end-state as **Wear this**)
@@ -142,7 +142,7 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 > **Domain expert:** "No. **Wear this** on **Today** makes the **Outfit**."
 
 > **Dev:** "What’s Generator for?"
-> **Domain expert:** "Re-roll *today* when the **Fit** or **Outfit** is wrong. It doesn’t plan the week."
+> **Domain expert:** "Re-roll _today_ when the **Fit** or **Outfit** is wrong. It doesn’t plan the week."
 
 > **Dev:** "Empty closet?"
 > **Domain expert:** "**Add clothes** only. No Weekly Fits until there are **Garments**."

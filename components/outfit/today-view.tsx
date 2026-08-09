@@ -5,11 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import {
-  planMyWeek,
-  unwearToday,
-  wearThisFit,
-} from "@/app/actions/today";
+import { planMyWeek, unwearToday, wearThisFit } from "@/app/actions/today";
 import type { ClothingCardData } from "@/lib/garments/types";
 import type { TodayPageData } from "@/lib/outfits/today-data";
 import { cn } from "@/lib/utils";
@@ -50,10 +46,7 @@ export function TodayView({
           <p className="text-muted-foreground">
             Add clothes to your closet to get started.
           </p>
-          <Link
-            href="/closet"
-            className={cn(buttonVariants({ size: "lg" }))}
-          >
+          <Link href="/closet" className={cn(buttonVariants({ size: "lg" }))}>
             Add clothes
           </Link>
         </div>

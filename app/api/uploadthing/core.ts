@@ -11,7 +11,7 @@ export const ourFileRouter = {
       image: { maxFileSize: "8MB", maxFileCount: 8 },
     },
     /** Don’t block the browser on `onUploadComplete` (avoids dev/callback timing stalls). */
-    { awaitServerData: false }
+    { awaitServerData: false },
   )
     .middleware(async () => {
       const { data } = await auth.getSession();

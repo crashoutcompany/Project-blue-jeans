@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { adminRequiredJsonResponse, sessionAllowsAdminApi } from "@/lib/auth/admin-api";
+import {
+  adminRequiredJsonResponse,
+  sessionAllowsAdminApi,
+} from "@/lib/auth/admin-api";
 import { auth } from "@/lib/auth/server";
 import {
   generateLookbook,
@@ -48,8 +51,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const userId =
-    typeof data.user.id === "string" ? data.user.id.trim() : "";
+  const userId = typeof data.user.id === "string" ? data.user.id.trim() : "";
   if (!userId) {
     return NextResponse.json(
       { ok: false as const, message: "Session is missing a user id." },
@@ -67,7 +69,10 @@ export async function POST(request: Request) {
   if (body.includedGarmentIds !== undefined) {
     if (!isStringArray(body.includedGarmentIds)) {
       return NextResponse.json(
-        { ok: false as const, message: "includedGarmentIds must be a string array." },
+        {
+          ok: false as const,
+          message: "includedGarmentIds must be a string array.",
+        },
         { status: 400 },
       );
     }

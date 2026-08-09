@@ -1,13 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CalendarDays, Plus, Search, X } from "lucide-react";
 
 import { toggleGarmentFavorite } from "@/app/actions/garments";
@@ -98,7 +92,8 @@ export function ClosetView({
       `${savedOutfits.length}\0${[...savedOutfits.map((o) => `${o.id}:${o.name ?? ""}:${o.wornOn}`)].sort().join("\0")}`,
     [savedOutfits],
   );
-  const [seenOutfitSignature, setSeenOutfitSignature] = useState(outfitSignature);
+  const [seenOutfitSignature, setSeenOutfitSignature] =
+    useState(outfitSignature);
   if (outfitSignature !== seenOutfitSignature) {
     setSeenOutfitSignature(outfitSignature);
     setOutfitArchive(savedOutfits);
@@ -188,7 +183,10 @@ export function ClosetView({
     setAddOpen(true);
     setCategory("all");
     requestAnimationFrame(() => {
-      addZoneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      addZoneRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     });
   }
 
@@ -457,7 +455,9 @@ export function ClosetView({
               disabled={savingDrafts}
             />
             {persistError ? (
-              <p className="max-w-xs text-sm text-destructive">{persistError}</p>
+              <p className="max-w-xs text-sm text-destructive">
+                {persistError}
+              </p>
             ) : null}
             {pendingDrafts.length === 0 ? (
               <Button
@@ -600,30 +600,30 @@ export function ClosetView({
 
       {/* Fixed FAB clears the sidebar; expands to “Add clothes” on hover like wardrobe. */}
       {showGarments ? (
-      <button
-        type="button"
-        onClick={openAddZone}
-        aria-label="Add clothes"
-        style={{
-          left:
-            isMobile || sidebarState === "collapsed"
-              ? "1.125rem"
-              : "calc(var(--sidebar-width) + 1.125rem)",
-        }}
-        className="group/tray fixed bottom-[max(1.125rem,env(safe-area-inset-bottom))] z-30 flex min-h-12 items-center gap-0 overflow-hidden rounded-full border border-white/10 bg-foreground p-1 text-background shadow-[0_8px_28px_rgba(25,23,18,0.2)] transition-[left,box-shadow] duration-220 ease-out hover:shadow-[0_12px_36px_rgba(25,23,18,0.26)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
-      >
-        <span className="grid size-10 shrink-0 place-items-center rounded-full transition-colors duration-160 group-hover/tray:bg-white/12 group-focus-visible/tray:bg-white/12">
-          <Plus className="size-[19px]" strokeWidth={2} />
-        </span>
-        <span
-          aria-hidden
-          className="flex max-w-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity] duration-320 ease-[cubic-bezier(0.2,0.7,0.2,1)] group-hover/tray:max-w-[11rem] group-hover/tray:opacity-100 group-focus-visible/tray:max-w-[11rem] group-focus-visible/tray:opacity-100"
+        <button
+          type="button"
+          onClick={openAddZone}
+          aria-label="Add clothes"
+          style={{
+            left:
+              isMobile || sidebarState === "collapsed"
+                ? "1.125rem"
+                : "calc(var(--sidebar-width) + 1.125rem)",
+          }}
+          className="group/tray fixed bottom-[max(1.125rem,env(safe-area-inset-bottom))] z-30 flex min-h-12 items-center gap-0 overflow-hidden rounded-full border border-white/10 bg-foreground p-1 text-background shadow-[0_8px_28px_rgba(25,23,18,0.2)] transition-[left,box-shadow] duration-220 ease-out hover:shadow-[0_12px_36px_rgba(25,23,18,0.26)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
         >
-          <span className="whitespace-nowrap px-2.5 pr-3 text-xs tracking-[0.01em]">
-            Add clothes
+          <span className="grid size-10 shrink-0 place-items-center rounded-full transition-colors duration-160 group-hover/tray:bg-white/12 group-focus-visible/tray:bg-white/12">
+            <Plus className="size-[19px]" strokeWidth={2} />
           </span>
-        </span>
-      </button>
+          <span
+            aria-hidden
+            className="flex max-w-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity] duration-320 ease-[cubic-bezier(0.2,0.7,0.2,1)] group-hover/tray:max-w-[11rem] group-hover/tray:opacity-100 group-focus-visible/tray:max-w-[11rem] group-focus-visible/tray:opacity-100"
+          >
+            <span className="whitespace-nowrap px-2.5 pr-3 text-xs tracking-[0.01em]">
+              Add clothes
+            </span>
+          </span>
+        </button>
       ) : null}
 
       <GarmentDetailSheet

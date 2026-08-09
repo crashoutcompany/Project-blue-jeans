@@ -4,8 +4,7 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   experimental: {
     // Instant-nav e2e only. Never set EXPOSE_TESTING_API in real production.
-    exposeTestingApiInProductionBuild:
-      process.env.EXPOSE_TESTING_API === "1",
+    exposeTestingApiInProductionBuild: process.env.EXPOSE_TESTING_API === "1",
   },
   async redirects() {
     return [

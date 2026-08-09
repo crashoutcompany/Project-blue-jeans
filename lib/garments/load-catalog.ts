@@ -2,9 +2,7 @@ import { unstable_cache } from "next/cache";
 
 import type { CatalogGarment } from "@/lib/ai/lookbook/catalog";
 import { requireSql } from "@/lib/db";
-import {
-  closetGarmentsTag,
-} from "@/lib/garments/closet-garments-cache-tag";
+import { closetGarmentsTag } from "@/lib/garments/closet-garments-cache-tag";
 import { getAllGarmentRowsCached } from "@/lib/garments/get-closet-garments-cached";
 
 /**

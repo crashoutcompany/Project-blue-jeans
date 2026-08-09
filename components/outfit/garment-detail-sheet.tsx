@@ -171,13 +171,7 @@ function DetailField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value?: string | null;
-}) {
+function DetailRow({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="grid grid-cols-[6rem_1fr] gap-4">
       <dt className="text-muted-foreground">{label}</dt>

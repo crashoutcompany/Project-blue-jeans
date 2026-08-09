@@ -14,8 +14,7 @@ import { loadTodayPageData } from "@/lib/outfits/today-data";
 
 export const metadata: Metadata = {
   title: "Project Blue Jeans",
-  description:
-    "Decide what to wear today — from clothes you already own.",
+  description: "Decide what to wear today — from clothes you already own.",
 };
 
 function LandingShell() {
@@ -36,8 +35,7 @@ async function HomeContent() {
   }
 
   if (data?.user && isAdminUser(data.user)) {
-    const userId =
-      typeof data.user.id === "string" ? data.user.id.trim() : "";
+    const userId = typeof data.user.id === "string" ? data.user.id.trim() : "";
     if (!userId) {
       redirect("/auth/sign-in");
     }

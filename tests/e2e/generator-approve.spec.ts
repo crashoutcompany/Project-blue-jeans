@@ -9,4 +9,3 @@ test.describe("generator (admin)", () => {
     await expect(page.getByText("Change look").first()).toBeVisible();
   });
 });
-

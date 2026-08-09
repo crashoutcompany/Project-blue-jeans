@@ -1,6 +1,6 @@
 # Today is home after sign-in
 
-The product’s primary job is deciding what to wear *today* from owned clothes. We make **Today** the signed-in home (`/`), not the Digital Closet or Calendar: Closet is inventory, Calendar is a week/month map, and Outfit Generator is a re-roll reached from Today (“Change look”). Commit happens on Today (Wear this / Generator approve → Outfit), so the home surface answers the job instead of browsing infrastructure.
+The product’s primary job is deciding what to wear _today_ from owned clothes. We make **Today** the signed-in home (`/`), not the Digital Closet or Calendar: Closet is inventory, Calendar is a week/month map, and Outfit Generator is a re-roll reached from Today (“Change look”). Commit happens on Today (Wear this / Generator approve → Outfit), so the home surface answers the job instead of browsing infrastructure.
 
 ## Considered options
 

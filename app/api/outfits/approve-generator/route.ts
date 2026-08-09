@@ -41,8 +41,7 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
-  const userId =
-    typeof data.user.id === "string" ? data.user.id.trim() : "";
+  const userId = typeof data.user.id === "string" ? data.user.id.trim() : "";
   if (!userId) {
     return NextResponse.json(
       { ok: false as const, message: "Session is missing a user id." },

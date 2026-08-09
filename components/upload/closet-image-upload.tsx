@@ -35,7 +35,9 @@ function imageFilesFromDataTransfer(data: DataTransfer | null): File[] {
   return out;
 }
 
-function imageFilesFromFileList(list: FileList | File[] | null | undefined): File[] {
+function imageFilesFromFileList(
+  list: FileList | File[] | null | undefined,
+): File[] {
   if (!list?.length) return [];
   return Array.from(list).filter(isImageFile);
 }

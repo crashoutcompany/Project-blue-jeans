@@ -3,10 +3,7 @@ import path from "node:path";
 
 const AUTH_DIR = path.join(process.cwd(), "tests/e2e/.auth");
 
-function writeStorageState(
-  filename: string,
-  role: "admin" | "non-admin",
-) {
+function writeStorageState(filename: string, role: "admin" | "non-admin") {
   const state = {
     cookies: [
       {
@@ -20,9 +17,15 @@ function writeStorageState(
         sameSite: "Lax" as const,
       },
     ],
-    origins: [] as { origin: string; localStorage: { name: string; value: string }[] }[],
+    origins: [] as {
+      origin: string;
+      localStorage: { name: string; value: string }[];
+    }[],
   };
-  fs.writeFileSync(path.join(AUTH_DIR, filename), JSON.stringify(state, null, 2));
+  fs.writeFileSync(
+    path.join(AUTH_DIR, filename),
+    JSON.stringify(state, null, 2),
+  );
 }
 
 export default async function globalSetup() {

@@ -35,10 +35,7 @@ export async function runHeroImageStep(
   if (params.garments.length === 0) return undefined;
 
   const garmentSummary = params.garments
-    .map(
-      (g) =>
-        `${g.id} (${g.category}): ${g.name?.trim() || "piece"}`,
-    )
+    .map((g) => `${g.id} (${g.category}): ${g.name?.trim() || "piece"}`)
     .join("; ");
 
   const tryOn = Boolean(params.wearerPhotoUrl?.trim());

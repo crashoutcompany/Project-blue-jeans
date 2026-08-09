@@ -8,11 +8,7 @@ import { authClient } from "@/lib/auth/client";
 
 type AuthClientProp = ComponentProps<typeof NeonAuthUIProvider>["authClient"];
 
-export function NeonAuthProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function NeonAuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <NeonAuthUIProvider
       Link={Link}

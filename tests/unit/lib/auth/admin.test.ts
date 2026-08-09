@@ -64,8 +64,7 @@ describe("assertAdminForServerAction", () => {
     });
     await expect(assertAdminForServerAction()).resolves.toEqual({
       ok: false,
-      message:
-        "Admin access is required. Sign out and use an admin account.",
+      message: "Admin access is required. Sign out and use an admin account.",
     });
   });
 
@@ -137,13 +136,17 @@ describe("redirectSignedInNonAdminFromPublicPage", () => {
 
   it("does not redirect when anon", async () => {
     getSession.mockResolvedValue({ data: null });
-    await expect(redirectSignedInNonAdminFromPublicPage()).resolves.toBeUndefined();
+    await expect(
+      redirectSignedInNonAdminFromPublicPage(),
+    ).resolves.toBeUndefined();
   });
 
   it("does not redirect when admin", async () => {
     getSession.mockResolvedValue({
       data: { user: { email: "a@x.com", role: "admin" } },
     });
-    await expect(redirectSignedInNonAdminFromPublicPage()).resolves.toBeUndefined();
+    await expect(
+      redirectSignedInNonAdminFromPublicPage(),
+    ).resolves.toBeUndefined();
   });
 });

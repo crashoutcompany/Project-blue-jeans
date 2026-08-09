@@ -51,7 +51,9 @@ export function AppSidebar() {
       <SidebarRail />
       <SidebarHeader className="gap-3 px-3 pt-4 pb-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:pb-2 group-data-[collapsible=icon]:pt-3">
         <div className="flex flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
-          <p className="font-serif text-lg text-sidebar-foreground">Blue Jeans</p>
+          <p className="font-serif text-lg text-sidebar-foreground">
+            Blue Jeans
+          </p>
         </div>
         <div className="hidden justify-center group-data-[collapsible=icon]:flex">
           <div

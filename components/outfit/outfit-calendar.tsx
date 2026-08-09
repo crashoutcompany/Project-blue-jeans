@@ -13,7 +13,15 @@ import type {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+const WEEKDAY_LABELS = [
+  "Mon",
+  "Tue",
+  "Wed",
+  "Thu",
+  "Fri",
+  "Sat",
+  "Sun",
+] as const;
 
 function shiftMonth(year: number, month: number, delta: number) {
   const d = new Date(year, month - 1 + delta, 1);
@@ -77,10 +85,7 @@ export function OutfitCalendar({
     return m;
   }, [weeklyDrafts]);
 
-  const cells = useMemo(
-    () => buildMonthCells(year, month),
-    [year, month],
-  );
+  const cells = useMemo(() => buildMonthCells(year, month), [year, month]);
 
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
@@ -183,15 +188,9 @@ export function OutfitCalendar({
             now.getMonth() + 1 === month &&
             now.getDate() === cell.day;
           const primary = outfits[0];
-          const thumb =
-            primary?.imageUrl ??
-            weekly?.heroImageUrl ??
-            null;
+          const thumb = primary?.imageUrl ?? weekly?.heroImageUrl ?? null;
           const label =
-            primary?.name?.trim() ||
-            primary?.occasion ||
-            weekly?.title ||
-            null;
+            primary?.name?.trim() || primary?.occasion || weekly?.title || null;
 
           return (
             <div
@@ -242,9 +241,7 @@ export function OutfitCalendar({
                   onClick={() => onApproveWeekly(weekly.planLookId)}
                 >
                   <Check className="mr-1 size-3" />
-                  {pendingLookId === weekly.planLookId
-                    ? "Saving…"
-                    : "Approve"}
+                  {pendingLookId === weekly.planLookId ? "Saving…" : "Approve"}
                 </Button>
               ) : null}
 

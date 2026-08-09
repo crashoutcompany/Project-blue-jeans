@@ -62,11 +62,10 @@ async function resolveGarmentAiFields(
 
     const description = hasDesc
       ? descRaw.slice(0, MAX_DESCRIPTION_LEN)
-      : (ai.description.trim() ||
-          fallbackGarmentDescription(displayName, item.category)).slice(
-          0,
-          MAX_DESCRIPTION_LEN,
-        );
+      : (
+          ai.description.trim() ||
+          fallbackGarmentDescription(displayName, item.category)
+        ).slice(0, MAX_DESCRIPTION_LEN);
 
     const color = hasColor
       ? colorRaw.slice(0, MAX_COLOR_LEN)

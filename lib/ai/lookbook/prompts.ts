@@ -36,8 +36,7 @@ export function step1UserPrompt(params: {
 
   let weeklyHint: string;
   if (weekly && lookCount === 1 && weeklyDayIndex !== undefined) {
-    const name =
-      WEEKDAYS[weeklyDayIndex] ?? `Day ${weeklyDayIndex + 1}`;
+    const name = WEEKDAYS[weeklyDayIndex] ?? `Day ${weeklyDayIndex + 1}`;
     weeklyHint = `You are planning **one day** of the user's week: **${name}** (day ${weeklyDayIndex + 1} of 7). Produce exactly **one** outfit for that day only. Other weekdays are planned in separate requests—give this day a clear character (energy, formality) that can coexist with a varied week.`;
   } else if (weekly) {
     weeklyHint = `Produce exactly ${lookCount} outfits, one for each day of the week in order: Monday (index 0) through Sunday (index ${lookCount - 1}). Each look should feel distinct but compatible with the same closet.`;

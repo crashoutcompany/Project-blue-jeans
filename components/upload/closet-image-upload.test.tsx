@@ -12,7 +12,9 @@ describe("ClosetImageUpload", () => {
   it("invokes onFilesReady for image files", async () => {
     const user = userEvent.setup();
     const onFilesReady = vi.fn();
-    const { container } = render(<ClosetImageUpload onFilesReady={onFilesReady} />);
+    const { container } = render(
+      <ClosetImageUpload onFilesReady={onFilesReady} />,
+    );
 
     const input = container.querySelector('input[type="file"]');
     expect(input).toBeTruthy();

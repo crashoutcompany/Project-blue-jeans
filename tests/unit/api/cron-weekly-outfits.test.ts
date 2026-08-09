@@ -50,7 +50,9 @@ describe("GET /api/cron/weekly-outfits", () => {
   });
 
   it("invokes runWeeklyOutfitsJob per Wearer with garments", async () => {
-    const sql = vi.fn().mockResolvedValue([{ user_id: "u1" }, { user_id: "u2" }]);
+    const sql = vi
+      .fn()
+      .mockResolvedValue([{ user_id: "u1" }, { user_id: "u2" }]);
     getSqlMock.mockReturnValue(sql as never);
     job.mockResolvedValue({
       ok: true,
@@ -64,12 +66,8 @@ describe("GET /api/cron/weekly-outfits", () => {
     );
     expect(res.status).toBe(200);
     expect(job).toHaveBeenCalledTimes(2);
-    expect(job).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u1" }),
-    );
-    expect(job).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u2" }),
-    );
+    expect(job).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1" }));
+    expect(job).toHaveBeenCalledWith(expect.objectContaining({ userId: "u2" }));
   });
 
   it("returns 200 with zero accounts when no garments", async () => {

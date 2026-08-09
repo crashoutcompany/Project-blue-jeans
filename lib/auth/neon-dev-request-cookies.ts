@@ -55,9 +55,10 @@ export function requestWithNeonDevCookies(request: Request): Request {
   return new Request(request.url, {
     method: request.method,
     headers: h,
-    body: request.method !== "GET" && request.method !== "HEAD"
-      ? request.body
-      : undefined,
+    body:
+      request.method !== "GET" && request.method !== "HEAD"
+        ? request.body
+        : undefined,
     duplex: request.body ? "half" : undefined,
   } as RequestInit);
 }

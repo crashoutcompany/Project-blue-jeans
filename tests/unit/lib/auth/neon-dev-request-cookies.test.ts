@@ -9,9 +9,8 @@ describe("wireNeonCookieHeaderForUpstream", () => {
 
   it("rewrites neon-auth. prefix to __Secure-neon-auth. in development", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    const { wireNeonCookieHeaderForUpstream } = await import(
-      "@/lib/auth/neon-dev-request-cookies"
-    );
+    const { wireNeonCookieHeaderForUpstream } =
+      await import("@/lib/auth/neon-dev-request-cookies");
     const out = wireNeonCookieHeaderForUpstream(
       "neon-auth.session=abc; other=1",
     );
@@ -21,9 +20,8 @@ describe("wireNeonCookieHeaderForUpstream", () => {
 
   it("is a no-op when not development", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const { wireNeonCookieHeaderForUpstream } = await import(
-      "@/lib/auth/neon-dev-request-cookies"
-    );
+    const { wireNeonCookieHeaderForUpstream } =
+      await import("@/lib/auth/neon-dev-request-cookies");
     const raw = "neon-auth.session=abc";
     expect(wireNeonCookieHeaderForUpstream(raw)).toBe(raw);
   });
@@ -31,9 +29,8 @@ describe("wireNeonCookieHeaderForUpstream", () => {
 
 describe("nextRequestWithMergedCookieHeader", () => {
   it("preserves existing Cookie header", async () => {
-    const { nextRequestWithMergedCookieHeader } = await import(
-      "@/lib/auth/neon-dev-request-cookies"
-    );
+    const { nextRequestWithMergedCookieHeader } =
+      await import("@/lib/auth/neon-dev-request-cookies");
     const req = new NextRequest("https://example.com/foo", {
       headers: { cookie: "session=abc" },
     });

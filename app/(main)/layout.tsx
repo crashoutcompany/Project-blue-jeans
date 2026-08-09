@@ -5,7 +5,5 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <AuthenticatedShellSuspense>{children}</AuthenticatedShellSuspense>
-  );
+  return <AuthenticatedShellSuspense>{children}</AuthenticatedShellSuspense>;
 }

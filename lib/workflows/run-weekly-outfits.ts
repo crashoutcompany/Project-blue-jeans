@@ -5,7 +5,10 @@ import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
 import { requireSql } from "@/lib/db";
-import { loadGarmentCatalog, loadGarmentsByIds } from "@/lib/garments/load-catalog";
+import {
+  loadGarmentCatalog,
+  loadGarmentsByIds,
+} from "@/lib/garments/load-catalog";
 import { logServerError } from "@/lib/server/safe-client-error";
 import type { WeeklyOutfitsInput } from "@/lib/workflows/types";
 
@@ -91,7 +94,8 @@ export async function runWeeklyOutfitsJob(
   if (garments.length === 0) {
     return {
       ok: false,
-      error: "Your closet is empty. Add garments before generating a weekly plan.",
+      error:
+        "Your closet is empty. Add garments before generating a weekly plan.",
       planId: row?.id,
     };
   }
@@ -242,8 +246,9 @@ export async function runWeeklyOutfitsJob(
     }
 
     await Promise.all(
-      heroOutcomes.map((o) =>
-        sql`
+      heroOutcomes.map(
+        (o) =>
+          sql`
           UPDATE weekly_plan_looks
           SET hero_image_url = ${o.url}
           WHERE plan_id = ${planId} AND sort_order = ${o.i}

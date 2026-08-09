@@ -75,7 +75,9 @@ test.describe("instant initial load", () => {
         page,
         async () => {
           await page.goto(url);
-          await expect(visibleTestId(page, "closet-shell-marker")).toBeVisible();
+          await expect(
+            visibleTestId(page, "closet-shell-marker"),
+          ).toBeVisible();
           await expect(page.getByTestId("closet-content")).toHaveCount(0);
         },
         { baseURL: new URL(url).origin },

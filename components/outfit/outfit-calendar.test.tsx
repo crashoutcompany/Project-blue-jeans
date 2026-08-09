@@ -13,18 +13,12 @@ import { OutfitCalendar } from "@/components/outfit/outfit-calendar";
 describe("OutfitCalendar", () => {
   it("renders month title and nav links", () => {
     render(
-      <OutfitCalendar
-        year={2025}
-        month={3}
-        saved={[]}
-        weeklyDrafts={[]}
-      />,
+      <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
     );
     expect(screen.getByText(/2025/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /previous month/i })).toHaveAttribute(
-      "href",
-      "/calendar?year=2025&month=2",
-    );
+    expect(
+      screen.getByRole("link", { name: /previous month/i }),
+    ).toHaveAttribute("href", "/calendar?year=2025&month=2");
     expect(screen.getByRole("link", { name: /next month/i })).toHaveAttribute(
       "href",
       "/calendar?year=2025&month=4",

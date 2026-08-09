@@ -83,7 +83,9 @@ export function garmentMatchesColorFacet(
 
   if (facetId.startsWith("lbl|")) {
     const key = facetId.slice(4);
-    return normalizeText(g.color) === key || normalizeText(g.colorLabel) === key;
+    return (
+      normalizeText(g.color) === key || normalizeText(g.colorLabel) === key
+    );
   }
 
   return false;

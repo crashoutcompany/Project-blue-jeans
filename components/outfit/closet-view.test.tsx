@@ -21,10 +21,9 @@ vi.mock("@/lib/uploadthing", () => ({
 }));
 
 vi.mock("@/components/ui/sidebar", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/components/ui/sidebar")>(
-      "@/components/ui/sidebar",
-    );
+  const actual = await vi.importActual<
+    typeof import("@/components/ui/sidebar")
+  >("@/components/ui/sidebar");
   return {
     ...actual,
     useSidebar: () => ({
@@ -62,9 +61,7 @@ describe("ClosetView", () => {
     await user.click(
       screen.getByRole("button", { name: /view details for shirt/i }),
     );
-    await user.click(
-      screen.getByRole("button", { name: /add to favorites/i }),
-    );
+    await user.click(screen.getByRole("button", { name: /add to favorites/i }));
     expect(toggleGarmentFavorite).toHaveBeenCalledWith(gid);
   });
 });

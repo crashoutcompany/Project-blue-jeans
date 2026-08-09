@@ -61,8 +61,7 @@ export async function assertAdminForServerAction(): Promise<
       message: "Admin access is required. Sign out and use an admin account.",
     };
   }
-  const userId =
-    typeof data.user.id === "string" ? data.user.id.trim() : "";
+  const userId = typeof data.user.id === "string" ? data.user.id.trim() : "";
   if (!userId) {
     return { ok: false, message: "Session is missing a user id." };
   }

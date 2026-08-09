@@ -7,9 +7,8 @@ vi.mock("@/lib/auth/server", () => ({
 }));
 
 vi.mock("@/lib/outfits/persist-generator-outfit", async (orig) => {
-  const actual = await orig<
-    typeof import("@/lib/outfits/persist-generator-outfit")
-  >();
+  const actual =
+    await orig<typeof import("@/lib/outfits/persist-generator-outfit")>();
   return {
     ...actual,
     executeApproveGeneratorOutfit: vi.fn(),

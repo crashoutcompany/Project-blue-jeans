@@ -37,7 +37,9 @@ describe("toggleGarmentFavorite", () => {
     });
     const sql = vi.fn().mockResolvedValue(undefined);
     requireSqlMock.mockReturnValue(sql as never);
-    const res = await toggleGarmentFavorite("f47ac10b-58cc-4372-a567-0e02b2c3d479");
+    const res = await toggleGarmentFavorite(
+      "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    );
     expect(res.ok).toBe(true);
     expect(sql).toHaveBeenCalled();
   });

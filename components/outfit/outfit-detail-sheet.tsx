@@ -291,11 +291,7 @@ export function OutfitDetailSheet({
               >
                 Keep current
               </Button>
-              <Button
-                type="button"
-                disabled={pending}
-                onClick={runWearToday}
-              >
+              <Button type="button" disabled={pending} onClick={runWearToday}>
                 Replace
               </Button>
             </div>

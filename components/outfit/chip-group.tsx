@@ -33,7 +33,7 @@ export function ChipGroup<T extends string>({
               className={cn(
                 "rounded-full px-4 text-[0.65rem] font-semibold uppercase tracking-[0.12em]",
                 active &&
-                  "bg-primary text-primary-foreground hover:bg-primary/90"
+                  "bg-primary text-primary-foreground hover:bg-primary/90",
               )}
             >
               {opt.label}

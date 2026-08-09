@@ -145,11 +145,7 @@ export function WearerPhotoCard({
           disabled={busy}
           onClick={() => inputRef.current?.click()}
         >
-          {busy
-            ? "Working…"
-            : imageUrl
-              ? "Replace photo"
-              : "Add wearer photo"}
+          {busy ? "Working…" : imageUrl ? "Replace photo" : "Add wearer photo"}
         </Button>
         {imageUrl ? (
           <Button

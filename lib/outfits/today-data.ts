@@ -44,7 +44,15 @@ export type TodayPageData = {
   hasWearerPhoto: boolean;
 };
 
-const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const WEEKDAY_SHORT = [
+  "Sun",
+  "Mon",
+  "Tue",
+  "Wed",
+  "Thu",
+  "Fri",
+  "Sat",
+] as const;
 
 async function loadOutfitForDay(
   userId: string,

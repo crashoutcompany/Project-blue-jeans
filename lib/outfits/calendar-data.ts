@@ -19,7 +19,10 @@ export type CalendarWeeklyLook = {
   garmentIds: string[];
 };
 
-function monthRangeIso(year: number, month: number): { start: string; end: string } {
+function monthRangeIso(
+  year: number,
+  month: number,
+): { start: string; end: string } {
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month, 0).getDate();
   const end = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
@@ -34,7 +37,10 @@ export async function loadCalendarMonthData(
   userId: string,
   year: number,
   month: number,
-): Promise<{ saved: CalendarSavedOutfit[]; weeklyDrafts: CalendarWeeklyLook[] }> {
+): Promise<{
+  saved: CalendarSavedOutfit[];
+  weeklyDrafts: CalendarWeeklyLook[];
+}> {
   "use cache";
   cacheTag(calendarMonthTag(userId));
 
