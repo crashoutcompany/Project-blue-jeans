@@ -8,7 +8,7 @@ const f = createUploadthing();
 export const ourFileRouter = {
   closetImage: f(
     {
-      image: { maxFileSize: "8MB", maxFileCount: 8 },
+      image: { maxFileSize: "8MB", maxFileCount: 24 },
     },
     /** Don’t block the browser on `onUploadComplete` (avoids dev/callback timing stalls). */
     { awaitServerData: false },

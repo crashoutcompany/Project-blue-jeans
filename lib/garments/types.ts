@@ -27,4 +27,6 @@ export type ClothingCardData = {
   imageHint?: string;
   /** DB `garments.description` for AI closet catalog */
   description?: string | null;
+  /** DB `garments.notes` (fit/care/product URLs) */
+  notes?: string | null;
 };

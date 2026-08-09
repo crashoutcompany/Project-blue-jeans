@@ -30,5 +30,6 @@ export function garmentRowToCardData(row: GarmentRow): ClothingCardData {
     colorLabel: isHex ? undefined : (rawColor ?? undefined),
     imageHint: "archive",
     description: row.description?.trim() || null,
+    notes: row.notes?.trim() || null,
   };
 }
