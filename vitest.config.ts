@@ -3,7 +3,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [tsconfigPaths(), react()],
+  plugins: [tsconfigPaths({ projects: ["./tsconfig.vitest.json"] }), react()],
   test: {
     globals: true,
     exclude: [
@@ -15,7 +15,10 @@ export default defineConfig({
     ],
     projects: [
       {
-        plugins: [tsconfigPaths(), react()],
+        plugins: [
+          tsconfigPaths({ projects: ["./tsconfig.vitest.json"] }),
+          react(),
+        ],
         test: {
           name: "node",
           environment: "node",
@@ -24,7 +27,10 @@ export default defineConfig({
         },
       },
       {
-        plugins: [tsconfigPaths(), react()],
+        plugins: [
+          tsconfigPaths({ projects: ["./tsconfig.vitest.json"] }),
+          react(),
+        ],
         test: {
           name: "components",
           environment: "jsdom",

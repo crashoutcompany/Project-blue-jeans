@@ -14,6 +14,8 @@ const neonAuthMiddleware = auth.middleware({
 });
 
 function redirectToLocalhostInDev(request: NextRequest): NextResponse | null {
+  // Playwright targets 127.0.0.1; keep that host when the E2E auth stub is active.
+  if (process.env.E2E_PLAYWRIGHT === "1") return null;
   if (process.env.NODE_ENV !== "development") return null;
   const host = request.headers.get("host") ?? "";
   const lower = host.toLowerCase();

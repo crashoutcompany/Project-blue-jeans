@@ -1,0 +1,121 @@
+# Fork PRs do not receive repository secrets. Lint/test/e2e use stub Neon Auth env.
+# Build runs only for push to main and same-repo PRs. Needs VERCEL_TOKEN,
+# VERCEL_ORG_ID, VERCEL_PROJECT_ID, plus app secrets that Vercel marks Sensitive
+# (those pull as "[SENSITIVE]" placeholders and must come from GitHub secrets).
+# Fork PRs: lint + test (+ e2e) only.
+name: Actions CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      NEON_AUTH_BASE_URL: https://example.invalid
+      NEON_AUTH_COOKIE_SECRET: "01234567890123456789012345678901"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+  build:
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      NEON_AUTH_BASE_URL: ${{ secrets.NEON_AUTH_BASE_URL }}
+      NEON_AUTH_COOKIE_SECRET: ${{ secrets.NEON_AUTH_COOKIE_SECRET }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pull Vercel Environment Variables
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build with Vercel
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }} --prod
+
+  test:
+    runs-on: ubuntu-latest
+    env:
+      NEON_AUTH_BASE_URL: https://example.invalid
+      NEON_AUTH_COOKIE_SECRET: "01234567890123456789012345678901"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEON_AUTH_BASE_URL: https://example.invalid
+      NEON_AUTH_COOKIE_SECRET: "01234567890123456789012345678901"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (Next.js, instant-nav testing API)
+        run: npm run build:instant
+        env:
+          E2E_PLAYWRIGHT: "1"
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests (Playwright)
+        run: npm run test:e2e
+        env:
+          E2E_PLAYWRIGHT: "1"
+          EXPOSE_TESTING_API: "1"
+          CI: "true"

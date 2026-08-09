@@ -19,13 +19,16 @@ export default defineConfig({
   webServer: {
     command: "npm run start",
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse `next dev` — it lacks E2E_PLAYWRIGHT auth stub and 127.0.0.1→localhost redirects break Playwright.
+    // Opt in with PW_REUSE_SERVER=1 only for an already-running `next start` with E2E_PLAYWRIGHT=1.
+    reuseExistingServer: process.env.PW_REUSE_SERVER === "1",
     timeout: 120_000,
     env: {
       ...process.env,
       E2E_PLAYWRIGHT: "1",
       PORT: "3000",
       HOSTNAME: "127.0.0.1",
+      EXPOSE_TESTING_API: process.env.EXPOSE_TESTING_API ?? "1",
       NEON_AUTH_BASE_URL:
         process.env.NEON_AUTH_BASE_URL ?? "https://example.invalid",
       NEON_AUTH_COOKIE_SECRET:
@@ -34,3 +37,4 @@ export default defineConfig({
     },
   },
 });
+
