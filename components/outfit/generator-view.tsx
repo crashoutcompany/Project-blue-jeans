@@ -18,6 +18,7 @@ import type { GenerateLookbookResult } from "@/lib/lookbook/generate-lookbook";
 import type { OutfitLook } from "@/lib/outfits/types";
 import { APPROVE_OUTFIT_MAX_IMAGE_URL_LEN } from "@/lib/outfits/approve-outfit-limits";
 import type { ApproveOutfitResult } from "@/lib/outfits/persist-generator-outfit";
+import { productTodayIso } from "@/lib/time/product-timezone";
 import { GeneratorChatStack } from "@/components/outfit/generator-chat-stack";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,14 +36,6 @@ const SUGGESTIONS = [
 
 function idsSignature(garments: ClothingCardData[]) {
   return garments.map((g) => g.id).join("\0");
-}
-
-function localISODate() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
 }
 
 function GeneratorClosetScope({
@@ -212,10 +205,24 @@ type ChatMessage =
     }
   | { id: string; role: "assistant"; error: string };
 
+function messagesHaveGeneratedOptions(messages: ChatMessage[]) {
+  return messages.some(
+    (m) => m.role === "assistant" && "looks" in m && m.looks.length > 0,
+  );
+}
+
 export function GeneratorView({
   closetGarments,
+  variant = "page",
+  wornOn,
+  onApproved,
+  onHasGeneratedOptionsChange,
 }: {
   closetGarments: ClothingCardData[];
+  variant?: "page" | "embedded";
+  wornOn?: string;
+  onApproved?: () => void;
+  onHasGeneratedOptionsChange?: (hasOptions: boolean) => void;
 }) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -229,6 +236,8 @@ export function GeneratorView({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const onHasGeneratedOptionsChangeRef = useRef(onHasGeneratedOptionsChange);
+  onHasGeneratedOptionsChangeRef.current = onHasGeneratedOptionsChange;
 
   const closetSig = useMemo(
     () => idsSignature(closetGarments),
@@ -240,6 +249,12 @@ export function GeneratorView({
   const onClosetSelectionChange = useCallback((ids: Set<string>) => {
     setSelectedIds(ids);
   }, []);
+
+  useEffect(() => {
+    onHasGeneratedOptionsChangeRef.current?.(
+      messagesHaveGeneratedOptions(messages),
+    );
+  }, [messages]);
 
   const handleApprove = useCallback(
     async (messageId: string, look: OutfitLook) => {
@@ -261,8 +276,7 @@ export function GeneratorView({
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({
-            wornOn: localISODate(),
-            name: look.title,
+            wornOn: wornOn ?? productTodayIso(),
             occasion: "casual",
             garmentIds,
             imageUrl,
@@ -280,11 +294,12 @@ export function GeneratorView({
           return;
         }
         setApprovedByMessage((prev) => ({ ...prev, [messageId]: look.id }));
+        onApproved?.();
       } finally {
         setApproveSavingLookId(null);
       }
     },
-    [],
+    [onApproved, wornOn],
   );
 
   const allClosetIds = useMemo(
@@ -428,16 +443,23 @@ export function GeneratorView({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
-      <div className="space-y-1">
-        <h1 className="font-serif text-2xl tracking-tight text-foreground md:text-3xl">
-          Outfit dialogue
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Immersive feed—describe the moment, get a stacked lookbook from your
-          closet.
-        </p>
-      </div>
+    <div
+      className={cn(
+        "mx-auto flex w-full max-w-2xl flex-col gap-5",
+        variant === "embedded" && "max-w-none",
+      )}
+    >
+      {variant === "page" ? (
+        <div className="space-y-1">
+          <h1 className="font-serif text-2xl tracking-tight text-foreground md:text-3xl">
+            Outfit dialogue
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Immersive feed—describe the moment, get a stacked lookbook from your
+            closet.
+          </p>
+        </div>
+      ) : null}
 
       <details className="group rounded-2xl border border-border/70 bg-muted/20">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
@@ -456,7 +478,10 @@ export function GeneratorView({
 
       <div
         className={cn(
-          "flex min-h-[min(520px,72vh)] flex-col overflow-hidden rounded-3xl border border-border/80 bg-zinc-950/[0.03] shadow-inner dark:bg-zinc-950/40",
+          "flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-zinc-950/[0.03] shadow-inner dark:bg-zinc-950/40",
+          variant === "embedded"
+            ? "min-h-[min(420px,58svh)]"
+            : "min-h-[min(520px,72vh)]",
         )}
       >
         <div

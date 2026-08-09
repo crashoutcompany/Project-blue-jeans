@@ -1,4 +1,8 @@
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+
 import { OutfitCalendar } from "@/components/outfit/outfit-calendar";
+import { getWearerUserId } from "@/lib/auth/wearer";
 import { loadCalendarMonthData } from "@/lib/outfits/calendar-data";
 
 type Search = { year?: string; month?: string };
@@ -17,17 +21,30 @@ function clampMonthYear(sp: Search) {
   return { year, month };
 }
 
-export default async function CalendarPage({
+function CalendarFallback() {
+  // Static placeholder month for the prerendered shell (no Date.now()).
+  return <OutfitCalendar year={2026} month={1} saved={[]} weeklyDrafts={[]} />;
+}
+
+async function CalendarContent({
   searchParams,
 }: {
   searchParams: Promise<Search>;
 }) {
+  const userId = await getWearerUserId();
+  if (!userId) {
+    redirect("/auth/sign-in");
+  }
   const sp = await searchParams;
   const { year, month } = clampMonthYear(sp);
-  const { saved, weeklyDrafts } = await loadCalendarMonthData(year, month);
+  const { saved, weeklyDrafts } = await loadCalendarMonthData(
+    userId,
+    year,
+    month,
+  );
 
   return (
-    <div className="mx-auto w-full max-w-[min(100%,88rem)] px-1 pb-10 sm:px-2">
+    <div data-testid="calendar-content">
       <OutfitCalendar
         year={year}
         month={month}
@@ -35,5 +52,17 @@ export default async function CalendarPage({
         weeklyDrafts={weeklyDrafts}
       />
     </div>
+  );
+}
+
+export default function CalendarPage({
+  searchParams,
+}: {
+  searchParams: Promise<Search>;
+}) {
+  return (
+    <Suspense fallback={<CalendarFallback />}>
+      <CalendarContent searchParams={searchParams} />
+    </Suspense>
   );
 }

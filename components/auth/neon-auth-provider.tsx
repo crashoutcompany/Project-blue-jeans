@@ -19,7 +19,7 @@ export function NeonAuthProvider({
       authClient={authClient as unknown as AuthClientProp}
       credentials={false}
       signUp={false}
-      redirectTo="/dashboard"
+      redirectTo="/"
       social={{ providers: ["google"] }}
       localization={{
         DISABLED_CREDENTIALS_DESCRIPTION:

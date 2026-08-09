@@ -8,11 +8,36 @@ vi.mock("@/app/actions/garments", () => ({
   toggleGarmentFavorite: (...args: unknown[]) => toggleGarmentFavorite(...args),
 }));
 
+vi.mock("@/app/actions/outfits", () => ({
+  wearOutfitToday: vi.fn(),
+  renameOutfit: vi.fn(),
+  getTodaysOutfitId: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/lib/uploadthing", () => ({
   useUploadThing: () => ({
     startUpload: vi.fn(),
   }),
 }));
+
+vi.mock("@/components/ui/sidebar", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/components/ui/sidebar")>(
+      "@/components/ui/sidebar",
+    );
+  return {
+    ...actual,
+    useSidebar: () => ({
+      state: "expanded",
+      open: true,
+      setOpen: vi.fn(),
+      openMobile: false,
+      setOpenMobile: vi.fn(),
+      isMobile: false,
+      toggleSidebar: vi.fn(),
+    }),
+  };
+});
 
 import { ClosetView } from "@/components/outfit/closet-view";
 
@@ -33,6 +58,9 @@ describe("ClosetView", () => {
           },
         ]}
       />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: /view details for shirt/i }),
     );
     await user.click(
       screen.getByRole("button", { name: /add to favorites/i }),

@@ -1,21 +1,35 @@
+import { Suspense } from "react";
 import { connection } from "next/server";
+import { redirect } from "next/navigation";
 
-import { SavedOutfitsClosetSection } from "@/components/outfit/saved-outfits-closet-section";
 import { ClosetView } from "@/components/outfit/closet-view";
+import { getWearerUserId } from "@/lib/auth/wearer";
 import { getClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
 import { loadSavedOutfitsForCloset } from "@/lib/outfits/closet-saved-outfits";
 
-export default async function ClosetPage() {
+async function ClosetContent() {
   await connection();
+  const userId = await getWearerUserId();
+  if (!userId) {
+    redirect("/auth/sign-in");
+  }
+
   const [garments, savedOutfits] = await Promise.all([
-    getClosetGarmentsCached(),
-    loadSavedOutfitsForCloset(),
+    getClosetGarmentsCached(userId),
+    loadSavedOutfitsForCloset(userId),
   ]);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:max-w-none">
-      <SavedOutfitsClosetSection outfits={savedOutfits} />
-      <ClosetView initialGarments={garments} />
+    <div data-testid="closet-content">
+      <ClosetView initialGarments={garments} savedOutfits={savedOutfits} />
     </div>
+  );
+}
+
+export default function ClosetPage() {
+  return (
+    <Suspense fallback={<ClosetView initialGarments={[]} savedOutfits={[]} />}>
+      <ClosetContent />
+    </Suspense>
   );
 }

@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { Suspense } from "react";
 
 import { isAdminUser } from "@/lib/auth/admin";
 import { auth } from "@/lib/auth/server";
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function NotAdminPage() {
+async function NotAdminGate() {
   await connection();
   noStore();
   const { data } = await auth.getSession();
@@ -22,11 +23,17 @@ export default async function NotAdminPage() {
     redirect("/auth/sign-in");
   }
   if (isAdminUser(data.user)) {
-    redirect("/dashboard");
+    redirect("/");
   }
+  return null;
+}
 
+function NotAdminBody() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-background px-6 py-16">
+    <div
+      className="flex min-h-svh flex-col items-center justify-center bg-background px-6 py-16"
+      data-testid="not-admin-shell-marker"
+    >
       <div className="w-full max-w-md space-y-6 text-center">
         <h1 className="font-serif text-3xl tracking-tight text-foreground">
           Admin access only
@@ -46,5 +53,16 @@ export default async function NotAdminPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function NotAdminPage() {
+  return (
+    <>
+      <Suspense fallback={null}>
+        <NotAdminGate />
+      </Suspense>
+      <NotAdminBody />
+    </>
   );
 }
