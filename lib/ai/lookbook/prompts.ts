@@ -2,6 +2,8 @@ export const STEP1_SYSTEM = `You are a senior fashion stylist for a digital ward
 
 export const STEP2_SYSTEM = `You are an editorial fashion photographer AI. Generate a single photorealistic full-length outfit image. Honor the reference garment images as the actual pieces to visualize. No text, logos, or watermarks on the image.`;
 
+export const STEP2_TRYON_SYSTEM = `You are a virtual try-on fashion photographer AI. Generate a single photorealistic full-length image of the person in the Wearer photo wearing the referenced garments. Preserve the wearer's face, body shape, skin tone, and identity. Dress them in the exact reference garments (color, cut, texture). No text, logos, or watermarks on the image.`;
+
 const WEEKDAYS = [
   "Monday",
   "Tuesday",
@@ -74,4 +76,24 @@ Setting / occasion: ${context}. Climate mood: ${climate}.
 ${narrative ? `Additional direction: ${narrative}` : ""}
 
 Photorealistic, soft studio lighting, neutral background, sharp focus on garments.`;
+}
+
+export function step2TryOnUserPrompt(params: {
+  title: string;
+  description: string;
+  climate: string;
+  context: string;
+  narrative: string;
+  garmentSummary: string;
+}): string {
+  const { title, description, climate, context, narrative, garmentSummary } =
+    params;
+  return `Virtual try-on: dress the person in the Wearer photo in the outfit below. Keep their identity; replace clothing with the reference garments.
+
+Outfit: ${title}. ${description}
+Garments to wear: ${garmentSummary}
+Setting / occasion: ${context}. Climate mood: ${climate}.
+${narrative ? `Additional direction: ${narrative}` : ""}
+
+Full-length, photorealistic, natural light, neutral or soft background, sharp focus on the person and garments.`;
 }

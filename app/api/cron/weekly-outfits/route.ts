@@ -1,30 +1,23 @@
 /**
- * Vercel Cron: generate the weekly 7-look plan + hero images in one request.
+ * Vercel Cron: generate weekly Fits + hero images for every Wearer with garments.
  *
  * Environment:
  * - `CRON_SECRET` — Vercel sends `Authorization: Bearer <CRON_SECRET>`.
  * - Vertex AI: `GOOGLE_VERTEX_PROJECT`, `GOOGLE_VERTEX_LOCATION`, auth (see docs/vertex-ai-env.md).
  * - `DATABASE_URL` — Neon.
  *
- * This route can run for several minutes (7 parallel plans + 7 parallel images). On Vercel Pro+, `maxDuration`
- * below raises the serverless limit; on Hobby, consider reducing work or using a queue later.
- *
  * @see https://vercel.com/docs/cron-jobs
  */
 import { NextResponse } from "next/server";
 
+import { getSql } from "@/lib/db";
+import {
+  productTodayIso,
+  sundayWeekStartIso,
+} from "@/lib/time/product-timezone";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
 
 export const maxDuration = 300;
-
-function mondayUtcIso(d = new Date()): string {
-  const day = d.getUTCDay();
-  const diff = (day + 6) % 7;
-  const mon = new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - diff),
-  );
-  return mon.toISOString().slice(0, 10);
-}
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -35,47 +28,87 @@ export async function GET(request: Request) {
     );
   }
 
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${secret}`) {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const weekStart = mondayUtcIso();
+  const weekStart = sundayWeekStartIso(productTodayIso());
+  const sql = getSql();
+  if (!sql) {
+    return NextResponse.json(
+      { ok: false, error: "DATABASE_URL is not configured." },
+      { status: 500 },
+    );
+  }
 
-  const result = await runWeeklyOutfitsJob({
-    weekStart,
-    climate: "Temperate",
-    context: "Everyday week",
-    narrative: "",
-  });
+  let userIds: string[] = [];
+  try {
+    const rows = (await sql`
+      SELECT DISTINCT user_id
+      FROM garments
+      WHERE user_id IS NOT NULL AND user_id <> ''
+    `) as { user_id: string }[];
+    userIds = rows.map((r) => r.user_id);
+  } catch (e) {
+    console.error("[cron/weekly-outfits] list users failed", e);
+    return NextResponse.json(
+      { ok: false, error: "Could not list Wearer accounts." },
+      { status: 500 },
+    );
+  }
 
-  if (!result.ok) {
+  const results: Array<{
+    userId: string;
+    ok: boolean;
+    skipped?: boolean;
+    planId?: string;
+    error?: string;
+  }> = [];
+
+  for (const userId of userIds) {
+    const result = await runWeeklyOutfitsJob({
+      userId,
+      weekStart,
+      climate: "Temperate",
+      context: "Everyday week",
+      narrative: "",
+    });
+    if (!result.ok) {
+      results.push({
+        userId,
+        ok: false,
+        planId: result.planId,
+        error: result.error,
+      });
+      continue;
+    }
+    results.push({
+      userId,
+      ok: true,
+      skipped: result.skipped,
+      planId: result.planId,
+    });
+  }
+
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length > 0) {
     return NextResponse.json(
       {
         ok: false,
-        error: result.error,
-        planId: result.planId,
         weekStart,
+        results,
+        error: `${failed.length} account(s) failed`,
       },
       { status: 500 },
     );
   }
 
-  if (result.skipped) {
-    return NextResponse.json({
-      ok: true,
-      skipped: true,
-      planId: result.planId,
-      weekStart,
-      message: "Week already completed",
-    });
-  }
-
   return NextResponse.json({
     ok: true,
-    skipped: false,
-    planId: result.planId,
     weekStart,
+    accounts: results.length,
+    results,
     message: "Weekly outfits generated",
   });
 }

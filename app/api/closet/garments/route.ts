@@ -3,18 +3,19 @@ import { connection, NextResponse } from "next/server";
 
 import { isAdminUser } from "@/lib/auth/admin";
 import { auth } from "@/lib/auth/server";
-import { CLOSET_GARMENTS_TAG } from "@/lib/garments/closet-garments-cache-tag";
+import { closetGarmentsTag } from "@/lib/garments/closet-garments-cache-tag";
 import {
   persistUploadedGarmentItems,
   type CreateGarmentItemInput,
 } from "@/lib/garments/persist-uploaded-garments";
 import { isGarmentCategoryDb } from "@/lib/garments/types";
 
-function revalidateClosetAfterWrite() {
+function revalidateClosetAfterWrite(userId: string) {
   try {
-    revalidateTag(CLOSET_GARMENTS_TAG, "max");
-    // Tag alone can leave the `/closet` PPR shell stale; path revalidation refreshes the segment.
+    revalidateTag(closetGarmentsTag(userId), "max");
+    // Tag alone can leave the closet PPR shell stale; path revalidation refreshes the segment.
     revalidatePath("/closet", "page");
+    revalidatePath("/", "page");
   } catch (e) {
     console.error("[api/closet/garments] revalidate failed", e);
   }
@@ -70,6 +71,14 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
+  const userId =
+    typeof data.user.id === "string" ? data.user.id.trim() : "";
+  if (!userId) {
+    return NextResponse.json(
+      { ok: false as const, message: "Session is missing a user id." },
+      { status: 401 },
+    );
+  }
 
   let json: unknown;
   try {
@@ -89,11 +98,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await persistUploadedGarmentItems(items);
+  const result = await persistUploadedGarmentItems(userId, items);
   if (!result.ok) {
     return NextResponse.json(result, { status: 422 });
   }
 
-  revalidateClosetAfterWrite();
+  revalidateClosetAfterWrite(userId);
   return NextResponse.json(result);
 }

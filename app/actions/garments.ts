@@ -3,14 +3,15 @@
 import { revalidateTag, updateTag } from "next/cache";
 
 import { assertAdminForServerAction } from "@/lib/auth/admin";
-import { CLOSET_GARMENTS_TAG } from "@/lib/garments/closet-garments-cache-tag";
+import { closetGarmentsTag } from "@/lib/garments/closet-garments-cache-tag";
 import { requireSql } from "@/lib/db";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
-function revalidateClosetGarmentsCache() {
+function revalidateClosetGarmentsCache(userId: string) {
   try {
-    updateTag(CLOSET_GARMENTS_TAG);
-    revalidateTag(CLOSET_GARMENTS_TAG, "max");
+    const tag = closetGarmentsTag(userId);
+    updateTag(tag);
+    revalidateTag(tag, "max");
   } catch (e) {
     console.error("[garments] revalidateClosetGarmentsCache failed", e);
   }
@@ -33,8 +34,9 @@ export async function toggleGarmentFavorite(
         is_favorite = NOT is_favorite,
         updated_at = now()
       WHERE id = ${id}
+        AND user_id = ${gate.userId}
     `;
-    revalidateClosetGarmentsCache();
+    revalidateClosetGarmentsCache(gate.userId);
     return { ok: true };
   } catch (e) {
     return {

@@ -2,14 +2,18 @@ import { unstable_cache } from "next/cache";
 
 import type { CatalogGarment } from "@/lib/ai/lookbook/catalog";
 import { requireSql } from "@/lib/db";
-import { CLOSET_GARMENTS_TAG } from "@/lib/garments/closet-garments-cache-tag";
+import {
+  closetGarmentsTag,
+} from "@/lib/garments/closet-garments-cache-tag";
 import { getAllGarmentRowsCached } from "@/lib/garments/get-closet-garments-cached";
 
 /**
  * Closet rows formatted for step-1 AI catalog (same cache as `getClosetGarmentsCached`).
  */
-export async function loadGarmentCatalog(): Promise<CatalogGarment[]> {
-  const rows = await getAllGarmentRowsCached();
+export async function loadGarmentCatalog(
+  userId: string,
+): Promise<CatalogGarment[]> {
+  const rows = await getAllGarmentRowsCached(userId);
   return rows.map((r) => ({
     id: r.id,
     category: r.category,
@@ -28,34 +32,36 @@ export type GarmentRowForImage = {
 };
 
 async function fetchGarmentsByIdsUncached(
+  userId: string,
   sortedUniqueIds: string[],
 ): Promise<GarmentRowForImage[]> {
   const sql = requireSql();
   const rows = await sql`
     SELECT id, category::text AS category, name, image_url
     FROM garments
-    WHERE id = ANY(${sortedUniqueIds})
+    WHERE user_id = ${userId}
+      AND id = ANY(${sortedUniqueIds})
   `;
   return rows as GarmentRowForImage[];
 }
 
 /**
- * By-id fetch with cross-request cache, tagged like the full closet list so
- * `revalidateTag` / `updateTag(CLOSET_GARMENTS_TAG)` keeps hero image steps fresh.
+ * By-id fetch scoped to a Wearer account.
  */
 export async function loadGarmentsByIds(
+  userId: string,
   ids: string[],
 ): Promise<GarmentRowForImage[]> {
-  if (ids.length === 0) return [];
+  if (ids.length === 0 || !userId) return [];
 
   const sortedUniqueIds = [...new Set(ids)].sort();
   const key = sortedUniqueIds.join(",");
 
   return unstable_cache(
-    () => fetchGarmentsByIdsUncached(sortedUniqueIds),
-    ["garments-by-ids", key],
+    () => fetchGarmentsByIdsUncached(userId, sortedUniqueIds),
+    ["garments-by-ids", userId, key],
     {
-      tags: [CLOSET_GARMENTS_TAG],
+      tags: [closetGarmentsTag(userId)],
       revalidate: false,
     },
   )();

@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { connection, NextResponse } from "next/server";
 
 import { isAdminUser } from "@/lib/auth/admin";
@@ -7,12 +7,16 @@ import {
   approveGeneratorPayloadSchema,
   executeApproveGeneratorOutfit,
 } from "@/lib/outfits/persist-generator-outfit";
+import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
+import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
 
-function revalidateAfterOutfitWrite() {
+function revalidateAfterOutfitWrite(userId: string) {
   try {
+    revalidateTag(closetSavedOutfitsTag(userId), "max");
+    revalidateTag(calendarMonthTag(userId), "max");
     revalidatePath("/calendar");
     revalidatePath("/closet");
-    revalidatePath("/dashboard");
+    revalidatePath("/");
   } catch (e) {
     console.error("[api/outfits/approve-generator] revalidate failed", e);
   }
@@ -37,6 +41,14 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
+  const userId =
+    typeof data.user.id === "string" ? data.user.id.trim() : "";
+  if (!userId) {
+    return NextResponse.json(
+      { ok: false as const, message: "Session is missing a user id." },
+      { status: 401 },
+    );
+  }
 
   let json: unknown;
   try {
@@ -56,11 +68,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await executeApproveGeneratorOutfit(parsed.data);
+  const result = await executeApproveGeneratorOutfit(userId, parsed.data);
   if (!result.ok) {
     return NextResponse.json(result, { status: 422 });
   }
 
-  revalidateAfterOutfitWrite();
+  revalidateAfterOutfitWrite(userId);
   return NextResponse.json(result);
 }
