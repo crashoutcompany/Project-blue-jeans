@@ -32,8 +32,7 @@ export type GarmentUploadDraft = ClosetPendingLocalImage & {
 export function garmentDraftFromLocalPick(
   item: ClosetPendingLocalImage,
 ): GarmentUploadDraft {
-  const displayName =
-    item.name.replace(/\.[^/.]+$/, "").trim() || "Photo";
+  const displayName = item.name.replace(/\.[^/.]+$/, "").trim() || "Photo";
   return {
     ...item,
     displayName,

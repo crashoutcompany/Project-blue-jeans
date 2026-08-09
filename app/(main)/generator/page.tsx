@@ -1,7 +1,6 @@
-import { GeneratorView } from "@/components/outfit/generator-view";
-import { getClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
+import { redirect } from "next/navigation";
 
-export default async function GeneratorPage() {
-  const closetGarments = await getClosetGarmentsCached();
-  return <GeneratorView closetGarments={closetGarments} />;
+/** Generator lives as a sheet on Today — keep this route as a deep link. */
+export default function GeneratorPage() {
+  redirect("/?change-look=1");
 }

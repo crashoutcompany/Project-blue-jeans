@@ -23,7 +23,7 @@ export function requireSql(): NeonSql {
   const client = getSql();
   if (!client) {
     throw new Error(
-      "DATABASE_URL is not set. Add your Neon connection string to .env.local (Neon dashboard → Connect)."
+      "DATABASE_URL is not set. Add your Neon connection string to .env.local (Neon dashboard → Connect).",
     );
   }
   return client;

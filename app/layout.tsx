@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist_Mono, Manrope, Noto_Serif } from "next/font/google";
 
+import { NeonAuthProvider } from "@/components/auth/neon-auth-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -22,8 +24,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Outfit generator",
-  description: "Curate outfits, closet, and style profile.",
+  title: "The Digital Atelier",
+  description:
+    "Your personal fashion curator—digital closet and intelligent styling.",
 };
 
 export default function RootLayout({
@@ -37,10 +40,22 @@ export default function RootLayout({
       className={`${manrope.variable} ${notoSerif.variable} ${geistMono.variable} h-full`}
       suppressHydrationWarning
     >
+      <head>
+        {/* Google-hosted icon font; not available via next/font */}
+        {/* eslint-disable-next-line @next/next/no-page-custom-font -- Material Symbols */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body className="flex min-h-full flex-col">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <TooltipProvider>{children}</TooltipProvider>
-        </ThemeProvider>
+        <NeonAuthProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <Suspense fallback={<div className="min-h-svh bg-background" />}>
+              <TooltipProvider>{children}</TooltipProvider>
+            </Suspense>
+          </ThemeProvider>
+        </NeonAuthProvider>
       </body>
     </html>
   );

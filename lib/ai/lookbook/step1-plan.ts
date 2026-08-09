@@ -3,7 +3,10 @@ import { generateObject } from "ai";
 import { geminiModel } from "@/lib/ai/gemini-provider";
 import { GEMINI_STRUCTURE_MODEL } from "@/lib/ai/gemini-models";
 import { STEP1_SYSTEM, step1UserPrompt } from "@/lib/ai/lookbook/prompts";
-import { createLookbookSchema, type LookbookPlan } from "@/lib/ai/lookbook/schemas";
+import {
+  createLookbookSchema,
+  type LookbookPlan,
+} from "@/lib/ai/lookbook/schemas";
 
 export type RunOutfitPlanStepParams = {
   lookCount: number;

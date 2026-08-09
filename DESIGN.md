@@ -1,4 +1,4 @@
-```markdown
+````markdown
 # Design System Specification: The Digital Atelier
 
 ## 1. Overview & Creative North Star: "The Curated Canvas"
@@ -95,5 +95,4 @@ In this system, depth is felt, not seen. We avoid heavy drop shadows in favor of
 ## 7. Signature Detail: The "Fabric" Blur
 
 When transitioning between screens or opening the AI generation tray, use a `30px` backdrop-filter blur on the incoming surface. This creates a "frosted glass" effect that allows the underlying colors of the user's outfit selections to bleed through, making the experience feel integrated and fluid.```
-```
-
+````

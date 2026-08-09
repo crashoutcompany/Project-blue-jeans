@@ -20,7 +20,7 @@ export function OutfitCard({
       <Card
         className={cn(
           "overflow-hidden border-0 bg-card shadow-[0_12px_40px_rgba(26,28,27,0.06)]",
-          className
+          className,
         )}
       >
         <CardContent className="flex flex-col gap-0 p-0">
@@ -47,7 +47,7 @@ export function OutfitCard({
                     "rounded-full text-[0.65rem] uppercase tracking-wide",
                     t.toLowerCase().includes("prime")
                       ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-[#501e12]"
+                      : "bg-secondary text-[#501e12]",
                   )}
                 >
                   {t}
@@ -82,7 +82,7 @@ export function OutfitCard({
     <Card
       className={cn(
         "overflow-hidden border-0 bg-card shadow-[0_12px_40px_rgba(26,28,27,0.04)]",
-        className
+        className,
       )}
     >
       <CardContent className="flex gap-4 p-4">

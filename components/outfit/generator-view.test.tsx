@@ -1,0 +1,55 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import { GeneratorView } from "@/components/outfit/generator-view";
+
+describe("GeneratorView", () => {
+  const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+  const garments = [
+    {
+      id: gid,
+      name: "Tee",
+      category: "tops",
+      imageUrl: "https://example.com/a.jpg",
+    },
+  ];
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            looks: [
+              {
+                id: "look-1",
+                title: "Look",
+                description: "Desc",
+                tags: ["day"],
+                featured: true,
+                garmentIds: [gid],
+              },
+            ],
+            curatorNote: "Note",
+          }),
+      }),
+    );
+  });
+
+  it("POSTs /api/generate-lookbook when sending a prompt", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+    render(<GeneratorView closetGarments={garments} />);
+    await user.type(screen.getByLabelText(/outfit request/i), "Brunch look");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/generate-lookbook",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
+});

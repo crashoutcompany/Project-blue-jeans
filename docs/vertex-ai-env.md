@@ -4,23 +4,23 @@ All Gemini usage in this app goes through **Vertex AI** (not the Gemini Develope
 
 ## Required
 
-| Variable | Description |
-|----------|-------------|
+| Variable                | Description                                      |
+| ----------------------- | ------------------------------------------------ |
 | `GOOGLE_VERTEX_PROJECT` | GCP **project ID** (string), e.g. `my-app-prod`. |
 
 ## Region
 
-| Variable | Description |
-|----------|-------------|
+| Variable                 | Description                                                                                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `GOOGLE_VERTEX_LOCATION` | Optional. Vertex region, default **`us-central1`**. Use `global` only if you intentionally use the [global endpoint](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations#global-endpoint). |
 
 ## Authentication (pick what fits your runtime)
 
-| Variable | Description |
-|----------|-------------|
+| Variable                             | Description                                                                                                                                                                                                                                                                       |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON` | **Recommended on Vercel**: full JSON body of a GCP **service account key** (single-line or minified). Must be valid JSON; if it is malformed, the app will still think credentials exist and Vertex will fall back to ADC and fail with “Could not load the default credentials”. |
-| `GOOGLE_APPLICATION_CREDENTIALS` | **Local**: absolute path to a service account JSON key file. |
-| `GOOGLE_VERTEX_USE_ADC` | Set to **`1`** to use **Application Default Credentials** only (no inline JSON). **Local:** run `gcloud auth application-default login` and set `GOOGLE_VERTEX_PROJECT` (and optional `GOOGLE_VERTEX_LOCATION`). |
+| `GOOGLE_APPLICATION_CREDENTIALS`     | **Local**: absolute path to a service account JSON key file.                                                                                                                                                                                                                      |
+| `GOOGLE_VERTEX_USE_ADC`              | Set to **`1`** to use **Application Default Credentials** only (no inline JSON). **Local:** run `gcloud auth application-default login` and set `GOOGLE_VERTEX_PROJECT` (and optional `GOOGLE_VERTEX_LOCATION`).                                                                  |
 
 On **Cloud Run** (and similar), you can omit the JSON env vars if the service runs as a service account with the right IAM roles (`K_SERVICE` is set).
 

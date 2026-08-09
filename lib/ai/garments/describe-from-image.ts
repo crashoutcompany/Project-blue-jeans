@@ -77,9 +77,7 @@ export async function analyzeGarmentFromImageUrl(
   });
 
   return {
-    description: object.description
-      .trim()
-      .slice(0, params.maxDescriptionLen),
+    description: object.description.trim().slice(0, params.maxDescriptionLen),
     color: object.color.trim().slice(0, params.maxColorLen),
   };
 }

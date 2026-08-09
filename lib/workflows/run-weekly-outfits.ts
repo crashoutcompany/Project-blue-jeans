@@ -2,9 +2,13 @@ import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
+import { getWearerPhoto } from "@/lib/wearer/profile";
 import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
 import { requireSql } from "@/lib/db";
-import { loadGarmentCatalog, loadGarmentsByIds } from "@/lib/garments/load-catalog";
+import {
+  loadGarmentCatalog,
+  loadGarmentsByIds,
+} from "@/lib/garments/load-catalog";
 import { logServerError } from "@/lib/server/safe-client-error";
 import type { WeeklyOutfitsInput } from "@/lib/workflows/types";
 
@@ -67,12 +71,17 @@ export async function runWeeklyOutfitsJob(
     return { ok: false, error: "Climate and context are required." };
   }
 
+  if (!input.userId) {
+    return { ok: false, error: "Missing user id." };
+  }
+
   const sql = requireSql();
 
   const existingRows = (await sql`
     SELECT id, status::text AS status
     FROM weekly_outfit_plans
-    WHERE week_start = ${input.weekStart}::date
+    WHERE user_id = ${input.userId}
+      AND week_start = ${input.weekStart}::date
     LIMIT 1
   `) as { id: string; status: string }[];
 
@@ -81,11 +90,12 @@ export async function runWeeklyOutfitsJob(
     return { ok: true, planId: row.id, skipped: true };
   }
 
-  const garments = await loadGarmentCatalog();
+  const garments = await loadGarmentCatalog(input.userId);
   if (garments.length === 0) {
     return {
       ok: false,
-      error: "Your closet is empty. Add garments before generating a weekly plan.",
+      error:
+        "Your closet is empty. Add garments before generating a weekly plan.",
       planId: row?.id,
     };
   }
@@ -150,8 +160,13 @@ export async function runWeeklyOutfitsJob(
       `;
     } else {
       const insertedRows = (await sql`
-        INSERT INTO weekly_outfit_plans (week_start, step1_raw, status)
-        VALUES (${input.weekStart}::date, ${JSON.stringify(step1Raw)}::jsonb, 'draft')
+        INSERT INTO weekly_outfit_plans (week_start, step1_raw, status, user_id)
+        VALUES (
+          ${input.weekStart}::date,
+          ${JSON.stringify(step1Raw)}::jsonb,
+          'draft',
+          ${input.userId}
+        )
         RETURNING id
       `) as { id: string }[];
       planId = insertedRows[0]!.id;
@@ -179,6 +194,7 @@ export async function runWeeklyOutfitsJob(
       `;
     }
 
+    const wearer = await getWearerPhoto(input.userId);
     const heroOutcomes = await Promise.all(
       looksForDb.map(async (look, i) => {
         const ids = look.garmentIds ?? [];
@@ -189,7 +205,7 @@ export async function runWeeklyOutfitsJob(
             missingGarments: true as const,
           };
         }
-        const rows = await loadGarmentsByIds(ids);
+        const rows = await loadGarmentsByIds(input.userId, ids);
         const idOrder = new Map(ids.map((id, j) => [id, j]));
         rows.sort(
           (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
@@ -207,6 +223,7 @@ export async function runWeeklyOutfitsJob(
               name: r.name,
               imageUrl: r.image_url,
             })),
+            wearerPhotoUrl: wearer?.imageUrl,
           });
           return { i, url: heroImage ?? null, missingGarments: false as const };
         } catch {
@@ -229,8 +246,9 @@ export async function runWeeklyOutfitsJob(
     }
 
     await Promise.all(
-      heroOutcomes.map((o) =>
-        sql`
+      heroOutcomes.map(
+        (o) =>
+          sql`
           UPDATE weekly_plan_looks
           SET hero_image_url = ${o.url}
           WHERE plan_id = ${planId} AND sort_order = ${o.i}

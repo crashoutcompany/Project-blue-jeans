@@ -29,8 +29,7 @@ export async function compressImageForUpload(file: File): Promise<File> {
 
   try {
     const out = await imageCompression(file, options);
-    const base =
-      file.name.replace(/\.[^/.]+$/, "") || "photo";
+    const base = file.name.replace(/\.[^/.]+$/, "") || "photo";
     return new File([out], `${base}.jpg`, {
       type: "image/jpeg",
       lastModified: Date.now(),
@@ -39,7 +38,7 @@ export async function compressImageForUpload(file: File): Promise<File> {
     const message =
       err instanceof Error ? err.message : "Could not process this image.";
     throw new Error(
-      `${message} Try another format (JPEG/PNG/WebP) or a smaller photo.`
+      `${message} Try another format (JPEG/PNG/WebP) or a smaller photo.`,
     );
   }
 }

@@ -1,23 +1,27 @@
 import { cacheTag } from "next/cache";
 
+import {
+  CLOSET_GARMENTS_TAG,
+  closetGarmentsTag,
+} from "@/lib/garments/closet-garments-cache-tag";
 import { getSql } from "@/lib/db";
 import { garmentRowToCardData, type GarmentRow } from "@/lib/garments/map-row";
 import type { ClothingCardData } from "@/lib/garments/types";
 
-const CLOSET_GARMENTS_TAG = "closet-garments";
-
-export { CLOSET_GARMENTS_TAG };
+export { CLOSET_GARMENTS_TAG, closetGarmentsTag };
 
 /**
- * Single cached query for all garment rows. Shared by closet UI and AI catalog loaders.
- * Invalidate after writes with `updateTag` / `revalidateTag(CLOSET_GARMENTS_TAG, ...)`.
+ * Cached garment rows for one Wearer account.
+ * Invalidate after writes with `revalidateTag(closetGarmentsTag(userId), ...)`.
  */
-export async function getAllGarmentRowsCached(): Promise<GarmentRow[]> {
+export async function getAllGarmentRowsCached(
+  userId: string,
+): Promise<GarmentRow[]> {
   "use cache";
-  cacheTag(CLOSET_GARMENTS_TAG);
+  cacheTag(closetGarmentsTag(userId));
 
   const sql = getSql();
-  if (!sql) return [];
+  if (!sql || !userId) return [];
 
   try {
     const rows = await sql`
@@ -32,13 +36,14 @@ export async function getAllGarmentRowsCached(): Promise<GarmentRow[]> {
         notes,
         description
       FROM garments
+      WHERE user_id = ${userId}
       ORDER BY created_at DESC
     `;
 
     return rows as GarmentRow[];
   } catch {
     console.error(
-      "[garments] getAllGarmentRowsCached failed — did you run db/schema.sql in Neon?",
+      "[garments] getAllGarmentRowsCached failed — did you run db/schema.sql / migrate-per-account.sql in Neon?",
     );
     return [];
   }
@@ -47,7 +52,9 @@ export async function getAllGarmentRowsCached(): Promise<GarmentRow[]> {
 /**
  * Cached closet list for Cache Components.
  */
-export async function getClosetGarmentsCached(): Promise<ClothingCardData[]> {
-  const rows = await getAllGarmentRowsCached();
+export async function getClosetGarmentsCached(
+  userId: string,
+): Promise<ClothingCardData[]> {
+  const rows = await getAllGarmentRowsCached(userId);
   return rows.map(garmentRowToCardData);
 }

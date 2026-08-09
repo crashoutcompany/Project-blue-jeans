@@ -27,7 +27,7 @@ export function garmentRowToCardData(row: GarmentRow): ClothingCardData {
     isFavorite: row.is_favorite,
     color: rawColor,
     colorHex,
-    colorLabel: isHex ? undefined : rawColor ?? undefined,
+    colorLabel: isHex ? undefined : (rawColor ?? undefined),
     imageHint: "archive",
     description: row.description?.trim() || null,
   };

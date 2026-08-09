@@ -1,0 +1,46 @@
+diff --git a/node_modules/@neondatabase/auth/dist/next/server/index.mjs b/node_modules/@neondatabase/auth/dist/next/server/index.mjs
+index d0e30e3..007ac11 100644
+--- a/node_modules/@neondatabase/auth/dist/next/server/index.mjs
++++ b/node_modules/@neondatabase/auth/dist/next/server/index.mjs
+@@ -301,7 +301,10 @@ const extractNeonAuthCookies = (headers$1) => {
+ 	if (!cookieHeader) return "";
+ 	const parsedCookies = parseCookies(cookieHeader);
+ 	const result = [];
+-	for (const [name, value] of parsedCookies.entries()) if (name.startsWith(NEON_AUTH_COOKIE_PREFIX)) result.push(`${name}=${value}`);
++	for (const [name, value] of parsedCookies.entries()) {
++		if (name.startsWith(NEON_AUTH_COOKIE_PREFIX)) result.push(`${name}=${value}`);
++		else if (process.env.NODE_ENV === "development" && name.startsWith("neon-auth.")) result.push(`${NEON_AUTH_COOKIE_PREFIX}${name.slice("neon-auth.".length)}=${value}`);
++	}
+ 	return result.join("; ");
+ };
+ /**
+@@ -892,10 +895,27 @@ async function createNextRequestContext() {
+ 	const headerStore = await headers();
+ 	return {
+ 		getCookies() {
+-			return extractNeonAuthCookies(headerStore);
++			const fromHeaders = extractNeonAuthCookies(headerStore);
++			if (fromHeaders) return fromHeaders;
++			const merged = [];
++			for (const c of cookieStore.getAll()) {
++				let n = c.name;
++				if (process.env.NODE_ENV === "development" && n.startsWith("neon-auth.")) n = `${NEON_AUTH_COOKIE_PREFIX}${n.slice("neon-auth.".length)}`;
++				if (n.startsWith(NEON_AUTH_COOKIE_PREFIX)) merged.push(`${n}=${c.value}`);
++			}
++			return merged.join("; ");
+ 		},
+ 		setCookie(name, value, options) {
+-			cookieStore.set(name, value, options);
++			let n = name;
++			let o = options;
++			if (process.env.NODE_ENV === "development" && n.startsWith(NEON_AUTH_COOKIE_PREFIX)) {
++				n = `neon-auth.${n.slice(NEON_AUTH_COOKIE_PREFIX.length)}`;
++				o = {
++					...(typeof options === "object" && options ? options : {}),
++					secure: false
++				};
++			}
++			cookieStore.set(n, value, o);
+ 		},
+ 		getHeader(name) {
+ 			return headerStore.get(name) ?? null;

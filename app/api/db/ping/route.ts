@@ -1,5 +1,10 @@
 import { connection, NextResponse } from "next/server";
 
+import {
+  adminRequiredJsonResponse,
+  sessionAllowsAdminApi,
+} from "@/lib/auth/admin-api";
+import { auth } from "@/lib/auth/server";
 import { getSql } from "@/lib/db";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
@@ -9,6 +14,26 @@ import { safeClientMessage } from "@/lib/server/safe-client-error";
  */
 export async function GET() {
   await connection();
+  let data: Awaited<ReturnType<typeof auth.getSession>>["data"];
+  try {
+    ({ data } = await auth.getSession());
+  } catch (e) {
+    console.error("[api/db/ping] getSession failed", e);
+    return NextResponse.json(
+      { ok: false, message: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+  if (!data?.user) {
+    return NextResponse.json(
+      { ok: false, message: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+  if (!sessionAllowsAdminApi(data.user)) {
+    return adminRequiredJsonResponse();
+  }
+
   const sql = getSql();
   if (!sql) {
     return NextResponse.json(
