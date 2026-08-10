@@ -15,7 +15,7 @@ Store the value **raw** (no surrounding quotes). The app strips accidental wrapp
 | Role                         | Model ID                           |
 | ---------------------------- | ---------------------------------- |
 | Structured plan / garment AI | `gemini-3.6-flash`                 |
-| Hero / try-on image          | `gemini-3.1-flash-image-preview`   |
+| Hero / try-on image          | `gemini-3.1-flash-image`           |
 
 Defined in `lib/ai/gemini-models.ts`.
 

@@ -54,10 +54,8 @@ describe("commitOutfitForDay", () => {
       .mockResolvedValueOnce([{ id: outfitId }])
       // insert garment link
       .mockResolvedValueOnce(undefined)
-      // prior wear that day
+      // replaceWearForDay (no prior)
       .mockResolvedValueOnce([])
-      // upsert wear
-      .mockResolvedValueOnce(undefined)
       // syncLastWorn
       .mockResolvedValueOnce(undefined);
     sqlRequire.mockReturnValue(sql as never);
@@ -79,8 +77,9 @@ describe("commitOutfitForDay", () => {
     const sql = vi
       .fn()
       .mockResolvedValueOnce([{ id: outfitId }])
+      // replaceWearForDay
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(undefined)
+      // syncLastWorn
       .mockResolvedValueOnce(undefined);
     sqlRequire.mockReturnValue(sql as never);
 

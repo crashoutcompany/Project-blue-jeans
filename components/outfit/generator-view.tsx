@@ -546,6 +546,7 @@ export function GeneratorView({
                 </div>
                 <div className="min-w-0 flex-1 space-y-3">
                   <GeneratorChatStack
+                    key={msg.id}
                     messageId={msg.id}
                     looks={msg.looks}
                     approvedLookId={approvedByMessage[msg.id] ?? null}
