@@ -48,7 +48,7 @@ function buildOutfitLooks(
 }
 
 /**
- * Catalog → structured plan → optional hero image (first look only).
+ * Catalog → structured plan → optional hero images (one per look, in parallel).
  * Used by the generator API and any server workflows.
  */
 export async function generateLookbook(
@@ -58,7 +58,7 @@ export async function generateLookbook(
     return {
       ok: false,
       message:
-        "Missing Vertex credentials. Set GOOGLE_VERTEX_PROJECT and authenticate (see docs/vertex-ai-env.md).",
+        "Missing Gemini credentials. Set GOOGLE_GENERATIVE_AI_API_KEY (see docs/gemini-ai-studio-env.md).",
     };
   }
 
@@ -114,34 +114,49 @@ export async function generateLookbook(
     const looks = buildOutfitLooks(plan, baseId);
 
     if (!input.skipHeroImage) {
-      const hero = looks[0]!;
-      const rows = await loadGarmentsByIds(input.userId, hero.garmentIds ?? []);
-      const idOrder = new Map(hero.garmentIds?.map((id, i) => [id, i]) ?? []);
-      rows.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+      const wearer = await getWearerPhoto(input.userId).catch(() => null);
 
-      let heroImage: string | undefined;
-      try {
-        const wearer = await getWearerPhoto(input.userId);
-        heroImage = await runHeroImageStep({
-          title: hero.title,
-          description: hero.description,
-          climate,
-          context,
-          narrative,
-          garments: rows.map((r) => ({
-            id: r.id,
-            category: r.category,
-            name: r.name,
-            imageUrl: r.image_url,
-          })),
-          wearerPhotoUrl: wearer?.imageUrl,
-        });
-      } catch {
-        // Image is optional
-      }
+      const heroImages = await Promise.all(
+        looks.map(async (look) => {
+          try {
+            const rows = await loadGarmentsByIds(
+              input.userId,
+              look.garmentIds ?? [],
+            );
+            const idOrder = new Map(
+              look.garmentIds?.map((id, i) => [id, i]) ?? [],
+            );
+            rows.sort(
+              (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
+            );
+            if (rows.length === 0) return undefined;
 
-      if (heroImage) {
-        looks[0] = { ...looks[0]!, imageDataUrl: heroImage };
+            return await runHeroImageStep({
+              title: look.title,
+              description: look.description,
+              climate,
+              context,
+              narrative,
+              garments: rows.map((r) => ({
+                id: r.id,
+                category: r.category,
+                name: r.name,
+                imageUrl: r.image_url,
+              })),
+              wearerPhotoUrl: wearer?.imageUrl,
+            });
+          } catch {
+            // Image is optional per look
+            return undefined;
+          }
+        }),
+      );
+
+      for (let i = 0; i < looks.length; i++) {
+        const image = heroImages[i];
+        if (image) {
+          looks[i] = { ...looks[i]!, imageDataUrl: image };
+        }
       }
     }
 

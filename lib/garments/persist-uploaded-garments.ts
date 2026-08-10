@@ -12,7 +12,7 @@ const MAX_NAME_LEN = 200;
 const MAX_COLOR_LEN = 120;
 const MAX_NOTES_LEN = 4000;
 const MAX_DESCRIPTION_LEN = 4000;
-/** Cap parallel Vertex describe calls so a 24-file batch stays within route time limits. */
+/** Cap parallel Gemini describe calls so a 24-file batch stays within route time limits. */
 const AI_DESCRIBE_CONCURRENCY = 3;
 
 function canUseGemini(): boolean {

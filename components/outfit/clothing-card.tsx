@@ -20,9 +20,9 @@ export function ClothingCard({
   const swatchHex = garment.colorHex ?? "#e8e8e6";
   const hasRemoteImage = Boolean(garment.imageUrl);
   const tileClassName = cn(
-    "garment-tile group relative aspect-[0.78] min-w-0 overflow-hidden rounded-none bg-transparent p-2.5 outline-none transition-[border-color] duration-160 ease-[ease] focus-visible:outline-1 focus-visible:outline-offset-3 focus-visible:outline-foreground sm:p-3",
+    "garment-tile group relative aspect-[0.78] min-w-0 overflow-hidden rounded-none bg-transparent outline-none transition-[outline-color] duration-160 ease-[ease] focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-foreground",
     onSelect ? "cursor-zoom-in" : null,
-    selected ? "border border-foreground" : "border border-transparent",
+    selected ? "outline outline-1 outline-offset-2 outline-foreground" : null,
     className,
   );
   const tileStyle = hasRemoteImage

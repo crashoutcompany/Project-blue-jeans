@@ -1,8 +1,7 @@
 import { ModelId } from "./gemini-provider";
 
-/** Structured JSON / copy for the lookbook (step 1). */
-// Gemini 3 Models not yet supported in Vertex AI
-export const GEMINI_STRUCTURE_MODEL: ModelId = "gemini-2.5-flash";
+/** Structured JSON / copy (lookbook step 1, garment describe + url_context). */
+export const GEMINI_STRUCTURE_MODEL: ModelId = "gemini-3.6-flash";
 
-/** Interactive hero image (step 2) — Nano Banana family. */
-export const GEMINI_IMAGE_MODEL: ModelId = "gemini-2.5-flash-image";
+/** Interactive hero / try-on image (step 2) — Nano Banana 2 family. */
+export const GEMINI_IMAGE_MODEL: ModelId = "gemini-3.1-flash-image-preview";

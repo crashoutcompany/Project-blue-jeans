@@ -33,11 +33,11 @@ describe("generateLookbook", () => {
     step1.mockReset();
   });
 
-  it("returns error when Vertex credentials missing", async () => {
+  it("returns error when Gemini credentials missing", async () => {
     hasGemini.mockReturnValue(false);
     const res = await generateLookbook({ userId: "u1", narrative: "x" });
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toContain("Vertex");
+    if (!res.ok) expect(res.message).toContain("Gemini");
   });
 
   it("returns error when closet empty", async () => {

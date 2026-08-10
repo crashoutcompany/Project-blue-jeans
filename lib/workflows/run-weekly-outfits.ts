@@ -59,7 +59,7 @@ export async function runWeeklyOutfitsJob(
     return {
       ok: false,
       error:
-        "Missing Vertex credentials. Set GOOGLE_VERTEX_PROJECT and authenticate (see docs/vertex-ai-env.md).",
+        "Missing Gemini credentials. Set GOOGLE_GENERATIVE_AI_API_KEY (see docs/gemini-ai-studio-env.md).",
     };
   }
 
