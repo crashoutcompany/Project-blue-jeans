@@ -1,72 +1,39 @@
-import { createVertex } from "@ai-sdk/google-vertex";
+import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
 
-/** GCP project ID from env; strips quotes and a mistaken leading `=` from .env paste errors. */
-function vertexProjectId(): string | undefined {
-  let p = process.env.GOOGLE_VERTEX_PROJECT?.trim();
-  if (!p) return undefined;
+/** AI Studio / Gemini Developer API key; strips quotes and a mistaken leading `=` from .env paste errors. */
+function generativeAiApiKey(): string | undefined {
+  let key = process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim();
+  if (!key) return undefined;
   if (
-    (p.startsWith('"') && p.endsWith('"')) ||
-    (p.startsWith("'") && p.endsWith("'"))
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
   ) {
-    p = p.slice(1, -1).trim();
+    key = key.slice(1, -1).trim();
   }
-  if (p.startsWith("=")) p = p.slice(1).trim();
-  return p || undefined;
-}
-
-function parseServiceAccountJson(): Record<string, unknown> | undefined {
-  const raw = process.env.GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON?.trim();
-  if (!raw) return undefined;
-  try {
-    const credentials = JSON.parse(raw) as Record<string, unknown>;
-    if (!credentials || typeof credentials !== "object") return undefined;
-    return credentials;
-  } catch {
-    return undefined;
-  }
-}
-
-function parseServiceAccountAuth():
-  | { credentials: Record<string, unknown> }
-  | undefined {
-  const credentials = parseServiceAccountJson();
-  if (!credentials) return undefined;
-  return { credentials };
+  if (key.startsWith("=")) key = key.slice(1).trim();
+  return key || undefined;
 }
 
 /**
- * All Gemini calls in this app use **Vertex AI** (not the Gemini Developer API).
- * Required: `GOOGLE_VERTEX_PROJECT` plus one of the auth methods below.
+ * All Gemini calls in this app use the **Gemini Developer API** (Google AI Studio),
+ * not Vertex AI.
  *
- * - Valid `GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON` (must parse as JSON object)
- * - `GOOGLE_APPLICATION_CREDENTIALS` path to a key file
- * - `GOOGLE_VERTEX_USE_ADC=1` — use Application Default Credentials (e.g. `gcloud auth application-default login`)
- * - Cloud Run / GCE: `K_SERVICE` set (workload identity / metadata)
+ * Required: `GOOGLE_GENERATIVE_AI_API_KEY` from https://aistudio.google.com/apikey
  */
 export function hasGeminiCredentials(): boolean {
-  if (!vertexProjectId()) return false;
-  if (parseServiceAccountJson()) return true;
-  if (process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()) return true;
-  if (process.env.GOOGLE_VERTEX_USE_ADC === "1") return true;
-  if (process.env.K_SERVICE) return true;
-  return false;
+  return Boolean(generativeAiApiKey());
 }
 
-export type ModelId = Parameters<ReturnType<typeof createVertex>>[0];
+export type ModelId = Parameters<typeof google>[0];
 
-function getVertexProvider() {
-  const project = vertexProjectId();
-  if (!project) {
-    throw new Error("GOOGLE_VERTEX_PROJECT is not set.");
-  }
-  return createVertex({
-    project,
-    location: process.env.GOOGLE_VERTEX_LOCATION?.trim() || "us-central1",
-    googleAuthOptions: parseServiceAccountAuth(),
-  });
-}
-
-/** Chat / structured / multimodal models (Flash, Flash Image, etc.) via Vertex. */
+/** Chat / structured / multimodal models (Flash, Flash Image, etc.) via AI Studio. */
 export function geminiModel(modelId: string) {
-  return getVertexProvider()(modelId);
+  const apiKey = generativeAiApiKey();
+  if (!apiKey) {
+    throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not set.");
+  }
+  return createGoogleGenerativeAI({ apiKey })(modelId);
 }
+
+/** Built-in Gemini tools (e.g. `urlContext`) from the Google AI SDK provider. */
+export { google as googleAi };

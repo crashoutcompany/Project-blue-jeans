@@ -1,4 +1,4 @@
-/** Max URLs Vertex url_context accepts per request. */
+/** Max URLs Gemini url_context accepts per request. */
 export const MAX_PRODUCT_URLS = 20;
 
 const URL_RE = /https?:\/\/[^\s<>"'`]+/gi;

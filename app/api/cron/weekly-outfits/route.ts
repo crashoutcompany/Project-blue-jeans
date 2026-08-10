@@ -3,7 +3,7 @@
  *
  * Environment:
  * - `CRON_SECRET` — Vercel sends `Authorization: Bearer <CRON_SECRET>`.
- * - Vertex AI: `GOOGLE_VERTEX_PROJECT`, `GOOGLE_VERTEX_LOCATION`, auth (see docs/vertex-ai-env.md).
+ * - Gemini (AI Studio): `GOOGLE_GENERATIVE_AI_API_KEY` (see docs/gemini-ai-studio-env.md).
  * - `DATABASE_URL` — Neon.
  *
  * @see https://vercel.com/docs/cron-jobs

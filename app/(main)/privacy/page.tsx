@@ -28,8 +28,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           Uploads are hosted with our storage provider; generation uses Google
-          Vertex AI under our project configuration. Access is limited to your
-          signed-in Wearer session.
+          Gemini via Google AI Studio under our project configuration. Access is
+          limited to your signed-in Wearer session.
         </p>
       </div>
       <div className="mt-8 text-center">

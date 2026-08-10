@@ -43,8 +43,8 @@ export type UpdateGarmentFieldsResult =
 
 /**
  * Persist closet garment field edits for one Wearer. Caller handles auth + cache.
- * When AI regenerate flags are set, product URLs in notes are fetched server-side
- * and included as text context for the vision call.
+ * When AI regenerate flags are set, product URLs in notes are read via Gemini
+ * url_context on the vision call.
  */
 export async function updateGarmentFields(
   userId: string,
@@ -80,7 +80,7 @@ export async function updateGarmentFields(
         return {
           ok: false,
           message:
-            "Missing Vertex credentials. Set GOOGLE_VERTEX_PROJECT and authenticate (see docs/vertex-ai-env.md).",
+            "Missing Gemini credentials. Set GOOGLE_GENERATIVE_AI_API_KEY (see docs/gemini-ai-studio-env.md).",
         };
       }
 

@@ -1,17 +1,18 @@
-import { generateObject } from "ai";
+import { generateObject, generateText, Output, type ToolSet } from "ai";
 import { z } from "zod";
 
-import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import { fetchUrlAsImagePart } from "@/lib/ai/fetch-image-part";
-import { geminiModel } from "@/lib/ai/gemini-provider";
+import { geminiModel, googleAi } from "@/lib/ai/gemini-provider";
 import { GEMINI_STRUCTURE_MODEL } from "@/lib/ai/gemini-models";
 import {
   extractProductUrls,
   MAX_PRODUCT_URLS,
 } from "@/lib/ai/garments/extract-product-urls";
-import { fetchProductPageText } from "@/lib/ai/garments/fetch-product-page-text";
 
-const PRODUCT_PAGE_FETCH_CONCURRENCY = 3;
+/** Provider-defined Google tools; cast keeps AI SDK ToolSet happy across package versions. */
+const urlContextTools = {
+  url_context: googleAi.tools.urlContext({}),
+} as ToolSet;
 
 const garmentVisionSchema = z.object({
   name: z
@@ -39,7 +40,7 @@ Rules:
 - Plain prose for descriptions: no marketing, no "perfect for", no rhetorical questions.
 - For color: prefer hex #RRGGBB when you can estimate from the image; otherwise a concise color name (max ~6 words).
 - When a field must be left empty per the user message, output an empty string for that field — do not repeat instructions.
-- If product page excerpts are provided, use factual details (garment type, cut, fabric, fit) that align with the photo. Do not invent specs that contradict the image. Color still comes from the photo.`;
+- If product page URLs are listed, use the url_context tool to read them. Use factual details (garment type, cut, fabric, fit) that align with the photo. Do not invent specs that contradict the image. Color still comes from the photo.`;
 
 export type AnalyzeGarmentFromImageParams = {
   imageUrl: string;
@@ -55,8 +56,8 @@ export type AnalyzeGarmentFromImageParams = {
   /** When false, return color as "". */
   fillColor: boolean;
   /**
-   * Free-text notes (may contain product URLs). Public URLs are fetched
-   * server-side and passed as text context when filling name and/or description.
+   * Free-text notes (may contain product URLs). Public URLs are ingested via
+   * Gemini url_context when filling name and/or description.
    */
   notes?: string | null;
   /** Explicit product URLs (merged with any found in notes). */
@@ -86,25 +87,9 @@ function resolveProductUrls(params: AnalyzeGarmentFromImageParams): string[] {
   return out;
 }
 
-async function loadProductExcerpts(
-  urls: string[],
-  abortSignal?: AbortSignal,
-): Promise<Array<{ url: string; text: string }>> {
-  if (urls.length === 0) return [];
-  const results = await mapWithConcurrency(
-    urls,
-    PRODUCT_PAGE_FETCH_CONCURRENCY,
-    async (url) => {
-      const text = await fetchProductPageText(url, { abortSignal });
-      return text ? { url, text } : null;
-    },
-  );
-  return results.filter((x): x is { url: string; text: string } => x !== null);
-}
-
 function buildUserText(
   params: AnalyzeGarmentFromImageParams,
-  excerpts: Array<{ url: string; text: string }>,
+  productUrls: string[],
 ): string {
   let text =
     `Current label: ${params.name}\n` +
@@ -119,10 +104,11 @@ function buildUserText(
       ? "Infer the dominant garment color for the database (hex or short name).\n"
       : "The user already entered a color — set field color to exactly an empty string.\n");
 
-  if (excerpts.length > 0 && (params.fillName || params.fillDescription)) {
-    text += "\nProduct page excerpts (fetched server-side):\n";
-    for (const ex of excerpts) {
-      text += `\n--- ${ex.url} ---\n${ex.text}\n`;
+  if (productUrls.length > 0 && (params.fillName || params.fillDescription)) {
+    text +=
+      "\nProduct page URLs (use url_context to read each page; ground name/description in page facts that match the photo):\n";
+    for (const url of productUrls) {
+      text += `- ${url}\n`;
     }
   }
 
@@ -131,8 +117,8 @@ function buildUserText(
 
 /**
  * One vision call: name and/or catalog description and/or color, depending on flags.
- * When product URLs are present and name/description is being filled, fetches those
- * public pages and includes plain-text excerpts in the prompt.
+ * When product URLs are present and name/description is being filled, enables Gemini
+ * url_context so the model reads those public pages directly.
  */
 export async function analyzeGarmentFromImageUrl(
   params: AnalyzeGarmentFromImageParams,
@@ -142,28 +128,47 @@ export async function analyzeGarmentFromImageUrl(
   });
   const needsPageContext = params.fillName || params.fillDescription;
   const productUrls = needsPageContext ? resolveProductUrls(params) : [];
-  const excerpts = await loadProductExcerpts(productUrls, params.abortSignal);
-  const userText = buildUserText(params, excerpts);
+  const userText = buildUserText(params, productUrls);
+  const model = geminiModel(GEMINI_STRUCTURE_MODEL);
+  const messages = [
+    {
+      role: "user" as const,
+      content: [
+        { type: "text" as const, text: userText },
+        {
+          type: "image" as const,
+          image: part.image,
+          mediaType: part.mediaType,
+        },
+      ],
+    },
+  ];
 
-  const { object } = await generateObject({
-    model: geminiModel(GEMINI_STRUCTURE_MODEL),
-    system: SYSTEM,
-    schema: garmentVisionSchema,
-    abortSignal: params.abortSignal,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: userText },
-          {
-            type: "image",
-            image: part.image,
-            mediaType: part.mediaType,
-          },
-        ],
-      },
-    ],
-  });
+  let object: z.infer<typeof garmentVisionSchema>;
+
+  if (productUrls.length > 0) {
+    const result = await generateText({
+      model,
+      system: SYSTEM,
+      abortSignal: params.abortSignal,
+      tools: urlContextTools,
+      output: Output.object({ schema: garmentVisionSchema }),
+      messages,
+    });
+    if (!result.output) {
+      throw new Error("Garment analysis returned no structured output.");
+    }
+    object = result.output;
+  } else {
+    const result = await generateObject({
+      model,
+      system: SYSTEM,
+      schema: garmentVisionSchema,
+      abortSignal: params.abortSignal,
+      messages,
+    });
+    object = result.object;
+  }
 
   return {
     name: object.name.trim().slice(0, params.maxNameLen),

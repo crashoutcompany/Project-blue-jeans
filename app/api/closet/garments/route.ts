@@ -11,7 +11,7 @@ import {
 import { updateGarmentFields, GARMENT_FIELD_LIMITS } from "@/lib/garments/update-garment";
 import { isGarmentCategoryDb } from "@/lib/garments/types";
 
-/** Allow Vertex describe + optional product-page context on PATCH. */
+/** Allow Gemini describe + optional url_context on PATCH. */
 export const maxDuration = 60;
 
 function revalidateClosetAfterWrite(userId: string) {

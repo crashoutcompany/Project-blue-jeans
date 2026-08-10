@@ -564,19 +564,41 @@ export function ClosetView({
         </p>
       ) : null}
 
+      {pendingDrafts.length > 0 ? (
+        <div className="mt-10 flex w-full flex-col gap-4 border-t border-border/50 pt-8">
+          <p className="text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Ready to save
+          </p>
+          <div className="flex flex-col gap-4">
+            {pendingDrafts.map((d) => (
+              <ClosetGarmentDraftCard
+                key={d.clientKey}
+                draft={d}
+                disabled={savingDrafts}
+                onChange={(patch) => updateDraft(d.clientKey, patch)}
+                onRemove={() => removeDraft(d.clientKey)}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
 
-      {/* Always docked at the bottom of the closet shell. */}
+      {/* Slim dock: picker + save actions. Drafts live above so buttons never stack. */}
       <div
-        className="sticky bottom-0 z-20 mt-auto border border-dashed border-border/70 bg-background/95 px-5 py-6 backdrop-blur-sm sm:px-8"
+        className="sticky bottom-0 z-20 mt-auto border border-dashed border-border/70 bg-background/95 px-5 py-4 backdrop-blur-sm sm:px-8"
         data-testid="closet-add-zone"
       >
-        <div className="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            New archive piece
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Photos stay on your device until you add them to the closet.
-          </p>
+        <div className="mx-auto flex max-w-xl flex-col items-center gap-3 text-center">
+          {pendingDrafts.length === 0 ? (
+            <>
+              <p className="text-[0.7rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                New archive piece
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Photos stay on your device until you add them to the closet.
+              </p>
+            </>
+          ) : null}
           <ClosetImageUpload
             onFilesReady={handleFilesReady}
             disabled={savingDrafts}
@@ -584,25 +606,8 @@ export function ClosetView({
           {persistError ? (
             <p className="max-w-xs text-sm text-destructive">{persistError}</p>
           ) : null}
-        </div>
-
-        {pendingDrafts.length > 0 ? (
-          <div className="mt-8 flex min-h-0 w-full flex-col gap-4 border-t border-border/50 pt-6">
-            <p className="text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Ready to save
-            </p>
-            <div className="flex max-h-[min(50vh,480px)] flex-col gap-4 overflow-y-auto overscroll-y-contain pr-1">
-              {pendingDrafts.map((d) => (
-                <ClosetGarmentDraftCard
-                  key={d.clientKey}
-                  draft={d}
-                  disabled={savingDrafts}
-                  onChange={(patch) => updateDraft(d.clientKey, patch)}
-                  onRemove={() => removeDraft(d.clientKey)}
-                />
-              ))}
-            </div>
-            <div className="flex shrink-0 flex-col gap-3 pt-2 sm:flex-row sm:justify-center">
+          {pendingDrafts.length > 0 ? (
+            <div className="relative z-10 flex w-full shrink-0 flex-col gap-3 bg-background/95 pt-1 sm:flex-row sm:justify-center">
               <Button
                 type="button"
                 className="rounded-none"
@@ -621,8 +626,8 @@ export function ClosetView({
                 Clear queue
               </Button>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
 
       <GarmentDetailSheet

@@ -139,12 +139,19 @@ export async function commitOutfitForDay(input: {
   `) as { outfit_id: string }[];
   const priorOutfitId = priorWear[0]?.outfit_id ?? null;
 
-  await sql`
-    INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
-    VALUES (${outfitId}::uuid, ${input.userId}, ${input.wornOn}::date)
-    ON CONFLICT (user_id, worn_on) DO UPDATE
-      SET outfit_id = EXCLUDED.outfit_id
-  `;
+  if (priorOutfitId) {
+    await sql`
+      UPDATE outfit_wears
+      SET outfit_id = ${outfitId}::uuid
+      WHERE user_id = ${input.userId}
+        AND worn_on = ${input.wornOn}::date
+    `;
+  } else {
+    await sql`
+      INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
+      VALUES (${outfitId}::uuid, ${input.userId}, ${input.wornOn}::date)
+    `;
+  }
 
   await syncLastWorn(outfitId);
 
@@ -202,12 +209,19 @@ export async function assignOutfitToDay(input: {
     `) as { outfit_id: string }[];
     const priorOutfitId = priorWear[0]?.outfit_id ?? null;
 
-    await sql`
-      INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
-      VALUES (${input.outfitId}::uuid, ${input.userId}, ${input.wornOn}::date)
-      ON CONFLICT (user_id, worn_on) DO UPDATE
-        SET outfit_id = EXCLUDED.outfit_id
-    `;
+    if (priorOutfitId) {
+      await sql`
+        UPDATE outfit_wears
+        SET outfit_id = ${input.outfitId}::uuid
+        WHERE user_id = ${input.userId}
+          AND worn_on = ${input.wornOn}::date
+      `;
+    } else {
+      await sql`
+        INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
+        VALUES (${input.outfitId}::uuid, ${input.userId}, ${input.wornOn}::date)
+      `;
+    }
 
     await syncLastWorn(input.outfitId);
 

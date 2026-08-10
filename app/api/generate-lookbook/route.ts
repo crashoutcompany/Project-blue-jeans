@@ -10,6 +10,9 @@ import {
   type GenerateLookbookInput,
 } from "@/lib/lookbook/generate-lookbook";
 
+/** Plan + up to 3 parallel hero images. */
+export const maxDuration = 120;
+
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }

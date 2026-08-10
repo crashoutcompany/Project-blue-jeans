@@ -500,8 +500,8 @@ export function GeneratorView({
               </div>
               <p className="max-w-sm text-sm text-muted-foreground">
                 Ask for a gallery opening, a travel day, or a color direction.
-                Your stylist returns three concepts with an editorial hero
-                render when image generation is available.
+                Your stylist returns three concepts you can flip through, each
+                with an editorial hero when image generation is available.
               </p>
             </div>
           ) : null}
