@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ArrowLeftRight, Check, ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { OutfitLook } from "@/lib/outfits/types";
@@ -26,11 +26,8 @@ export function GeneratorChatStack({
   busyLookId?: string | null;
 }) {
   const slice = looks.slice(0, 3);
+  // Reset via parent `key={messageId}` remount — do not sync index in an effect.
   const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    setIndex(0);
-  }, [messageId]);
 
   if (slice.length === 0) return null;
 
@@ -142,13 +139,12 @@ export function GeneratorChatStack({
           >
             <ChevronLeft className="size-4" />
           </Button>
-          <div className="flex items-center gap-1.5" role="tablist" aria-label="Look pages">
+          <div className="flex items-center gap-1.5" aria-label="Look pages">
             {slice.map((item, i) => (
               <button
                 key={item.id}
                 type="button"
-                role="tab"
-                aria-selected={i === safeIndex}
+                aria-current={i === safeIndex ? "true" : undefined}
                 aria-label={`Show look ${i + 1}`}
                 disabled={disabled}
                 onClick={() => setIndex(i)}

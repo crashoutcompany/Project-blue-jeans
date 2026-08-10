@@ -61,6 +61,37 @@ async function syncLastWorn(outfitId: string): Promise<void> {
 }
 
 /**
+ * Atomically replace the wear for (user_id, worn_on) and return the previous
+ * outfit id (when different) for orphan cleanup. Requires UNIQUE (user_id, worn_on).
+ */
+async function replaceWearForDay(
+  userId: string,
+  wornOn: string,
+  outfitId: string,
+): Promise<string | null> {
+  const sql = requireSql();
+  const rows = (await sql`
+    WITH deleted AS (
+      DELETE FROM outfit_wears
+      WHERE user_id = ${userId}
+        AND worn_on = ${wornOn}::date
+      RETURNING outfit_id::text AS prior_outfit_id
+    ),
+    inserted AS (
+      INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
+      VALUES (${outfitId}::uuid, ${userId}, ${wornOn}::date)
+      ON CONFLICT (user_id, worn_on) DO UPDATE
+        SET outfit_id = EXCLUDED.outfit_id
+      RETURNING 1
+    )
+    SELECT prior_outfit_id FROM deleted
+  `) as { prior_outfit_id: string }[];
+
+  const prior = rows[0]?.prior_outfit_id ?? null;
+  return prior && prior !== outfitId ? prior : null;
+}
+
+/**
  * Commit a garment set to a calendar day for one Wearer account.
  */
 export async function commitOutfitForDay(input: {
@@ -130,32 +161,15 @@ export async function commitOutfitForDay(input: {
     `;
   }
 
-  const priorWear = (await sql`
-    SELECT outfit_id::text AS outfit_id
-    FROM outfit_wears
-    WHERE user_id = ${input.userId}
-      AND worn_on = ${input.wornOn}::date
-    LIMIT 1
-  `) as { outfit_id: string }[];
-  const priorOutfitId = priorWear[0]?.outfit_id ?? null;
-
-  if (priorOutfitId) {
-    await sql`
-      UPDATE outfit_wears
-      SET outfit_id = ${outfitId}::uuid
-      WHERE user_id = ${input.userId}
-        AND worn_on = ${input.wornOn}::date
-    `;
-  } else {
-    await sql`
-      INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
-      VALUES (${outfitId}::uuid, ${input.userId}, ${input.wornOn}::date)
-    `;
-  }
+  const priorOutfitId = await replaceWearForDay(
+    input.userId,
+    input.wornOn,
+    outfitId,
+  );
 
   await syncLastWorn(outfitId);
 
-  if (priorOutfitId && priorOutfitId !== outfitId) {
+  if (priorOutfitId) {
     await syncLastWorn(priorOutfitId);
     await deleteOutfitIfOrphaned(input.userId, priorOutfitId);
   }
@@ -200,32 +214,15 @@ export async function assignOutfitToDay(input: {
       return { ok: false, message: "That outfit was not found." };
     }
 
-    const priorWear = (await sql`
-      SELECT outfit_id::text AS outfit_id
-      FROM outfit_wears
-      WHERE user_id = ${input.userId}
-        AND worn_on = ${input.wornOn}::date
-      LIMIT 1
-    `) as { outfit_id: string }[];
-    const priorOutfitId = priorWear[0]?.outfit_id ?? null;
-
-    if (priorOutfitId) {
-      await sql`
-        UPDATE outfit_wears
-        SET outfit_id = ${input.outfitId}::uuid
-        WHERE user_id = ${input.userId}
-          AND worn_on = ${input.wornOn}::date
-      `;
-    } else {
-      await sql`
-        INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
-        VALUES (${input.outfitId}::uuid, ${input.userId}, ${input.wornOn}::date)
-      `;
-    }
+    const priorOutfitId = await replaceWearForDay(
+      input.userId,
+      input.wornOn,
+      input.outfitId,
+    );
 
     await syncLastWorn(input.outfitId);
 
-    if (priorOutfitId && priorOutfitId !== input.outfitId) {
+    if (priorOutfitId) {
       await syncLastWorn(priorOutfitId);
       await deleteOutfitIfOrphaned(input.userId, priorOutfitId);
     }

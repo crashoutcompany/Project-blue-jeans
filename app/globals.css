@@ -187,7 +187,9 @@
     animation: none;
   }
 
-  .garment-tile [data-garment-image] {
+  .garment-tile [data-garment-image],
+  .garment-tile:hover [data-garment-image],
+  .garment-tile:focus-visible [data-garment-image] {
     transform: none;
     transition: none;
   }
