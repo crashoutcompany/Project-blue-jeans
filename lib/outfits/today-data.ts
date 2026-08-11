@@ -38,7 +38,10 @@ export type TodayPageData = {
   todayIso: string;
   weekStartIso: string;
   garmentCount: number;
+  /** Today’s look (Outfit > Fit > null). */
   look: TodayLook | null;
+  /** Full looks for the Sunday–Saturday week keyed by wornOn. */
+  weekLooks: Record<string, TodayLook>;
   weekPeek: TodayWeekPeekDay[];
   /** Soft prompt when missing; try-on heroes when present. */
   hasWearerPhoto: boolean;
@@ -165,8 +168,37 @@ async function thumbsForIds(
     .filter((g): g is TodayGarmentThumb => g != null);
 }
 
+async function loadLookForDay(
+  userId: string,
+  wornOn: string,
+): Promise<TodayLook | null> {
+  const outfit = await loadOutfitForDay(userId, wornOn);
+  if (outfit) {
+    return {
+      kind: "outfit",
+      id: outfit.id,
+      title: outfit.name,
+      heroImageUrl: outfit.imageUrl,
+      garments: await thumbsForIds(userId, outfit.garmentIds),
+    };
+  }
+  const fit = await loadFitForDay(userId, wornOn);
+  if (fit) {
+    return {
+      kind: "fit",
+      id: fit.planLookId,
+      title: fit.title,
+      heroImageUrl: fit.heroImageUrl,
+      garments: await thumbsForIds(userId, fit.garmentIds),
+      planLookId: fit.planLookId,
+    };
+  }
+  return null;
+}
+
 /**
- * Today home payload: Outfit > Fit > empty, plus Sunday–Saturday week peek.
+ * Today home payload: Outfit > Fit > empty, plus Sunday–Saturday week peek
+ * and full weekLooks for in-place day selection.
  */
 export async function loadTodayPageData(
   userId: string,
@@ -181,6 +213,7 @@ export async function loadTodayPageData(
       weekStartIso,
       garmentCount: 0,
       look: null,
+      weekLooks: {},
       weekPeek: [],
       hasWearerPhoto: false,
     };
@@ -201,78 +234,42 @@ export async function loadTodayPageData(
     }
   })();
 
-  const [garmentCount, wearerPhoto, outfit] = await Promise.all([
+  const dayLoads = Array.from({ length: 7 }, (_, i) => {
+    const wornOn = addDaysIso(weekStartIso, i);
+    return loadLookForDay(userId, wornOn).then((look) => ({
+      wornOn,
+      label: WEEKDAY_SHORT[i]!,
+      look,
+    }));
+  });
+
+  const [garmentCount, wearerPhoto, days] = await Promise.all([
     garmentCountPromise,
     getWearerPhoto(userId),
-    loadOutfitForDay(userId, todayIso),
+    Promise.all(dayLoads),
   ]);
-  const hasWearerPhoto = Boolean(wearerPhoto?.imageUrl);
-  let look: TodayLook | null = null;
 
-  if (outfit) {
-    look = {
-      kind: "outfit",
-      id: outfit.id,
-      title: outfit.name,
-      heroImageUrl: outfit.imageUrl,
-      garments: await thumbsForIds(userId, outfit.garmentIds),
-    };
-  } else {
-    const fit = await loadFitForDay(userId, todayIso);
-    if (fit) {
-      look = {
-        kind: "fit",
-        id: fit.planLookId,
-        title: fit.title,
-        heroImageUrl: fit.heroImageUrl,
-        garments: await thumbsForIds(userId, fit.garmentIds),
-        planLookId: fit.planLookId,
-      };
-    }
-  }
-
+  const weekLooks: Record<string, TodayLook> = {};
   const weekPeek: TodayWeekPeekDay[] = [];
-  for (let i = 0; i < 7; i++) {
-    const wornOn = addDaysIso(weekStartIso, i);
-    const label = WEEKDAY_SHORT[i]!;
-    if (wornOn === todayIso && look) {
-      weekPeek.push({
-        wornOn,
-        label,
-        kind: look.kind,
-        heroImageUrl: look.heroImageUrl,
-      });
-      continue;
+  for (const day of days) {
+    if (day.look) {
+      weekLooks[day.wornOn] = day.look;
     }
-    const dayOutfit = await loadOutfitForDay(userId, wornOn);
-    if (dayOutfit) {
-      weekPeek.push({
-        wornOn,
-        label,
-        kind: "outfit",
-        heroImageUrl: dayOutfit.imageUrl,
-      });
-      continue;
-    }
-    const dayFit = await loadFitForDay(userId, wornOn);
-    if (dayFit) {
-      weekPeek.push({
-        wornOn,
-        label,
-        kind: "fit",
-        heroImageUrl: dayFit.heroImageUrl,
-      });
-      continue;
-    }
-    weekPeek.push({ wornOn, label, kind: "empty", heroImageUrl: null });
+    weekPeek.push({
+      wornOn: day.wornOn,
+      label: day.label,
+      kind: day.look?.kind ?? "empty",
+      heroImageUrl: day.look?.heroImageUrl ?? null,
+    });
   }
 
   return {
     todayIso,
     weekStartIso,
     garmentCount,
-    look,
+    look: weekLooks[todayIso] ?? null,
+    weekLooks,
     weekPeek,
-    hasWearerPhoto,
+    hasWearerPhoto: Boolean(wearerPhoto?.imageUrl),
   };
 }

@@ -5,7 +5,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { AuthenticatedShellSuspense } from "@/components/shell/authenticated-shell";
-import { TodayView } from "@/components/outfit/today-view";
+import { DayLookView } from "@/components/outfit/day-look-view";
 import { LandingPage } from "@/components/landing/landing-page";
 import { auth } from "@/lib/auth/server";
 import { isAdminUser } from "@/lib/auth/admin";
@@ -47,7 +47,7 @@ async function HomeContent() {
       <AuthenticatedShellSuspense>
         <div data-testid="today-shell-marker">
           <Suspense fallback={<div className="min-h-[70svh] bg-background" />}>
-            <TodayView data={todayData} closetGarments={closetGarments} />
+            <DayLookView data={todayData} closetGarments={closetGarments} />
           </Suspense>
         </div>
       </AuthenticatedShellSuspense>
@@ -60,7 +60,7 @@ async function HomeContent() {
 /**
  * No `searchParams` on this page — that would dynamize the whole segment and
  * drop the landing shell from the initial-load instant() guard. `change-look`
- * is read in TodayView via useSearchParams.
+ * is read in DayLookView via useSearchParams.
  */
 export default function HomePage() {
   return (

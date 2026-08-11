@@ -32,6 +32,15 @@ const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3.75rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
+function readSidebarOpenCookie(fallback: boolean): boolean {
+  if (typeof document === "undefined") return fallback;
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${SIDEBAR_COOKIE_NAME}=(true|false)(?:;|$)`),
+  );
+  if (!match) return fallback;
+  return match[1] === "true";
+}
+
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
   open: boolean;
@@ -69,9 +78,14 @@ function SidebarProvider({
   const isMobile = useIsMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
 
-  // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen);
+  // Restore from document cookie on client mount/remount. Avoid next/headers
+  // cookies() in the shell — it races with Neon Auth session cookie writes on `/`.
+  const [_open, _setOpen] = React.useState(() =>
+    readSidebarOpenCookie(defaultOpen),
+  );
+  React.useLayoutEffect(() => {
+    _setOpen(readSidebarOpenCookie(defaultOpen));
+  }, [defaultOpen]);
   const open = openProp ?? _open;
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {

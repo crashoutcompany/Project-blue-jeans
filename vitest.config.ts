@@ -35,7 +35,7 @@ export default defineConfig({
           name: "components",
           environment: "jsdom",
           setupFiles: ["./vitest.setup.dom.ts"],
-          include: ["components/**/*.test.tsx"],
+          include: ["components/**/*.test.tsx", "app/**/*.test.tsx"],
         },
       },
     ],

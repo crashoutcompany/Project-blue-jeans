@@ -13,7 +13,9 @@ async function AdminAccessGate() {
 
 /**
  * Authenticated app chrome (sidebar + header). Used by `(main)` layout and
- * signed-in `/` (Today).
+ * signed-in `/` (Today). Sidebar open state is restored client-side from the
+ * `sidebar_state` cookie inside SidebarProvider (avoid next/headers cookies()
+ * here — it races with auth session cookie writes on `/`).
  */
 export function AuthenticatedShell({
   children,
@@ -21,7 +23,7 @@ export function AuthenticatedShell({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider defaultOpen>
+    <SidebarProvider>
       <AppSidebar />
       <SidebarInset
         className="min-h-svh overflow-x-hidden"

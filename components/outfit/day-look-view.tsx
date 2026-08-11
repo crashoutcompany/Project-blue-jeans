@@ -5,14 +5,36 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { planMyWeek, unwearToday, wearThisFit } from "@/app/actions/today";
+import {
+  planMyWeek,
+  unwearDayForUser,
+  wearThisFit,
+} from "@/app/actions/today";
 import type { ClothingCardData } from "@/lib/garments/types";
 import type { TodayPageData } from "@/lib/outfits/today-data";
+import { formatProductDateLong } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 import { GeneratorSheet } from "@/components/outfit/generator-sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
 
-export function TodayView({
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function initialSelectedDay(
+  data: TodayPageData,
+  dayParam: string | null,
+): string {
+  if (
+    dayParam &&
+    ISO_DAY.test(dayParam) &&
+    data.weekLooks[dayParam] &&
+    data.weekPeek.some((d) => d.wornOn === dayParam)
+  ) {
+    return dayParam;
+  }
+  return data.todayIso;
+}
+
+export function DayLookView({
   data,
   closetGarments,
 }: {
@@ -22,11 +44,19 @@ export function TodayView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const changeLookFromUrl = searchParams.get("change-look") === "1";
+  const dayFromUrl = searchParams.get("day");
+  const [selectedWornOn, setSelectedWornOn] = useState(() =>
+    initialSelectedDay(data, dayFromUrl),
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [manualChangeLookOpen, setManualChangeLookOpen] = useState(false);
-  // URL deep-link (?change-look=1) or in-page "Change look" — no effect sync.
   const changeLookOpen = changeLookFromUrl || manualChangeLookOpen;
+
+  const look =
+    data.weekLooks[selectedWornOn] ??
+    (selectedWornOn === data.todayIso ? data.look : null);
+  const canEdit = selectedWornOn >= data.todayIso;
 
   function setChangeLookOpen(open: boolean) {
     if (open) {
@@ -100,17 +130,26 @@ export function TodayView({
     );
   }
 
-  const { look } = data;
+  if (!look) {
+    return null;
+  }
+
   const collage =
     !look.heroImageUrl && look.garments.length > 0
       ? look.garments.slice(0, 4)
       : null;
+  const dateHeading = formatProductDateLong(selectedWornOn);
 
   return (
     <div className="page-canvas mx-auto flex max-w-3xl flex-col gap-8 px-4 pb-16 pt-2 sm:px-6">
+      <p className="text-sm font-medium tracking-wide text-muted-foreground">
+        {dateHeading}
+      </p>
+
       <section className="relative aspect-[3/4] w-full overflow-hidden bg-muted sm:aspect-[4/5]">
         {look.heroImageUrl ? (
           <Image
+            key={look.heroImageUrl}
             src={look.heroImageUrl}
             alt=""
             fill
@@ -153,57 +192,62 @@ export function TodayView({
           </p>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
-          {look.kind === "fit" && look.planLookId ? (
-            <Button
-              size="lg"
-              disabled={pending}
-              className="active:scale-[0.97] transition-transform duration-160 ease-out"
-              onClick={() => {
-                setError(null);
-                startTransition(async () => {
-                  const res = await wearThisFit(look.planLookId!);
-                  if (!res.ok) {
-                    setError(res.message);
-                    return;
-                  }
-                  router.refresh();
-                });
-              }}
-            >
-              {pending ? "Saving…" : "Wear this"}
-            </Button>
-          ) : null}
+        {canEdit ? (
+          <div className="flex flex-wrap items-center gap-3">
+            {look.kind === "fit" && look.planLookId ? (
+              <Button
+                size="lg"
+                disabled={pending}
+                className="active:scale-[0.97] transition-transform duration-160 ease-out"
+                onClick={() => {
+                  setError(null);
+                  startTransition(async () => {
+                    const res = await wearThisFit(look.planLookId!);
+                    if (!res.ok) {
+                      setError(res.message);
+                      return;
+                    }
+                    router.refresh();
+                  });
+                }}
+              >
+                {pending ? "Saving…" : "Wear this"}
+              </Button>
+            ) : null}
 
-          <Button
-            variant={look.kind === "outfit" ? "default" : "outline"}
-            size="lg"
-            onClick={() => setChangeLookOpen(true)}
-          >
-            Change look
-          </Button>
-
-          {look.kind === "outfit" ? (
             <Button
-              variant="ghost"
+              variant={look.kind === "outfit" ? "default" : "outline"}
               size="lg"
-              disabled={pending}
-              onClick={() => {
-                setError(null);
-                startTransition(async () => {
-                  const res = await unwearToday();
-                  if (!res.ok) {
-                    setError(res.message);
-                    return;
-                  }
-                  router.refresh();
-                });
-              }}
+              onClick={() => setChangeLookOpen(true)}
             >
-              Unwear
+              Change look
             </Button>
-          ) : null}
-        </div>
+
+            {look.kind === "outfit" ? (
+              <Button
+                variant="ghost"
+                size="lg"
+                disabled={pending}
+                onClick={() => {
+                  setError(null);
+                  startTransition(async () => {
+                    const res = await unwearDayForUser(selectedWornOn);
+                    if (!res.ok) {
+                      setError(res.message);
+                      return;
+                    }
+                    setSelectedWornOn(data.todayIso);
+                    router.refresh();
+                  });
+                }}
+              >
+                Unwear
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Past look — view only.</p>
+        )}
 
         {!data.hasWearerPhoto ? (
           <p className="text-sm text-muted-foreground">
@@ -256,6 +300,8 @@ export function TodayView({
         <ul className="grid grid-cols-7 gap-2">
           {data.weekPeek.map((day) => {
             const isToday = day.wornOn === data.todayIso;
+            const isSelected = day.wornOn === selectedWornOn;
+            const hasLook = day.kind !== "empty";
             return (
               <li
                 key={day.wornOn}
@@ -267,24 +313,40 @@ export function TodayView({
                 <span className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">
                   {day.label}
                 </span>
-                <div
-                  className={cn(
-                    "relative aspect-square w-full overflow-hidden bg-muted",
-                    isToday && "ring-1 ring-foreground",
-                  )}
-                >
-                  {day.heroImageUrl ? (
-                    <Image
-                      src={day.heroImageUrl}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="64px"
-                    />
-                  ) : (
-                    <span className="sr-only">{day.kind}</span>
-                  )}
-                </div>
+                {hasLook ? (
+                  <button
+                    type="button"
+                    aria-label={`Show look for ${formatProductDateLong(day.wornOn)}`}
+                    aria-current={isSelected ? "true" : undefined}
+                    onClick={() => setSelectedWornOn(day.wornOn)}
+                    className={cn(
+                      "relative aspect-square w-full overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      isToday && "ring-1 ring-foreground",
+                      isSelected && !isToday && "ring-1 ring-foreground/50",
+                    )}
+                  >
+                    {day.heroImageUrl ? (
+                      <Image
+                        src={day.heroImageUrl}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="64px"
+                      />
+                    ) : (
+                      <span className="sr-only">{day.kind}</span>
+                    )}
+                  </button>
+                ) : (
+                  <div
+                    className={cn(
+                      "relative aspect-square w-full overflow-hidden bg-muted",
+                      isToday && "ring-1 ring-foreground",
+                    )}
+                  >
+                    <span className="sr-only">empty</span>
+                  </div>
+                )}
               </li>
             );
           })}
@@ -295,7 +357,7 @@ export function TodayView({
         open={changeLookOpen}
         onOpenChange={setChangeLookOpen}
         closetGarments={closetGarments}
-        wornOn={data.todayIso}
+        wornOn={selectedWornOn}
         onApproved={() => router.refresh()}
       />
     </div>

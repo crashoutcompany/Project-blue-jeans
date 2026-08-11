@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   addDaysIso,
+  formatProductDateLong,
   productTodayIso,
   sundayWeekStartIso,
 } from "@/lib/time/product-timezone";
@@ -23,5 +24,9 @@ describe("product-timezone", () => {
 
   it("adds days across month boundaries", () => {
     expect(addDaysIso("2026-08-31", 1)).toBe("2026-09-01");
+  });
+
+  it("formats a long product date heading", () => {
+    expect(formatProductDateLong("2026-08-10")).toBe("Monday, August 10");
   });
 });

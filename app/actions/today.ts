@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
+import { z } from "zod";
 
 import { assertAdminForServerAction } from "@/lib/auth/admin";
 import { logServerError } from "@/lib/server/safe-client-error";
@@ -21,6 +22,8 @@ function revalidateTodaySurfaces(userId: string) {
   revalidatePath("/calendar");
   revalidatePath("/closet");
 }
+
+const wornOnSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 /**
  * Empty Today CTA — generate Weekly Fits for the current Sunday-start week.
@@ -59,7 +62,7 @@ export async function planMyWeek(): Promise<
 }
 
 /**
- * Wear this — promote today’s Fit to an Outfit.
+ * Wear this — promote a Fit to an Outfit for that Fit’s calendar day.
  */
 export async function wearThisFit(
   planLookId: string,
@@ -71,16 +74,25 @@ export async function wearThisFit(
 }
 
 /**
- * Unwear — detach today’s Outfit; drop Closet archive if it has no other wears.
+ * Unwear — detach an Outfit from a calendar day (today or future only).
  */
-export async function unwearToday(): Promise<
-  { ok: true } | { ok: false; message: string }
-> {
+export async function unwearDayForUser(
+  wornOn: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
   const gate = await assertAdminForServerAction();
   if (!gate.ok) return { ok: false, message: gate.message };
 
+  const parsed = wornOnSchema.safeParse(wornOn);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid date." };
+  }
+
   const todayIso = productTodayIso();
-  const result = await unwearDay(gate.userId, todayIso);
+  if (parsed.data < todayIso) {
+    return { ok: false, message: "Past looks can’t be changed." };
+  }
+
+  const result = await unwearDay(gate.userId, parsed.data);
   if (!result.ok) return result;
   revalidateTodaySurfaces(gate.userId);
   return { ok: true };
