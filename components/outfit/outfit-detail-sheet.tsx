@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/outfits";
 import type { ClosetSavedOutfit } from "@/lib/outfits/closet-saved-outfits";
 import type { ClothingCardData } from "@/lib/garments/types";
+import { formatProductWornOn } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,16 +23,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-
-function formatWornOn(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export function OutfitDetailSheet({
   outfit,
@@ -187,7 +178,7 @@ export function OutfitDetailSheet({
                         {title}
                       </SheetTitle>
                       <SheetDescription>
-                        Last worn {formatWornOn(outfit.wornOn)}
+                        Last worn {formatProductWornOn(outfit.wornOn)}
                       </SheetDescription>
                       <button
                         type="button"

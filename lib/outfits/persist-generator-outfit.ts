@@ -10,10 +10,8 @@ import { garmentSetKey } from "@/lib/outfits/garment-set-key";
 import { outfitOccasionSchema } from "@/lib/outfits/occasions";
 import { productTodayIso } from "@/lib/time/product-timezone";
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-
 export const approveGeneratorPayloadSchema = z.object({
-  wornOn: isoDate,
+  wornOn: z.iso.date(),
   name: z.string().max(APPROVE_OUTFIT_MAX_NAME).optional(),
   occasion: outfitOccasionSchema.optional().default("casual"),
   garmentIds: z.array(z.string().uuid()).min(1).max(20),

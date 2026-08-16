@@ -58,14 +58,49 @@ const PRODUCT_DATE_LONG = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
+const PRODUCT_WORN_ON = new Intl.DateTimeFormat("en-US", {
+  timeZone: PRODUCT_TIME_ZONE,
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+
+const PRODUCT_MONTH_YEAR = new Intl.DateTimeFormat("en-US", {
+  timeZone: PRODUCT_TIME_ZONE,
+  month: "long",
+  year: "numeric",
+});
+
+function utcNoonFromIso(isoDate: string): Date | null {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+}
+
 /**
  * Long product-timezone date for home hero, e.g. "Monday, August 10".
  */
 export function formatProductDateLong(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-").map(Number);
-  if (!y || !m || !d) {
+  const utc = utcNoonFromIso(isoDate);
+  if (!utc) {
     throw new Error(`Invalid iso date: ${isoDate}`);
   }
-  const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   return PRODUCT_DATE_LONG.format(utc);
+}
+
+/**
+ * Short product-timezone date for last-worn, e.g. "Mon, Aug 10".
+ */
+export function formatProductWornOn(isoDate: string): string {
+  const utc = utcNoonFromIso(isoDate);
+  if (!utc) return isoDate;
+  return PRODUCT_WORN_ON.format(utc);
+}
+
+/**
+ * Calendar month heading, e.g. "March 2025".
+ */
+export function formatProductMonthYear(year: number, month: number): string {
+  const utc = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
+  return PRODUCT_MONTH_YEAR.format(utc);
 }

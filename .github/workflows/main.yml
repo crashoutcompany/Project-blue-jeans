@@ -2,7 +2,8 @@
 # Build runs only for push to main and same-repo PRs. Needs VERCEL_TOKEN,
 # VERCEL_ORG_ID, VERCEL_PROJECT_ID, plus app secrets that Vercel marks Sensitive
 # (those pull as "[SENSITIVE]" placeholders and must come from GitHub secrets).
-# Fork PRs: lint + test (+ e2e) only.
+# Install (`npm ci`) runs without those app secrets; they are injected only on
+# vercel pull / vercel build. Fork PRs: lint + test (+ e2e) only.
 name: Actions CI
 
 on:
@@ -37,12 +38,6 @@ jobs:
   build:
     if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      NEON_AUTH_BASE_URL: ${{ secrets.NEON_AUTH_BASE_URL }}
-      NEON_AUTH_COOKIE_SECRET: ${{ secrets.NEON_AUTH_COOKIE_SECRET }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -56,13 +51,23 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel
 
+      # No app secrets here — postinstall runs patch-package.
       - name: Install dependencies
         run: npm ci
 
       - name: Pull Vercel Environment Variables
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build with Vercel
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          NEON_AUTH_BASE_URL: ${{ secrets.NEON_AUTH_BASE_URL }}
+          NEON_AUTH_COOKIE_SECRET: ${{ secrets.NEON_AUTH_COOKIE_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }} --prod
 
   test:

@@ -131,6 +131,7 @@ export function WearerPhotoCard({
         type="file"
         accept="image/*"
         className="sr-only"
+        aria-label={imageUrl ? "Replace wearer photo" : "Add wearer photo"}
         disabled={busy}
         onChange={(e) => {
           const file = e.target.files?.[0];

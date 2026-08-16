@@ -42,6 +42,14 @@ describe("approveGeneratorPayloadSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects impossible calendar dates", () => {
+    const parsed = approveGeneratorPayloadSchema.safeParse({
+      wornOn: "2026-02-30",
+      garmentIds: [gid],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects empty garmentIds", () => {
     const parsed = approveGeneratorPayloadSchema.safeParse({
       wornOn: "2025-01-01",

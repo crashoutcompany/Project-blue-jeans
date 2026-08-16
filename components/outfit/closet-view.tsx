@@ -35,7 +35,7 @@ import {
   buildColorFacetsFromGarments,
   garmentMatchesColorFacet,
 } from "@/lib/garments/color-facets";
-import { PRODUCT_TIME_ZONE } from "@/lib/time/product-timezone";
+import { formatProductWornOn } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -64,19 +64,6 @@ function optimisticGarmentFromDraft(
     description: draft.description?.trim() || null,
     notes: draft.notes?.trim() || null,
   };
-}
-
-function formatWornOn(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  // Noon UTC + product TZ avoids browser-local day shifts for YYYY-MM-DD.
-  const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: PRODUCT_TIME_ZONE,
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(utc);
 }
 
 export function ClosetView({
@@ -127,7 +114,6 @@ export function ClosetView({
   const [savingDrafts, setSavingDrafts] = useState(false);
 
   const previewUrlsRef = useRef<Set<string>>(new Set());
-  previewUrlsRef.current = new Set(pendingDrafts.map((d) => d.previewUrl));
 
   useEffect(() => {
     return () => {
@@ -141,25 +127,15 @@ export function ClosetView({
     () => buildColorFacetsFromGarments(garments),
     [garments],
   );
-
-  const colorFacetIdsKey = useMemo(
-    () => dynamicColorFacets.map((f) => f.id).join("\0"),
-    [dynamicColorFacets],
-  );
-
-  useEffect(() => {
-    if (
-      colorId !== "all" &&
-      !dynamicColorFacets.some((f) => f.id === colorId)
-    ) {
-      setColorId("all");
-    }
-  }, [colorFacetIdsKey, colorId, dynamicColorFacets]);
+  const activeColorId =
+    colorId === "all" || dynamicColorFacets.some((f) => f.id === colorId)
+      ? colorId
+      : "all";
 
   const filtered = useMemo(() => {
     return garments.filter((g) => {
       if (category !== "all" && g.category !== category) return false;
-      if (!garmentMatchesColorFacet(g, colorId)) return false;
+      if (!garmentMatchesColorFacet(g, activeColorId)) return false;
       if (query.trim()) {
         const q = query.toLowerCase();
         const hay = [
@@ -178,7 +154,7 @@ export function ClosetView({
       }
       return true;
     });
-  }, [garments, category, colorId, query]);
+  }, [garments, category, activeColorId, query]);
 
   const selectedGarment =
     selectedId === null
@@ -190,6 +166,7 @@ export function ClosetView({
 
   function handleFilesReady(items: ClosetPendingLocalImage[]) {
     setPersistError(null);
+    for (const item of items) previewUrlsRef.current.add(item.previewUrl);
     setPendingDrafts((prev) => [
       ...prev,
       ...items.map(garmentDraftFromLocalPick),
@@ -256,7 +233,10 @@ export function ClosetView({
         const added = draftsSnapshot.map((d, i) =>
           optimisticGarmentFromDraft(d, uploaded[i]!),
         );
-        draftsSnapshot.forEach((d) => URL.revokeObjectURL(d.previewUrl));
+        draftsSnapshot.forEach((d) => {
+          URL.revokeObjectURL(d.previewUrl);
+          previewUrlsRef.current.delete(d.previewUrl);
+        });
         setPendingDrafts([]);
         // Update base state only — also calling useOptimistic with the same
         // rows would duplicate garments until the next server refresh.
@@ -281,10 +261,11 @@ export function ClosetView({
   }
 
   function handleClearPending() {
-    setPendingDrafts((prev) => {
-      prev.forEach((d) => URL.revokeObjectURL(d.previewUrl));
-      return [];
+    pendingDrafts.forEach((d) => {
+      URL.revokeObjectURL(d.previewUrl);
+      previewUrlsRef.current.delete(d.previewUrl);
     });
+    setPendingDrafts([]);
     setPersistError(null);
   }
 
@@ -295,11 +276,12 @@ export function ClosetView({
   }
 
   function removeDraft(clientKey: string) {
-    setPendingDrafts((prev) => {
-      const target = prev.find((d) => d.clientKey === clientKey);
-      if (target) URL.revokeObjectURL(target.previewUrl);
-      return prev.filter((d) => d.clientKey !== clientKey);
-    });
+    const target = pendingDrafts.find((d) => d.clientKey === clientKey);
+    if (target) {
+      URL.revokeObjectURL(target.previewUrl);
+      previewUrlsRef.current.delete(target.previewUrl);
+    }
+    setPendingDrafts((prev) => prev.filter((d) => d.clientKey !== clientKey));
   }
 
   async function handleToggleFavorite(id: string): Promise<boolean> {
@@ -491,7 +473,7 @@ export function ClosetView({
                 onClick={() => setColorId("all")}
                 className={cn(
                   "flex size-7 items-center justify-center rounded-full ring-1 ring-offset-2 ring-offset-background transition duration-160 ease-[ease]",
-                  colorId === "all" ? "ring-foreground" : "ring-transparent",
+                  activeColorId === "all" ? "ring-foreground" : "ring-transparent",
                 )}
                 aria-label="All colors"
                 title="All colors"
@@ -502,7 +484,7 @@ export function ClosetView({
                 />
               </button>
               {dynamicColorFacets.map((c) => {
-                const active = colorId === c.id;
+                const active = activeColorId === c.id;
                 return (
                   <button
                     key={c.id}
@@ -579,7 +561,7 @@ export function ClosetView({
                         </p>
                         <p className="mt-0.5 flex items-center gap-1 text-[0.65rem] uppercase tracking-[0.08em] text-muted-foreground">
                           <CalendarDays className="size-3" />
-                          Last worn {formatWornOn(o.wornOn)}
+                          Last worn {formatProductWornOn(o.wornOn)}
                         </p>
                       </div>
                     </button>

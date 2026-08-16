@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   addDaysIso,
   formatProductDateLong,
+  formatProductMonthYear,
+  formatProductWornOn,
   productTodayIso,
   sundayWeekStartIso,
 } from "@/lib/time/product-timezone";
@@ -28,5 +30,10 @@ describe("product-timezone", () => {
 
   it("formats a long product date heading", () => {
     expect(formatProductDateLong("2026-08-10")).toBe("Monday, August 10");
+  });
+
+  it("formats last-worn and month headings in the product timezone", () => {
+    expect(formatProductWornOn("2026-08-10")).toBe("Mon, Aug 10");
+    expect(formatProductMonthYear(2025, 3)).toBe("March 2025");
   });
 });

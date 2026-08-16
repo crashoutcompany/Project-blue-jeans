@@ -67,11 +67,9 @@ function GeneratorClosetScope({
     [...selectedIds].every((id) => allClosetIds.has(id));
 
   function patchSelection(updater: (prev: Set<string>) => Set<string>) {
-    setSelectedIds((prev) => {
-      const next = updater(prev);
-      onSelectionChange(next);
-      return next;
-    });
+    const next = updater(selectedIds);
+    setSelectedIds(next);
+    onSelectionChange(next);
   }
 
   function selectAllGarments() {
