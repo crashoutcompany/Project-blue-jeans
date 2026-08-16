@@ -23,7 +23,7 @@ function revalidateTodaySurfaces(userId: string) {
   revalidatePath("/closet");
 }
 
-const wornOnSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const wornOnSchema = z.iso.date();
 
 /**
  * Empty Today CTA — generate Weekly Fits for the current Sunday-start week.

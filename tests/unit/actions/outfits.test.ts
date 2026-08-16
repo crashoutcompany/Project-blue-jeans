@@ -19,6 +19,15 @@ vi.mock("@/lib/outfits/persist-generator-outfit", async (orig) => {
   };
 });
 
+vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/time/product-timezone")>();
+  return {
+    ...actual,
+    productTodayIso: vi.fn(() => "2026-08-10"),
+  };
+});
+
 import { auth } from "@/lib/auth/server";
 import { requireSql } from "@/lib/db";
 import { commitOutfitForDay } from "@/lib/outfits/persist-generator-outfit";
@@ -84,7 +93,7 @@ describe("approveWeeklyPlanLook", () => {
         id: planLookId,
         hero_image_url: null,
         garment_ids: [],
-        worn_on: "2025-01-01",
+        worn_on: "2026-08-10",
       },
     ]);
     sqlMock.mockReturnValue(sql as never);
@@ -103,7 +112,7 @@ describe("approveWeeklyPlanLook", () => {
           id: planLookId,
           hero_image_url: null,
           garment_ids: [gid],
-          worn_on: "2025-01-01",
+          worn_on: "2026-08-10",
         },
       ])
       .mockResolvedValueOnce([{ n: 0 }]);
@@ -111,6 +120,24 @@ describe("approveWeeklyPlanLook", () => {
     const res = await approveWeeklyPlanLook(planLookId);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.message).toContain("missing");
+  });
+
+  it("rejects past-day looks without committing", async () => {
+    getSession.mockResolvedValue(adminSession());
+    const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const sql = vi.fn().mockResolvedValueOnce([
+      {
+        id: planLookId,
+        hero_image_url: null,
+        garment_ids: [gid],
+        worn_on: "2026-08-09",
+      },
+    ]);
+    sqlMock.mockReturnValue(sql as never);
+    const res = await approveWeeklyPlanLook(planLookId);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.message).toMatch(/past/i);
+    expect(commitMock).not.toHaveBeenCalled();
   });
 
   it("commits outfit and returns ok", async () => {
@@ -124,7 +151,7 @@ describe("approveWeeklyPlanLook", () => {
           id: planLookId,
           hero_image_url: null,
           garment_ids: [gid],
-          worn_on: "2025-01-01",
+          worn_on: "2026-08-10",
         },
       ])
       .mockResolvedValueOnce([{ n: 1 }]);

@@ -51,6 +51,13 @@ export function addDaysIso(isoDate: string, days: number): string {
   return utc.toISOString().slice(0, 10);
 }
 
+const PRODUCT_DATE_LONG = new Intl.DateTimeFormat("en-US", {
+  timeZone: PRODUCT_TIME_ZONE,
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
+
 /**
  * Long product-timezone date for home hero, e.g. "Monday, August 10".
  */
@@ -60,10 +67,5 @@ export function formatProductDateLong(isoDate: string): string {
     throw new Error(`Invalid iso date: ${isoDate}`);
   }
   const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: PRODUCT_TIME_ZONE,
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  }).format(utc);
+  return PRODUCT_DATE_LONG.format(utc);
 }

@@ -279,7 +279,7 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 > **Domain expert:** "Past: view only. Future: can **Wear this** on a Fit. Not a Today clone."
 
 > **Dev:** "Future day already has an Outfit?"
-> **Domain expert:** "View only until that day is **Today**."
+> **Domain expert:** "Changeable from **home** (week peek → hero). Calendar stays overview / map."
 
 > **Dev:** "Add clothes from Today?"
 > **Domain expert:** "CTA goes to **Closet**. Upload lives there."

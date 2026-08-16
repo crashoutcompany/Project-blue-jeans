@@ -47,6 +47,25 @@ describe("unwearDayForUser", () => {
     expect(unwear).not.toHaveBeenCalled();
   });
 
+  it("rejects malformed dates without calling unwear", async () => {
+    const res = await unwearDayForUser("2026-02-30");
+    expect(res).toEqual({ ok: false, message: "Invalid date." });
+    expect(unwear).not.toHaveBeenCalled();
+  });
+
+  it("returns the admin gate error without calling unwear", async () => {
+    gate.mockResolvedValue({
+      ok: false,
+      message: "Admin access is required. Sign out and use an admin account.",
+    });
+    const res = await unwearDayForUser("2026-08-10");
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.message).toContain("Admin access is required");
+    }
+    expect(unwear).not.toHaveBeenCalled();
+  });
+
   it("unwears today and future dates", async () => {
     unwear.mockResolvedValue({ ok: true, outfitId: "o1" });
     const today = await unwearDayForUser("2026-08-10");

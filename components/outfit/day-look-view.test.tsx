@@ -12,6 +12,18 @@ vi.mock("@/components/outfit/generator-sheet", () => ({
   GeneratorSheet: () => null,
 }));
 
+const searchParamsHolder = { current: new URLSearchParams() };
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: vi.fn(),
+    replace: vi.fn(),
+    push: vi.fn(),
+  }),
+  usePathname: () => "/",
+  useSearchParams: () => searchParamsHolder.current,
+}));
+
 import { DayLookView } from "@/components/outfit/day-look-view";
 import type { TodayPageData } from "@/lib/outfits/today-data";
 
@@ -113,6 +125,31 @@ describe("DayLookView", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    searchParamsHolder.current = new URLSearchParams();
+  });
+
+  it("selects a valid ISO day from the query string", () => {
+    searchParamsHolder.current = new URLSearchParams("day=2026-08-11");
+    render(<DayLookView data={baseData()} closetGarments={[]} />);
+
+    expect(screen.getByText("Tuesday, August 11")).toBeInTheDocument();
+    expect(screen.getByText("Tuesday fit")).toBeInTheDocument();
+  });
+
+  it("falls back to today when the day query is malformed", () => {
+    searchParamsHolder.current = new URLSearchParams("day=not-a-date");
+    render(<DayLookView data={baseData()} closetGarments={[]} />);
+
+    expect(screen.getByText("Monday, August 10")).toBeInTheDocument();
+    expect(screen.getByText("Monday outfit")).toBeInTheDocument();
+  });
+
+  it("shows the empty state for a query day with no week look", () => {
+    searchParamsHolder.current = new URLSearchParams("day=2026-08-12");
+    render(<DayLookView data={baseData()} closetGarments={[]} />);
+
+    expect(screen.getByText("Wednesday, August 12")).toBeInTheDocument();
+    expect(screen.getByText("No look for this day yet.")).toBeInTheDocument();
   });
 
   it("shows the product date above the hero and swaps on week peek tap", async () => {
@@ -165,5 +202,30 @@ describe("DayLookView", () => {
     expect(
       screen.queryByRole("button", { name: "Unwear" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the week peek selectable when today has no look", async () => {
+    const user = userEvent.setup();
+    render(
+      <DayLookView
+        data={baseData({
+          look: null,
+          weekLooks: { "2026-08-11": lookB },
+        })}
+        closetGarments={[]}
+      />,
+    );
+
+    expect(screen.getByText("No look for today yet.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "This week" }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /Show look for Tuesday, August 11/i }),
+    );
+
+    expect(screen.getByText("Tuesday, August 11")).toBeInTheDocument();
+    expect(screen.getByText("Tuesday fit")).toBeInTheDocument();
   });
 });

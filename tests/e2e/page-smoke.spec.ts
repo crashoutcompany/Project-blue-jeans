@@ -94,7 +94,13 @@ test.describe("admin page smoke", () => {
   test("generator deep-links to change-look on home", async ({ page }) => {
     await page.goto("/generator");
     await expect(page).toHaveURL(/\/\?change-look=1/);
-    await expect(visibleTestId(page, "today-shell-marker")).toBeVisible({
+    await expect(
+      page
+        .locator("main")
+        .getByTestId("today-shell-marker")
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible({
       timeout: 20_000,
     });
   });

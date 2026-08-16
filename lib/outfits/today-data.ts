@@ -57,96 +57,6 @@ const WEEKDAY_SHORT = [
   "Sat",
 ] as const;
 
-async function loadOutfitForDay(
-  userId: string,
-  wornOn: string,
-): Promise<{
-  id: string;
-  name: string | null;
-  imageUrl: string | null;
-  garmentIds: string[];
-} | null> {
-  const sql = getSql();
-  if (!sql) return null;
-
-  const rows = (await sql`
-    SELECT
-      o.id,
-      o.name,
-      o.image_url,
-      coalesce(
-        array_agg(og.garment_id::text ORDER BY og.sort_order)
-          FILTER (WHERE og.garment_id IS NOT NULL),
-        '{}'
-      ) AS garment_ids
-    FROM outfit_wears w
-    INNER JOIN outfits o ON o.id = w.outfit_id
-    LEFT JOIN outfit_garments og ON og.outfit_id = o.id
-    WHERE w.user_id = ${userId}
-      AND o.user_id = ${userId}
-      AND w.worn_on = ${wornOn}::date
-    GROUP BY o.id
-    ORDER BY o.created_at DESC
-    LIMIT 1
-  `) as {
-    id: string;
-    name: string | null;
-    image_url: string | null;
-    garment_ids: string[] | null;
-  }[];
-
-  const row = rows[0];
-  if (!row) return null;
-  return {
-    id: row.id,
-    name: row.name,
-    imageUrl: row.image_url,
-    garmentIds: Array.isArray(row.garment_ids) ? row.garment_ids : [],
-  };
-}
-
-async function loadFitForDay(
-  userId: string,
-  wornOn: string,
-): Promise<{
-  planLookId: string;
-  title: string;
-  heroImageUrl: string | null;
-  garmentIds: string[];
-} | null> {
-  const sql = getSql();
-  if (!sql) return null;
-
-  const rows = (await sql`
-    SELECT
-      l.id AS plan_look_id,
-      l.title,
-      l.hero_image_url,
-      l.garment_ids
-    FROM weekly_plan_looks l
-    INNER JOIN weekly_outfit_plans p ON p.id = l.plan_id
-    WHERE p.user_id = ${userId}
-      AND p.status IN ('completed', 'draft')
-      AND (p.week_start + l.sort_order) = ${wornOn}::date
-    ORDER BY p.updated_at DESC NULLS LAST, l.sort_order ASC
-    LIMIT 1
-  `) as {
-    plan_look_id: string;
-    title: string;
-    hero_image_url: string | null;
-    garment_ids: string[] | null;
-  }[];
-
-  const row = rows[0];
-  if (!row) return null;
-  return {
-    planLookId: row.plan_look_id,
-    title: row.title,
-    heroImageUrl: row.hero_image_url,
-    garmentIds: Array.isArray(row.garment_ids) ? row.garment_ids : [],
-  };
-}
-
 async function thumbsForIds(
   userId: string,
   ids: string[],
@@ -168,32 +78,159 @@ async function thumbsForIds(
     .filter((g): g is TodayGarmentThumb => g != null);
 }
 
-async function loadLookForDay(
+type DayOutfit = {
+  wornOn: string;
+  id: string;
+  name: string | null;
+  imageUrl: string | null;
+  garmentIds: string[];
+};
+
+type DayFit = {
+  wornOn: string;
+  planLookId: string;
+  title: string;
+  heroImageUrl: string | null;
+  garmentIds: string[];
+};
+
+function firstPerDay<T extends { wornOn: string }>(rows: T[]): Map<string, T> {
+  const map = new Map<string, T>();
+  for (const row of rows) {
+    if (!map.has(row.wornOn)) map.set(row.wornOn, row);
+  }
+  return map;
+}
+
+async function loadOutfitsForWeek(
   userId: string,
-  wornOn: string,
-): Promise<TodayLook | null> {
-  const outfit = await loadOutfitForDay(userId, wornOn);
-  if (outfit) {
-    return {
-      kind: "outfit",
-      id: outfit.id,
-      title: outfit.name,
-      heroImageUrl: outfit.imageUrl,
-      garments: await thumbsForIds(userId, outfit.garmentIds),
-    };
+  weekStartIso: string,
+  weekEndIso: string,
+): Promise<Map<string, DayOutfit>> {
+  const sql = getSql();
+  if (!sql) return new Map();
+  try {
+    const rows = (await sql`
+      SELECT
+        w.worn_on::text AS worn_on,
+        o.id,
+        o.name,
+        o.image_url,
+        o.created_at,
+        coalesce(
+          array_agg(og.garment_id::text ORDER BY og.sort_order)
+            FILTER (WHERE og.garment_id IS NOT NULL),
+          '{}'
+        ) AS garment_ids
+      FROM outfit_wears w
+      INNER JOIN outfits o ON o.id = w.outfit_id
+      LEFT JOIN outfit_garments og ON og.outfit_id = o.id
+      WHERE w.user_id = ${userId}
+        AND o.user_id = ${userId}
+        AND w.worn_on >= ${weekStartIso}::date
+        AND w.worn_on <= ${weekEndIso}::date
+      GROUP BY w.worn_on, o.id
+      ORDER BY w.worn_on, o.created_at DESC
+    `) as {
+      worn_on: string;
+      id: string;
+      name: string | null;
+      image_url: string | null;
+      garment_ids: string[] | null;
+    }[];
+    return firstPerDay(
+      rows.map((row) => ({
+        wornOn: row.worn_on,
+        id: row.id,
+        name: row.name,
+        imageUrl: row.image_url,
+        garmentIds: Array.isArray(row.garment_ids) ? row.garment_ids : [],
+      })),
+    );
+  } catch (e) {
+    console.error("[today] load outfits for week failed", e);
+    return new Map();
   }
-  const fit = await loadFitForDay(userId, wornOn);
-  if (fit) {
-    return {
-      kind: "fit",
-      id: fit.planLookId,
-      title: fit.title,
-      heroImageUrl: fit.heroImageUrl,
-      garments: await thumbsForIds(userId, fit.garmentIds),
-      planLookId: fit.planLookId,
-    };
+}
+
+async function loadFitsForWeek(
+  userId: string,
+  weekStartIso: string,
+  weekEndIso: string,
+): Promise<Map<string, DayFit>> {
+  const sql = getSql();
+  if (!sql) return new Map();
+  try {
+    const rows = (await sql`
+      SELECT
+        (p.week_start + l.sort_order)::text AS worn_on,
+        l.id AS plan_look_id,
+        l.title,
+        l.hero_image_url,
+        l.garment_ids,
+        p.updated_at,
+        l.sort_order
+      FROM weekly_plan_looks l
+      INNER JOIN weekly_outfit_plans p ON p.id = l.plan_id
+      WHERE p.user_id = ${userId}
+        AND p.status IN ('completed', 'draft')
+        AND (p.week_start + l.sort_order) >= ${weekStartIso}::date
+        AND (p.week_start + l.sort_order) <= ${weekEndIso}::date
+      ORDER BY
+        (p.week_start + l.sort_order),
+        p.updated_at DESC NULLS LAST,
+        l.sort_order ASC
+    `) as {
+      worn_on: string;
+      plan_look_id: string;
+      title: string;
+      hero_image_url: string | null;
+      garment_ids: string[] | null;
+    }[];
+    return firstPerDay(
+      rows.map((row) => ({
+        wornOn: row.worn_on,
+        planLookId: row.plan_look_id,
+        title: row.title,
+        heroImageUrl: row.hero_image_url,
+        garmentIds: Array.isArray(row.garment_ids) ? row.garment_ids : [],
+      })),
+    );
+  } catch (e) {
+    console.error("[today] load fits for week failed", e);
+    return new Map();
   }
-  return null;
+}
+
+function lookFromOutfit(
+  outfit: DayOutfit,
+  thumbsById: Map<string, TodayGarmentThumb>,
+): TodayLook {
+  return {
+    kind: "outfit",
+    id: outfit.id,
+    title: outfit.name,
+    heroImageUrl: outfit.imageUrl,
+    garments: outfit.garmentIds
+      .map((id) => thumbsById.get(id))
+      .filter((g): g is TodayGarmentThumb => g != null),
+  };
+}
+
+function lookFromFit(
+  fit: DayFit,
+  thumbsById: Map<string, TodayGarmentThumb>,
+): TodayLook {
+  return {
+    kind: "fit",
+    id: fit.planLookId,
+    title: fit.title,
+    heroImageUrl: fit.heroImageUrl,
+    garments: fit.garmentIds
+      .map((id) => thumbsById.get(id))
+      .filter((g): g is TodayGarmentThumb => g != null),
+    planLookId: fit.planLookId,
+  };
 }
 
 /**
@@ -234,32 +271,48 @@ export async function loadTodayPageData(
     }
   })();
 
-  const dayLoads = Array.from({ length: 7 }, (_, i) => {
-    const wornOn = addDaysIso(weekStartIso, i);
-    return loadLookForDay(userId, wornOn).then((look) => ({
-      wornOn,
-      label: WEEKDAY_SHORT[i]!,
-      look,
-    }));
-  });
+  const weekEndIso = addDaysIso(weekStartIso, 6);
+  const outfitsPromise = loadOutfitsForWeek(userId, weekStartIso, weekEndIso);
+  const fitsPromise = loadFitsForWeek(userId, weekStartIso, weekEndIso);
 
-  const [garmentCount, wearerPhoto, days] = await Promise.all([
-    garmentCountPromise,
-    getWearerPhoto(userId),
-    Promise.all(dayLoads),
-  ]);
+  const [garmentCount, wearerPhoto, outfitsByDay, fitsByDay] = await Promise.all(
+    [garmentCountPromise, getWearerPhoto(userId), outfitsPromise, fitsPromise],
+  );
+
+  const referencedIds = new Set<string>();
+  for (let i = 0; i < 7; i++) {
+    const wornOn = addDaysIso(weekStartIso, i);
+    const outfit = outfitsByDay.get(wornOn);
+    const fit = fitsByDay.get(wornOn);
+    const ids = outfit?.garmentIds ?? fit?.garmentIds ?? [];
+    for (const id of ids) referencedIds.add(id);
+  }
+
+  let thumbs: TodayGarmentThumb[] = [];
+  try {
+    thumbs = await thumbsForIds(userId, [...referencedIds]);
+  } catch (e) {
+    console.error("[today] load garment thumbs failed", e);
+  }
+  const thumbsById = new Map(thumbs.map((t) => [t.id, t]));
 
   const weekLooks: Record<string, TodayLook> = {};
   const weekPeek: TodayWeekPeekDay[] = [];
-  for (const day of days) {
-    if (day.look) {
-      weekLooks[day.wornOn] = day.look;
-    }
+  for (let i = 0; i < 7; i++) {
+    const wornOn = addDaysIso(weekStartIso, i);
+    const outfit = outfitsByDay.get(wornOn);
+    const fit = fitsByDay.get(wornOn);
+    const look = outfit
+      ? lookFromOutfit(outfit, thumbsById)
+      : fit
+        ? lookFromFit(fit, thumbsById)
+        : null;
+    if (look) weekLooks[wornOn] = look;
     weekPeek.push({
-      wornOn: day.wornOn,
-      label: day.label,
-      kind: day.look?.kind ?? "empty",
-      heroImageUrl: day.look?.heroImageUrl ?? null,
+      wornOn,
+      label: WEEKDAY_SHORT[i]!,
+      kind: look?.kind ?? "empty",
+      heroImageUrl: look?.heroImageUrl ?? null,
     });
   }
 

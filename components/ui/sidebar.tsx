@@ -80,10 +80,8 @@ function SidebarProvider({
 
   // Restore from document cookie on client mount/remount. Avoid next/headers
   // cookies() in the shell — it races with Neon Auth session cookie writes on `/`.
-  const [_open, _setOpen] = React.useState(() =>
-    readSidebarOpenCookie(defaultOpen),
-  );
-  React.useLayoutEffect(() => {
+  const [_open, _setOpen] = React.useState(defaultOpen);
+  React.useEffect(() => {
     _setOpen(readSidebarOpenCookie(defaultOpen));
   }, [defaultOpen]);
   const open = openProp ?? _open;
