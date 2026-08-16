@@ -23,15 +23,9 @@ Defined in `lib/ai/gemini-models.ts`.
 
 Closet edit / describe flows extract `http(s)` links from notes and enable Gemini’s built-in **`url_context`** tool so the model reads those public pages (up to 20 URLs). No server-side HTML scrape.
 
-## Weekly cron (`/api/cron/weekly-outfits`)
-
-The cron handler runs **in one serverless invocation**: **seven parallel** step-1 calls (one outfit per weekday via `runStep1PlanWithRetry` with `lookCount: 1`), then **seven parallel** `runHeroImageStep` calls—same models as the outfit generator.
-
-- Set **`export const maxDuration = 300`** on the route (works on Vercel Pro+). Parallel calls shorten wall time but increase burst quota usage.
-
 ## What uses what
 
-- **Lookbook step 1 / step 2, closet image analysis, weekly hero images** — AI Studio via `@ai-sdk/google` / `geminiModel()` in `lib/ai/gemini-provider.ts`.
+- **Lookbook step 1 / step 2, closet image analysis, Plan my week / weekly hero images** — AI Studio via `@ai-sdk/google` / `geminiModel()` in `lib/ai/gemini-provider.ts`.
 
 ## Local quick check
 

@@ -1,8 +1,8 @@
 export const STEP1_SYSTEM = `You are a senior fashion stylist for a digital wardrobe app. You choose outfits only from the provided closet catalog. Every garment id you output must appear exactly in that catalog. Prefer cohesive palettes, appropriate layering for the climate, and occasion-appropriate formality.`;
 
-export const STEP2_SYSTEM = `You are an editorial fashion photographer AI. Generate a single photorealistic full-length outfit image. Honor the reference garment images as the actual pieces to visualize. No text, logos, or watermarks on the image.`;
+export const STEP2_SYSTEM = `You are an editorial fashion photographer AI. Generate a single photorealistic full-length studio photoshoot of the outfit. Place the subject standing in front of a seamless solid-color backdrop (light gray, off-white, or similar cyclorama)—not a room, street, landscape, or lifestyle scene. Honor the reference garment images as the actual pieces to visualize. No text, logos, or watermarks on the image.`;
 
-export const STEP2_TRYON_SYSTEM = `You are a virtual try-on fashion photographer AI. Generate a single photorealistic full-length image of the person in the Wearer photo wearing the referenced garments. Preserve the wearer's face, body shape, skin tone, and identity. Dress them in the exact reference garments (color, cut, texture). No text, logos, or watermarks on the image.`;
+export const STEP2_TRYON_SYSTEM = `You are a virtual try-on fashion photographer AI. Generate a single photorealistic full-length studio photoshoot of the person in the Wearer photo wearing the referenced garments. Preserve the wearer's face, body shape, skin tone, and identity. Dress them in the exact reference garments (color, cut, texture). Place them standing in front of a seamless solid-color backdrop (light gray, off-white, or similar cyclorama)—not a room, street, or scenic environment. No text, logos, or watermarks on the image.`;
 
 const WEEKDAYS = [
   "Monday",
@@ -71,10 +71,10 @@ export function step2UserPrompt(params: {
 
 Outfit: ${title}. ${description}
 Garments in frame: ${garmentSummary}
-Setting / occasion: ${context}. Climate mood: ${climate}.
+Occasion (styling only, not a location): ${context}. Climate mood (how they dress, not weather in the shot): ${climate}.
 ${narrative ? `Additional direction: ${narrative}` : ""}
 
-Photorealistic, soft studio lighting, neutral background, sharp focus on garments.`;
+Photorealistic studio photoshoot: full-length, subject centered, even studio lighting, seamless solid backdrop. Do not put them in a scene.`;
 }
 
 export function step2TryOnUserPrompt(params: {
@@ -91,8 +91,8 @@ export function step2TryOnUserPrompt(params: {
 
 Outfit: ${title}. ${description}
 Garments to wear: ${garmentSummary}
-Setting / occasion: ${context}. Climate mood: ${climate}.
+Occasion (styling and pose only, not a location): ${context}. Climate mood (how they dress, not weather in the shot): ${climate}.
 ${narrative ? `Additional direction: ${narrative}` : ""}
 
-Full-length, photorealistic, natural light, neutral or soft background, sharp focus on the person and garments.`;
+Full-length studio photoshoot of this person: centered, standing, even studio lighting, seamless solid backdrop (lookbook / e-commerce). Keep the background a flat solid color, not a scene.`;
 }
