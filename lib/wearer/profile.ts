@@ -1,10 +1,17 @@
 import { getSql, requireSql } from "@/lib/db";
 import { logServerError } from "@/lib/server/safe-client-error";
+import { deleteUploadThingFiles } from "@/lib/uploadthing-server";
 
 export type WearerPhoto = {
   imageUrl: string;
   uploadthingKey: string | null;
 };
+
+function uploadthingKeyOf(
+  row: { uploadthing_key?: string | null } | undefined,
+): string | null {
+  return row?.uploadthing_key?.trim() || null;
+}
 
 /** Current Wearer photo for an account, or null if unset / DB unavailable. */
 export async function getWearerPhoto(
@@ -46,6 +53,14 @@ export async function saveWearerPhoto(input: {
   try {
     const sql = requireSql();
     const key = input.uploadthingKey?.trim() || null;
+    const existing = (await sql`
+      SELECT uploadthing_key
+      FROM wearer_profile
+      WHERE user_id = ${input.userId}
+      LIMIT 1
+    `) as { uploadthing_key: string | null }[];
+    const previousKey = uploadthingKeyOf(existing[0]);
+
     await sql`
       INSERT INTO wearer_profile (user_id, image_url, uploadthing_key, updated_at)
       VALUES (${input.userId}, ${url}, ${key}, now())
@@ -54,6 +69,10 @@ export async function saveWearerPhoto(input: {
         uploadthing_key = EXCLUDED.uploadthing_key,
         updated_at = now()
     `;
+
+    if (previousKey && previousKey !== key) {
+      await deleteUploadThingFiles([previousKey]);
+    }
     return { ok: true };
   } catch (e) {
     logServerError("saveWearerPhoto", e);
@@ -69,7 +88,15 @@ export async function clearWearerPhoto(
   }
   try {
     const sql = requireSql();
-    await sql`DELETE FROM wearer_profile WHERE user_id = ${userId}`;
+    const deleted = (await sql`
+      DELETE FROM wearer_profile
+      WHERE user_id = ${userId}
+      RETURNING uploadthing_key
+    `) as { uploadthing_key: string | null }[];
+    const previousKey = uploadthingKeyOf(deleted[0]);
+    if (previousKey) {
+      await deleteUploadThingFiles([previousKey]);
+    }
     return { ok: true };
   } catch (e) {
     logServerError("clearWearerPhoto", e);

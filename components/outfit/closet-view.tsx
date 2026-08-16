@@ -6,6 +6,7 @@ import { CalendarDays, Search, X } from "lucide-react";
 
 import { toggleGarmentFavorite } from "@/app/actions/garments";
 import type {
+  GarmentDeleteResult,
   GarmentEditSaveInput,
   GarmentEditSaveResult,
 } from "@/components/outfit/garment-detail-sheet";
@@ -358,6 +359,54 @@ export function ClosetView({
     }
   }
 
+  async function handleDeleteGarment(id: string): Promise<GarmentDeleteResult> {
+    if (id.startsWith("pending:")) {
+      return { ok: false, message: "Finish uploading before removing." };
+    }
+    try {
+      const res = await fetch("/api/closet/garments", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      let result: GarmentDeleteResult | null = null;
+      try {
+        result = (await res.json()) as GarmentDeleteResult;
+      } catch {
+        return {
+          ok: false,
+          message: `Remove failed (${res.status}). Try again.`,
+        };
+      }
+      if (!result?.ok) {
+        return {
+          ok: false,
+          message:
+            result && "message" in result && typeof result.message === "string"
+              ? result.message
+              : `Remove failed (${res.status}). Try again.`,
+        };
+      }
+      setServerGarments((prev) => prev.filter((g) => g.id !== id));
+      setOutfitArchive((prev) =>
+        prev
+          .map((o) => ({
+            ...o,
+            garmentIds: o.garmentIds.filter((gid) => gid !== id),
+          }))
+          .filter((o) => o.garmentIds.length > 0),
+      );
+      setSelectedId(null);
+      return result;
+    } catch (error) {
+      console.error("[closet] delete garment", error);
+      return {
+        ok: false,
+        message: "Could not remove that piece. Try again in a moment.",
+      };
+    }
+  }
+
   const showGarments = mode === "pieces";
   const headerLabel =
     mode === "pieces"
@@ -637,6 +686,7 @@ export function ClosetView({
         }}
         onToggleFavorite={handleToggleFavorite}
         onSave={handleSaveGarment}
+        onDelete={handleDeleteGarment}
       />
 
       <OutfitDetailSheet
