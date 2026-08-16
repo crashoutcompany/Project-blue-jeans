@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const approveWeeklyPlanLook = vi.fn();
@@ -8,9 +8,22 @@ vi.mock("@/app/actions/outfits", () => ({
   approveWeeklyPlanLook: (...args: unknown[]) => approveWeeklyPlanLook(...args),
 }));
 
+vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/time/product-timezone")>();
+  return {
+    ...actual,
+    productTodayIso: vi.fn(() => "2025-03-10"),
+  };
+});
+
 import { OutfitCalendar } from "@/components/outfit/outfit-calendar";
 
 describe("OutfitCalendar", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("renders month title and nav links", () => {
     render(
       <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
@@ -50,5 +63,13 @@ describe("OutfitCalendar", () => {
     );
     await user.click(screen.getByRole("button", { name: /approve/i }));
     expect(approveWeeklyPlanLook).toHaveBeenCalledWith(planLookId);
+  });
+
+  it("rings the product-timezone today cell", () => {
+    render(
+      <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
+    );
+    const day = screen.getByText("10", { selector: "span.tabular-nums" });
+    expect(day.parentElement?.parentElement).toHaveClass("ring-primary/35");
   });
 });

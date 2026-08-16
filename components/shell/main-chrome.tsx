@@ -1,15 +1,22 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 import { TopHeader } from "@/components/shell/top-header";
+import { useSidebar } from "@/components/ui/sidebar";
 
 export function MainChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
   const hideFooter =
     pathname === "/" ||
     pathname === "/closet" ||
     pathname.startsWith("/closet/");
+
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [pathname, setOpenMobile]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">

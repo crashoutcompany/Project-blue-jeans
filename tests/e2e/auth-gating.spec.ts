@@ -5,6 +5,16 @@ test.describe("guest (no cookies)", () => {
     await page.goto("/closet");
     await expect(page).toHaveURL(/\/auth\/sign-in/);
   });
+
+  test("redirects /calendar to sign-in", async ({ page }) => {
+    await page.goto("/calendar");
+    await expect(page).toHaveURL(/\/auth\/sign-in/);
+  });
+
+  test("redirects /settings to sign-in", async ({ page }) => {
+    await page.goto("/settings");
+    await expect(page).toHaveURL(/\/auth\/sign-in/);
+  });
 });
 
 test.describe("admin session", () => {

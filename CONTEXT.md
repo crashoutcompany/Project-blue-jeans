@@ -89,7 +89,9 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 - **Today** with a **Fit** or **Outfit**: **hero look** first — one dominant image, optional name, primary CTA under it (not flatlay-first, not week-strip-first)
 - **Today** CTAs: **Fit** → **Wear this** (primary) + **Change look**; **Outfit** → **Change look** (primary path to replace) + quiet **Unwear**
 - Under the **Today** hero: **garments used** first (compact strip), then a thin **week peek** of other days (secondary; **Calendar** remains the week/month map)
-- **Week peek** is display-only (no day taps); planning navigation goes through **Calendar**
+- **Week peek** days with a Fit/Outfit are tappable: swap the home hero in place (no Calendar hop); empty days stay inert
+- Above the home hero: full product-timezone date (e.g. Monday, August 10)
+- Selected day **past**: view-only (no Change look / Wear this / Unwear); **today and future**: full actions for that date (Change look targets that day’s `wornOn`)
 - Tapping a piece in **garments used** opens that **Garment** in the **Digital Closet**
 - **Digital Closet** modes: **Pieces** (**Garments**) and **Outfits** (archived committed looks) — not **Fits**
 - An **Outfit** appears under Closet → **Outfits** on commit
@@ -112,8 +114,8 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 - Empty **Today** (has **Garments**, no Fit/Outfit): minimal copy (“No look for today yet”) + one primary button **Plan my week** (generates **Weekly Fits**)
 - Tap Closet → **Outfits** card → **detail** (not instant wear); detail offers **Wear today** to assign that **Outfit** to today
 - **Wear today** from Closet when today already has an **Outfit**: **confirm** before replace (unlike Generator approve, which replaces silently)
-- Calendar day detail (non-today): **past = view only**; **future = can Wear this** on a Fit for that date — not full Today parity (no Change look / Unwear clone)
-- Future day that already has an **Outfit**: **view only** in Calendar — change it when that day becomes **Today**
+- Calendar day detail (non-today): **past = view only**; **future = can Wear this** on a Fit for that date — not full Today parity on Calendar (Change look / Unwear for future days live on the **home week peek**, not Calendar)
+- Future day that already has an **Outfit**: changeable from **home** (week peek → hero); Calendar remains overview / map
 - **Add clothes** lives on **Closet** (FAB / add flow); **Today** zero-garment CTA only navigates to Closet — no second upload surface
 - **Plan my week**: stay on **Today** with loading on the button; success → today’s **Fit**; failure → empty state + error + retry (no full-screen block, no Calendar hop, no optimistic fake hero)
 - If the **Fit**/**Outfit** is ready but the hero image is not: show **Today** immediately with a garment collage / skeleton in the hero; swap in try-on or editorial when ready (don’t block CTAs or the whole screen)
@@ -166,7 +168,7 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 > **Domain expert:** "Both: **garments used**, then a thin **week peek**. Calendar stays the map."
 
 > **Dev:** "Tap a day in the week peek?"
-> **Domain expert:** "No — peek is display-only. Use **Calendar** to plan."
+> **Domain expert:** "Yes if that day has a Fit or Outfit — swap the home hero in place. Empty days stay inert. Past = view only; today/future can Change look / Wear / Unwear."
 
 > **Dev:** "Tap a garment under the hero?"
 > **Domain expert:** "Open that **Garment** in the **Digital Closet**."
@@ -277,7 +279,7 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 > **Domain expert:** "Past: view only. Future: can **Wear this** on a Fit. Not a Today clone."
 
 > **Dev:** "Future day already has an Outfit?"
-> **Domain expert:** "View only until that day is **Today**."
+> **Domain expert:** "Changeable from **home** (week peek → hero). Calendar stays overview / map."
 
 > **Dev:** "Add clothes from Today?"
 > **Domain expert:** "CTA goes to **Closet**. Upload lives there."

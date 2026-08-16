@@ -66,6 +66,9 @@ export async function approveWeeklyPlanLook(
     if (!row) {
       return { ok: false, message: "That weekly look was not found." };
     }
+    if (row.worn_on < productTodayIso()) {
+      return { ok: false, message: "Past looks can’t be changed." };
+    }
 
     const garmentIds = Array.isArray(row.garment_ids)
       ? [...new Set(row.garment_ids)]

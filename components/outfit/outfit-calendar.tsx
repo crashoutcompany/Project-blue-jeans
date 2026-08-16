@@ -11,6 +11,10 @@ import type {
   CalendarWeeklyLook,
 } from "@/lib/outfits/calendar-data";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  formatProductMonthYear,
+  productTodayIso,
+} from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = [
@@ -90,10 +94,8 @@ export function OutfitCalendar({
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
 
-  const title = new Date(year, month - 1, 1).toLocaleString(undefined, {
-    month: "long",
-    year: "numeric",
-  });
+  const todayIso = productTodayIso();
+  const title = formatProductMonthYear(year, month);
 
   const onApproveWeekly = useCallback(
     async (planLookId: string) => {
@@ -182,11 +184,7 @@ export function OutfitCalendar({
           const key = isoDay(year, month, cell.day);
           const outfits = byDaySaved.get(key) ?? [];
           const weekly = byDayWeekly.get(key) ?? null;
-          const now = new Date();
-          const isToday =
-            now.getFullYear() === year &&
-            now.getMonth() + 1 === month &&
-            now.getDate() === cell.day;
+          const isToday = key === todayIso;
           const primary = outfits[0];
           const thumb = primary?.imageUrl ?? weekly?.heroImageUrl ?? null;
           const label =

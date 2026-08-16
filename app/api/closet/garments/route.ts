@@ -4,12 +4,15 @@ import { connection, NextResponse } from "next/server";
 import { isAdminUser } from "@/lib/auth/admin";
 import { auth } from "@/lib/auth/server";
 import { closetGarmentsTag } from "@/lib/garments/closet-garments-cache-tag";
+import { deleteGarment } from "@/lib/garments/delete-garment";
 import {
   persistUploadedGarmentItems,
   type CreateGarmentItemInput,
 } from "@/lib/garments/persist-uploaded-garments";
 import { updateGarmentFields, GARMENT_FIELD_LIMITS } from "@/lib/garments/update-garment";
 import { isGarmentCategoryDb } from "@/lib/garments/types";
+import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
+import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
 
 /** Allow Gemini describe + optional url_context on PATCH. */
 export const maxDuration = 60;
@@ -120,6 +123,13 @@ type PatchBody = {
   regenerateDescriptionWithAi?: boolean;
 };
 
+function parseDeleteBody(json: unknown): { id: string } | null {
+  if (typeof json !== "object" || json === null) return null;
+  const id = (json as { id?: unknown }).id;
+  if (typeof id !== "string" || !id.trim()) return null;
+  return { id: id.trim() };
+}
+
 function parsePatchBody(json: unknown): PatchBody | null {
   if (typeof json !== "object" || json === null) return null;
   const r = json as Record<string, unknown>;
@@ -207,12 +217,48 @@ export async function PATCH(request: Request) {
     regenerateNameWithAi: body.regenerateNameWithAi,
     regenerateDescriptionWithAi: body.regenerateDescriptionWithAi,
   });
-
   if (!result.ok) {
     const status = result.message === "Garment not found." ? 404 : 422;
     return NextResponse.json(result, { status });
   }
 
+  revalidateClosetAfterWrite(gate.userId);
+  return NextResponse.json(result);
+}
+
+/**
+ * Remove one closet garment and its UploadThing file. Same JSON rationale as
+ * POST/PATCH — avoid Neon Auth races that break server-action fetch.
+ */
+export async function DELETE(request: Request) {
+  await connection();
+  const gate = await requireAdminUserId();
+  if (!gate.ok) return gate.response;
+
+  const bodyRead = await readJsonBody(request);
+  if (!bodyRead.ok) return bodyRead.response;
+
+  const body = parseDeleteBody(bodyRead.json);
+  if (!body) {
+    return NextResponse.json(
+      { ok: false as const, message: "Invalid request body." },
+      { status: 400 },
+    );
+  }
+
+  const result = await deleteGarment(gate.userId, body.id);
+  if (!result.ok) {
+    const status = result.message === "Garment not found." ? 404 : 422;
+    return NextResponse.json(result, { status });
+  }
+
+  try {
+    revalidateTag(closetSavedOutfitsTag(gate.userId), "max");
+    revalidateTag(calendarMonthTag(gate.userId), "max");
+    revalidatePath("/calendar", "page");
+  } catch (e) {
+    console.error("[api/closet/garments] delete revalidate failed", e);
+  }
   revalidateClosetAfterWrite(gate.userId);
   return NextResponse.json(result);
 }

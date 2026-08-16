@@ -42,16 +42,20 @@ export type GarmentEditSaveResult =
   | { ok: true; garment: ClothingCardData }
   | { ok: false; message: string };
 
+export type GarmentDeleteResult = { ok: true } | { ok: false; message: string };
+
 export function GarmentDetailSheet({
   garment,
   onOpenChange,
   onToggleFavorite,
   onSave,
+  onDelete,
 }: {
   garment: ClothingCardData | null;
   onOpenChange: (open: boolean) => void;
   onToggleFavorite: (id: string) => Promise<boolean>;
   onSave: (input: GarmentEditSaveInput) => Promise<GarmentEditSaveResult>;
+  onDelete: (id: string) => Promise<GarmentDeleteResult>;
 }) {
   return (
     <Sheet open={garment !== null} onOpenChange={onOpenChange}>
@@ -65,6 +69,7 @@ export function GarmentDetailSheet({
             garment={garment}
             onToggleFavorite={onToggleFavorite}
             onSave={onSave}
+            onDelete={onDelete}
           />
         ) : null}
       </SheetContent>
@@ -76,10 +81,12 @@ function GarmentDetailEditor({
   garment,
   onToggleFavorite,
   onSave,
+  onDelete,
 }: {
   garment: ClothingCardData;
   onToggleFavorite: (id: string) => Promise<boolean>;
   onSave: (input: GarmentEditSaveInput) => Promise<GarmentEditSaveResult>;
+  onDelete: (id: string) => Promise<GarmentDeleteResult>;
 }) {
   const formId = useId();
   const initialCategory = GARMENT_CATEGORY_VALUES.includes(
@@ -100,6 +107,7 @@ function GarmentDetailEditor({
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(Boolean(garment.isFavorite));
   const [favoritePending, setFavoritePending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const previewColor =
@@ -148,6 +156,29 @@ function GarmentDetailEditor({
       } catch (e) {
         console.error("[closet] save garment editor", e);
         setError("Could not save that piece. Try again in a moment.");
+      }
+    });
+  }
+
+  function handleDelete() {
+    if (!canEdit) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setError(null);
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await onDelete(garment.id);
+        if (!result.ok) {
+          setError(result.message);
+          setConfirmDelete(false);
+        }
+      } catch (e) {
+        console.error("[closet] delete garment", e);
+        setError("Could not remove that piece. Try again in a moment.");
+        setConfirmDelete(false);
       }
     });
   }
@@ -406,13 +437,37 @@ function GarmentDetailEditor({
             className="rounded-none"
             disabled={!canEdit || isPending}
           >
-            {isPending
+            {isPending && !confirmDelete
               ? anyAi
                 ? "Saving & regenerating…"
                 : "Saving…"
               : "Save changes"}
           </Button>
         </form>
+
+        {canEdit ? (
+          <div className="mt-6 flex flex-col gap-2 border-t border-foreground/8 pt-5">
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-none"
+              disabled={isPending}
+              onClick={handleDelete}
+            >
+              {isPending && confirmDelete
+                ? "Removing…"
+                : confirmDelete
+                  ? "Delete photo and piece?"
+                  : "Remove from closet"}
+            </Button>
+            {confirmDelete && !isPending ? (
+              <p className="text-xs text-muted-foreground">
+                This deletes the photo from storage. Looks that only used this
+                piece will be removed.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </>
   );

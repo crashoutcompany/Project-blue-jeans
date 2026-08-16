@@ -4,6 +4,15 @@ vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
 
+vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/time/product-timezone")>();
+  return {
+    ...actual,
+    productTodayIso: vi.fn(() => "2026-08-10"),
+  };
+});
+
 import { requireSql } from "@/lib/db";
 import {
   approveGeneratorPayloadSchema,
@@ -28,6 +37,14 @@ describe("approveGeneratorPayloadSchema", () => {
   it("rejects invalid date", () => {
     const parsed = approveGeneratorPayloadSchema.safeParse({
       wornOn: "01-01-2025",
+      garmentIds: [gid],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects impossible calendar dates", () => {
+    const parsed = approveGeneratorPayloadSchema.safeParse({
+      wornOn: "2026-02-30",
       garmentIds: [gid],
     });
     expect(parsed.success).toBe(false);
@@ -99,11 +116,25 @@ describe("executeApproveGeneratorOutfit", () => {
     const sql = vi.fn().mockResolvedValueOnce([{ n: 0 }]);
     sqlRequire.mockReturnValue(sql as never);
     const res = await executeApproveGeneratorOutfit("u1", {
-      wornOn: "2025-01-01",
+      wornOn: "2026-08-10",
       garmentIds: [gid],
       occasion: "casual",
     });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.message).toContain("missing");
+  });
+
+  it("rejects past wornOn without querying garments", async () => {
+    const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const sql = vi.fn();
+    sqlRequire.mockReturnValue(sql as never);
+    const res = await executeApproveGeneratorOutfit("u1", {
+      wornOn: "2026-08-09",
+      garmentIds: [gid],
+      occasion: "casual",
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.message).toMatch(/past/i);
+    expect(sql).not.toHaveBeenCalled();
   });
 });

@@ -8,11 +8,10 @@ import {
 } from "@/lib/outfits/approve-outfit-limits";
 import { garmentSetKey } from "@/lib/outfits/garment-set-key";
 import { outfitOccasionSchema } from "@/lib/outfits/occasions";
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+import { productTodayIso } from "@/lib/time/product-timezone";
 
 export const approveGeneratorPayloadSchema = z.object({
-  wornOn: isoDate,
+  wornOn: z.iso.date(),
   name: z.string().max(APPROVE_OUTFIT_MAX_NAME).optional(),
   occasion: outfitOccasionSchema.optional().default("casual"),
   garmentIds: z.array(z.string().uuid()).min(1).max(20),
@@ -257,7 +256,7 @@ export async function unwearDay(
     return { ok: true, outfitId: outfitId ?? "" };
   } catch (e) {
     logServerError("unwearDay", e);
-    return { ok: false, message: "Could not unwear today’s look." };
+    return { ok: false, message: "Could not unwear this look." };
   }
 }
 
@@ -267,6 +266,9 @@ export async function executeApproveGeneratorOutfit(
   data: ApproveGeneratorPayload,
 ): Promise<ApproveOutfitResult> {
   const { wornOn, occasion, garmentIds, imageUrl } = data;
+  if (wornOn < productTodayIso()) {
+    return { ok: false, message: "Past looks can’t be changed." };
+  }
 
   try {
     const sql = requireSql();
