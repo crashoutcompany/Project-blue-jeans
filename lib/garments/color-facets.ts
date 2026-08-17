@@ -1,6 +1,5 @@
 import type { ClothingCardData } from "@/lib/garments/types";
-
-const HEX = /^#[0-9A-Fa-f]{6}$/i;
+import { GARMENT_HEX_COLOR } from "@/lib/garments/types";
 
 function normalizeText(s: string | null | undefined): string {
   return (s ?? "").trim().toLowerCase();
@@ -40,7 +39,7 @@ export function buildColorFacetsFromGarments(
     const raw = (g.color ?? "").trim();
     if (!raw) continue;
 
-    if (HEX.test(raw)) {
+    if (GARMENT_HEX_COLOR.test(raw)) {
       const hex = raw.toLowerCase();
       const id = `hex|${hex}`;
       if (!map.has(id)) {
@@ -78,7 +77,7 @@ export function garmentMatchesColorFacet(
   if (facetId.startsWith("hex|")) {
     const hex = facetId.slice(4).toLowerCase();
     const raw = (g.color ?? "").trim().toLowerCase();
-    return HEX.test(raw) && raw === hex;
+    return GARMENT_HEX_COLOR.test(raw) && raw === hex;
   }
 
   if (facetId.startsWith("lbl|")) {

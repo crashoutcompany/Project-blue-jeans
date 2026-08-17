@@ -1,4 +1,6 @@
-/** A single look from lookbook generation (step 1 + optional hero image). */
+import { z } from "zod";
+
+/** A single Fit option from Outfit Generator (before commit). */
 export type OutfitLook = {
   id: string;
   title: string;
@@ -10,3 +12,25 @@ export type OutfitLook = {
   /** Base64 data URL from Gemini image generation (featured look only). */
   imageDataUrl?: string;
 };
+
+export const outfitLookSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  tags: z.array(z.string()),
+  featured: z.boolean().optional(),
+  garmentIds: z.array(z.string()).optional(),
+  imageDataUrl: z.string().optional(),
+});
+
+export const generateLookbookResultSchema = z.discriminatedUnion("ok", [
+  z.object({
+    ok: z.literal(true),
+    looks: z.array(outfitLookSchema),
+    curatorNote: z.string(),
+  }),
+  z.object({
+    ok: z.literal(false),
+    message: z.string(),
+  }),
+]);

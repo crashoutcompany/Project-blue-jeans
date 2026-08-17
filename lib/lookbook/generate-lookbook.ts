@@ -2,6 +2,7 @@ import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
+import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import {
   loadGarmentCatalog,
   loadGarmentsByIds,
@@ -27,8 +28,6 @@ export type GenerateLookbookInput = {
 export type GenerateLookbookResult =
   | { ok: true; looks: OutfitLook[]; curatorNote: string }
   | { ok: false; message: string };
-
-const MAX_NARRATIVE = 2000;
 
 function buildOutfitLooks(
   plan: import("@/lib/ai/lookbook/schemas").LookbookPlan,
@@ -66,7 +65,7 @@ export async function generateLookbook(
   const lookCount = Number.isFinite(rawLookCount)
     ? Math.min(3, Math.max(1, Math.floor(rawLookCount)))
     : 3;
-  const narrative = input.narrative.trim().slice(0, MAX_NARRATIVE);
+  const narrative = input.narrative.trim().slice(0, MAX_NARRATIVE_LEN);
   const climate = (input.climate?.trim() || DEFAULT_CLIMATE).slice(0, 80);
   const context = (input.context?.trim() || DEFAULT_CONTEXT).slice(0, 80);
 

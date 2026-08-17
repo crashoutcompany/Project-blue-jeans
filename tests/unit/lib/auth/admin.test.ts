@@ -6,7 +6,6 @@ import { auth } from "@/lib/auth/server";
 import {
   assertAdminForServerAction,
   isAdminUser,
-  redirectSignedInNonAdminFromPublicPage,
   requireAdminAccess,
 } from "@/lib/auth/admin";
 
@@ -116,37 +115,5 @@ describe("requireAdminAccess", () => {
       data: { user: { email: "a@x.com", role: "admin" } },
     });
     await expect(requireAdminAccess()).resolves.toBeUndefined();
-  });
-});
-
-describe("redirectSignedInNonAdminFromPublicPage", () => {
-  beforeEach(() => {
-    getSession.mockReset();
-    vi.mocked(redirect).mockClear();
-  });
-
-  it("redirects non-admin signed-in users", async () => {
-    getSession.mockResolvedValue({
-      data: { user: { email: "u@x.com", role: "user" } },
-    });
-    await expect(redirectSignedInNonAdminFromPublicPage()).rejects.toThrowError(
-      /REDIRECT:\/auth\/not-admin/,
-    );
-  });
-
-  it("does not redirect when anon", async () => {
-    getSession.mockResolvedValue({ data: null });
-    await expect(
-      redirectSignedInNonAdminFromPublicPage(),
-    ).resolves.toBeUndefined();
-  });
-
-  it("does not redirect when admin", async () => {
-    getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
-    });
-    await expect(
-      redirectSignedInNonAdminFromPublicPage(),
-    ).resolves.toBeUndefined();
   });
 });

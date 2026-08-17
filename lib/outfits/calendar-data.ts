@@ -1,7 +1,12 @@
 import { cacheTag } from "next/cache";
+import { z } from "zod";
 
 import { getSql } from "@/lib/db";
 import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
+import {
+  loadFitsInRange,
+  loadOutfitsInRange,
+} from "@/lib/outfits/day-looks-in-range";
 
 export type CalendarLookThumb = {
   id: string;
@@ -26,6 +31,11 @@ export type CalendarWeeklyLook = {
   garmentThumbs: CalendarLookThumb[];
 };
 
+const thumbRowSchema = z.object({
+  id: z.string().uuid(),
+  image_url: z.string().min(1),
+});
+
 function monthRangeIso(
   year: number,
   month: number,
@@ -34,10 +44,6 @@ function monthRangeIso(
   const lastDay = new Date(year, month, 0).getDate();
   const end = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   return { start, end };
-}
-
-function asIdList(value: string[] | null | undefined): string[] {
-  return Array.isArray(value) ? value : [];
 }
 
 function thumbsForIds(
@@ -77,89 +83,37 @@ export async function loadCalendarMonthData(
   const { start, end } = monthRangeIso(year, month);
 
   try {
-    const savedQuery = sql`
-      SELECT
-        o.id,
-        w.worn_on::text AS worn_on,
-        o.image_url,
-        o.name,
-        o.occasion::text AS occasion,
-        coalesce(
-          array_agg(og.garment_id::text ORDER BY og.sort_order)
-            FILTER (WHERE og.garment_id IS NOT NULL),
-          '{}'
-        ) AS garment_ids
-      FROM outfit_wears w
-      INNER JOIN outfits o ON o.id = w.outfit_id
-      LEFT JOIN outfit_garments og ON og.outfit_id = o.id
-      WHERE w.user_id = ${userId}
-        AND w.worn_on BETWEEN ${start}::date AND ${end}::date
-      GROUP BY w.worn_on, o.id
-      ORDER BY w.worn_on ASC, o.created_at ASC
-    `;
-    const weeklyQuery = sql`
-      SELECT
-        l.id AS plan_look_id,
-        (p.week_start + l.sort_order)::text AS worn_on,
-        l.title,
-        l.hero_image_url,
-        l.garment_ids
-      FROM weekly_plan_looks l
-      INNER JOIN weekly_outfit_plans p ON p.id = l.plan_id
-      WHERE p.user_id = ${userId}
-        AND p.status IN ('completed', 'draft')
-        AND (p.week_start + l.sort_order) BETWEEN ${start}::date AND ${end}::date
-      ORDER BY worn_on ASC, l.sort_order ASC
-    `;
-
-    const [savedResult, weeklyResult] = await Promise.all([
-      savedQuery,
-      weeklyQuery,
+    const [outfitRows, fitRows] = await Promise.all([
+      loadOutfitsInRange(userId, start, end, { order: "asc" }),
+      loadFitsInRange(userId, start, end),
     ]);
-    const savedRows = savedResult as {
-      id: string;
-      worn_on: string;
-      image_url: string | null;
-      name: string | null;
-      occasion: string;
-      garment_ids: string[] | null;
-    }[];
-    const weeklyRows = weeklyResult as {
-      plan_look_id: string;
-      worn_on: string;
-      title: string;
-      hero_image_url: string | null;
-      garment_ids: string[] | null;
-    }[];
 
-    const savedDrafts = savedRows.map((r) => ({
+    const savedDrafts = outfitRows.map((r) => ({
       id: r.id,
-      wornOn: r.worn_on,
-      imageUrl: r.image_url,
+      wornOn: r.wornOn,
+      imageUrl: r.imageUrl,
       name: r.name,
       occasion: r.occasion,
-      garmentIds: asIdList(r.garment_ids),
+      garmentIds: r.garmentIds,
     }));
 
     const daysWithSaved = new Set(savedDrafts.map((s) => s.wornOn));
 
-    const weeklyDraftsRaw = weeklyRows.flatMap((r) => {
-      if (daysWithSaved.has(r.worn_on)) return [];
+    const weeklyDraftsRaw = fitRows.flatMap((r) => {
+      if (daysWithSaved.has(r.wornOn)) return [];
       return [
         {
-          planLookId: r.plan_look_id,
-          wornOn: r.worn_on,
+          planLookId: r.planLookId,
+          wornOn: r.wornOn,
           title: r.title,
-          heroImageUrl: r.hero_image_url,
-          garmentIds: asIdList(r.garment_ids),
+          heroImageUrl: r.heroImageUrl,
+          garmentIds: r.garmentIds,
         },
       ];
     });
 
     const garmentIds = [
-      ...savedDrafts
-        .filter((s) => !s.imageUrl)
-        .flatMap((s) => s.garmentIds),
+      ...savedDrafts.filter((s) => !s.imageUrl).flatMap((s) => s.garmentIds),
       ...weeklyDraftsRaw
         .filter((w) => !w.heroImageUrl)
         .flatMap((w) => w.garmentIds),
@@ -167,16 +121,19 @@ export async function loadCalendarMonthData(
     const uniqueIds = [...new Set(garmentIds)];
     const thumbById = new Map<string, CalendarLookThumb>();
     if (uniqueIds.length > 0) {
-      const thumbRows = (await sql`
+      const thumbRows = await sql`
         SELECT id, image_url
         FROM garments
         WHERE user_id = ${userId}
           AND id = ANY(${uniqueIds}::uuid[])
           AND image_url IS NOT NULL
           AND image_url <> ''
-      `) as { id: string; image_url: string }[];
-      for (const row of thumbRows) {
-        thumbById.set(row.id, { id: row.id, imageUrl: row.image_url });
+      `;
+      const parsed = z.array(thumbRowSchema).safeParse(thumbRows);
+      if (parsed.success) {
+        for (const row of parsed.data) {
+          thumbById.set(row.id, { id: row.id, imageUrl: row.image_url });
+        }
       }
     }
 

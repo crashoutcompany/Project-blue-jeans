@@ -10,6 +10,7 @@ import {
   loadGarmentCatalog,
   loadGarmentsByIds,
 } from "@/lib/garments/load-catalog";
+import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
 import {
   availableGarments,
   closetCategories,
@@ -25,6 +26,8 @@ import {
   productTodayIso,
 } from "@/lib/time/product-timezone";
 import type { WeeklyOutfitsInput } from "@/lib/workflows/types";
+import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
+import { z } from "zod";
 
 const WEEKLY_JOB_FAILED_PUBLIC =
   "Weekly outfits job failed. Check server logs for details.";
@@ -34,8 +37,23 @@ export type WeeklyOutfitsJobResult =
   | { ok: true; planId: string; skipped: false }
   | { ok: false; error: string; planId?: string };
 
-const MAX_NARRATIVE = 2000;
+const MAX_NARRATIVE = MAX_NARRATIVE_LEN;
 const WEEK_LENGTH = 7;
+
+const planStatusRowSchema = z.object({
+  id: z.string().uuid(),
+  status: z.string(),
+});
+
+const retainedLookRowSchema = z.object({
+  sort_order: z.number().int(),
+  title: z.string(),
+  garment_ids: z.array(z.string()).nullable().optional(),
+});
+
+const insertedIdRowSchema = z.object({
+  id: z.string().uuid(),
+});
 
 async function markPlanFailed(planId: string, message: string): Promise<void> {
   const sql = requireSql();
@@ -94,41 +112,28 @@ export async function runWeeklyOutfitsJob(
   const todaySort = todaySortOrder(input.weekStart, todayIso);
   const weekEnd = addDaysIso(input.weekStart, WEEK_LENGTH - 1);
 
-  const existingRows = (await sql`
+  const existingRaw = await sql`
     SELECT id, status::text AS status
     FROM weekly_outfit_plans
     WHERE user_id = ${input.userId}
       AND week_start = ${input.weekStart}::date
     LIMIT 1
-  `) as { id: string; status: string }[];
-
-  const row = existingRows[0];
+  `;
+  const existingParsed = z.array(planStatusRowSchema).safeParse(existingRaw);
+  const row = existingParsed.success ? existingParsed.data[0] : undefined;
   if (row?.status === "completed") {
     return { ok: true, planId: row.id, skipped: true };
   }
 
-  const outfitRows = (await sql`
-    SELECT
-      w.worn_on::text AS worn_on,
-      coalesce(
-        array_agg(og.garment_id::text ORDER BY og.sort_order)
-          FILTER (WHERE og.garment_id IS NOT NULL),
-        '{}'
-      ) AS garment_ids
-    FROM outfit_wears w
-    INNER JOIN outfits o ON o.id = w.outfit_id
-    LEFT JOIN outfit_garments og ON og.outfit_id = o.id
-    WHERE w.user_id = ${input.userId}
-      AND o.user_id = ${input.userId}
-      AND w.worn_on >= ${input.weekStart}::date
-      AND w.worn_on <= ${weekEnd}::date
-    GROUP BY w.worn_on, o.id
-  `) as { worn_on: string; garment_ids: string[] | null }[];
-
-  const outfitWornOn = new Set(outfitRows.map((r) => r.worn_on));
+  const outfitRows = await loadOutfitsInRange(
+    input.userId,
+    input.weekStart,
+    weekEnd,
+  );
+  const outfitWornOn = new Set(outfitRows.map((r) => r.wornOn));
   const outfitLockedIds = new Set<string>();
   for (const r of outfitRows) {
-    for (const id of Array.isArray(r.garment_ids) ? r.garment_ids : []) {
+    for (const id of r.garmentIds) {
       outfitLockedIds.add(id);
     }
   }
@@ -176,17 +181,17 @@ export async function runWeeklyOutfitsJob(
   }[] = [];
 
   if (row) {
-    const retainedRows = (await sql`
+    const retainedRaw = await sql`
       SELECT sort_order, title, garment_ids
       FROM weekly_plan_looks
       WHERE plan_id = ${row.id}
         AND sort_order < ${todaySort}
       ORDER BY sort_order
-    `) as {
-      sort_order: number;
-      title: string;
-      garment_ids: string[] | null;
-    }[];
+    `;
+    const retainedParsed = z
+      .array(retainedLookRowSchema)
+      .safeParse(retainedRaw);
+    const retainedRows = retainedParsed.success ? retainedParsed.data : [];
 
     for (const look of retainedRows) {
       const ids = Array.isArray(look.garment_ids)
@@ -298,7 +303,7 @@ export async function runWeeklyOutfitsJob(
         WHERE id = ${planId}
       `;
     } else {
-      const insertedRows = (await sql`
+      const insertedRaw = await sql`
         INSERT INTO weekly_outfit_plans (week_start, step1_raw, status, user_id)
         VALUES (
           ${input.weekStart}::date,
@@ -307,8 +312,13 @@ export async function runWeeklyOutfitsJob(
           ${input.userId}
         )
         RETURNING id
-      `) as { id: string }[];
-      planId = insertedRows[0]!.id;
+      `;
+      const insertedParsed = z.array(insertedIdRowSchema).parse(insertedRaw);
+      const insertedId = insertedParsed[0]?.id;
+      if (!insertedId) {
+        throw new Error("Insert weekly plan returned no id");
+      }
+      planId = insertedId;
     }
 
     for (const look of looksForDb) {

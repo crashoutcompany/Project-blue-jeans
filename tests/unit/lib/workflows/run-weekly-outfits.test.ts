@@ -25,6 +25,10 @@ vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
 
+vi.mock("@/lib/outfits/day-looks-in-range", () => ({
+  loadOutfitsInRange: vi.fn(),
+}));
+
 vi.mock("@/lib/server/safe-client-error", () => ({
   logServerError: vi.fn(),
 }));
@@ -37,6 +41,7 @@ import {
   loadGarmentCatalog,
   loadGarmentsByIds,
 } from "@/lib/garments/load-catalog";
+import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
 
@@ -47,6 +52,7 @@ const step1 = vi.mocked(runStep1PlanWithRetry);
 const hero = vi.mocked(runHeroImageStep);
 const wearerPhoto = vi.mocked(getWearerPhoto);
 const requireSqlMock = vi.mocked(requireSql);
+const loadOutfits = vi.mocked(loadOutfitsInRange);
 
 const TOP_A = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 const TOP_B = "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22";
@@ -110,7 +116,6 @@ type SqlCall = { text: string; values: unknown[] };
 
 function mockSql(state: {
   planRows?: { id: string; status: string }[];
-  wearRows?: { worn_on: string; garment_ids: string[] }[];
   retainedLooks?: {
     sort_order: number;
     title: string;
@@ -123,9 +128,6 @@ function mockSql(state: {
     state.calls.push({ text, values });
     if (text.includes("FROM weekly_outfit_plans")) {
       return Promise.resolve(state.planRows ?? []);
-    }
-    if (text.includes("FROM outfit_wears")) {
-      return Promise.resolve(state.wearRows ?? []);
     }
     if (text.includes("FROM weekly_plan_looks") && text.includes("sort_order <")) {
       return Promise.resolve(state.retainedLooks ?? []);
@@ -154,8 +156,10 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     hero.mockReset();
     wearerPhoto.mockReset();
     requireSqlMock.mockReset();
+    loadOutfits.mockReset();
     hasGemini.mockReturnValue(true);
     loadCatalog.mockResolvedValue(closet);
+    loadOutfits.mockResolvedValue([]);
     wearerPhoto.mockResolvedValue(null);
     hero.mockResolvedValue("https://cdn.example.com/hero.jpg");
     loadByIds.mockImplementation(async (_userId, ids) =>
@@ -176,12 +180,17 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
 
   it("skips when every remaining day already has an Outfit", async () => {
     const calls: SqlCall[] = [];
-    requireSqlMock.mockReturnValue(
-      mockSql({
-        calls,
-        wearRows: [{ worn_on: "2026-08-15", garment_ids: [TOP_A] }],
-      }) as never,
-    );
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    loadOutfits.mockResolvedValue([
+      {
+        wornOn: "2026-08-15",
+        id: PLAN_ID,
+        name: null,
+        imageUrl: null,
+        occasion: "casual",
+        garmentIds: [TOP_A],
+      },
+    ]);
     hasGemini.mockReturnValue(false);
 
     const res = await runWeeklyOutfitsJob(input, SATURDAY_NOON_UTC);
@@ -289,12 +298,17 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
 
   it("omits Outfit-locked garments from the first remaining day", async () => {
     const calls: SqlCall[] = [];
-    requireSqlMock.mockReturnValue(
-      mockSql({
-        calls,
-        wearRows: [{ worn_on: "2026-08-14", garment_ids: [TOP_A] }],
-      }) as never,
-    );
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    loadOutfits.mockResolvedValue([
+      {
+        wornOn: "2026-08-14",
+        id: PLAN_ID,
+        name: null,
+        imageUrl: null,
+        occasion: "casual",
+        garmentIds: [TOP_A],
+      },
+    ]);
     step1.mockResolvedValue({
       looks: [
         {

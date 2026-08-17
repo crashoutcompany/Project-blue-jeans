@@ -40,14 +40,6 @@ export default function RootLayout({
       className={`${manrope.variable} ${notoSerif.variable} ${geistMono.variable} h-full`}
       suppressHydrationWarning
     >
-      <head>
-        {/* Google-hosted icon font; not available via next/font */}
-        {/* eslint-disable-next-line @next/next/no-page-custom-font -- Material Symbols */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body className="flex min-h-full flex-col">
         <NeonAuthProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

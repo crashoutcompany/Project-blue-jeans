@@ -1,26 +1,12 @@
-import { revalidatePath, revalidateTag } from "next/cache";
 import { connection, NextResponse } from "next/server";
 
 import { isAdminUser } from "@/lib/auth/admin";
 import { auth } from "@/lib/auth/server";
+import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces";
 import {
   approveGeneratorPayloadSchema,
   executeApproveGeneratorOutfit,
 } from "@/lib/outfits/persist-generator-outfit";
-import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
-import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
-
-function revalidateAfterOutfitWrite(userId: string) {
-  try {
-    revalidateTag(closetSavedOutfitsTag(userId), "max");
-    revalidateTag(calendarMonthTag(userId), "max");
-    revalidatePath("/calendar");
-    revalidatePath("/closet");
-    revalidatePath("/");
-  } catch (e) {
-    console.error("[api/outfits/approve-generator] revalidate failed", e);
-  }
-}
 
 /**
  * JSON save for generator “Approve” — avoids server actions + Neon Auth refresh races
@@ -81,6 +67,10 @@ export async function POST(request: Request) {
     return NextResponse.json(result, { status: 422 });
   }
 
-  revalidateAfterOutfitWrite(userId);
+  try {
+    revalidateOutfitSurfaces(userId);
+  } catch (e) {
+    console.error("[api/outfits/approve-generator] revalidate failed", e);
+  }
   return NextResponse.json(result);
 }

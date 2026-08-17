@@ -1,27 +1,18 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { assertAdminForServerAction } from "@/lib/auth/admin";
+import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces";
 import { logServerError } from "@/lib/server/safe-client-error";
-import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
-import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
 import { unwearDay } from "@/lib/outfits/persist-generator-outfit";
 import { approveWeeklyPlanLook } from "@/app/actions/outfits";
+import { assertMutableWornOn } from "@/lib/time/mutable-calendar-day";
 import {
   productTodayIso,
   sundayWeekStartIso,
 } from "@/lib/time/product-timezone";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
-
-function revalidateTodaySurfaces(userId: string) {
-  revalidateTag(closetSavedOutfitsTag(userId), "max");
-  revalidateTag(calendarMonthTag(userId), "max");
-  revalidatePath("/");
-  revalidatePath("/calendar");
-  revalidatePath("/closet");
-}
 
 const wornOnSchema = z.iso.date();
 
@@ -50,7 +41,7 @@ export async function planMyWeek(): Promise<
       return { ok: false, message: result.error };
     }
 
-    revalidateTodaySurfaces(gate.userId);
+    revalidateOutfitSurfaces(gate.userId);
     return { ok: true, skipped: result.skipped };
   } catch (e) {
     logServerError("planMyWeek", e);
@@ -69,7 +60,6 @@ export async function wearThisFit(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const result = await approveWeeklyPlanLook(planLookId);
   if (!result.ok) return result;
-  revalidatePath("/");
   return { ok: true };
 }
 
@@ -87,13 +77,11 @@ export async function unwearDayForUser(
     return { ok: false, message: "Invalid date." };
   }
 
-  const todayIso = productTodayIso();
-  if (parsed.data < todayIso) {
-    return { ok: false, message: "Past looks can’t be changed." };
-  }
+  const mutable = assertMutableWornOn(parsed.data);
+  if (!mutable.ok) return mutable;
 
   const result = await unwearDay(gate.userId, parsed.data);
   if (!result.ok) return result;
-  revalidateTodaySurfaces(gate.userId);
+  revalidateOutfitSurfaces(gate.userId);
   return { ok: true };
 }

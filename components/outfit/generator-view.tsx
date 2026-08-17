@@ -14,18 +14,26 @@ import {
 import { ChevronDown, SendHorizontal, Sparkles } from "lucide-react";
 
 import type { ClothingCardData } from "@/lib/garments/types";
+import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import type { GenerateLookbookResult } from "@/lib/lookbook/generate-lookbook";
-import type { OutfitLook } from "@/lib/outfits/types";
 import { APPROVE_OUTFIT_MAX_IMAGE_URL_LEN } from "@/lib/outfits/approve-outfit-limits";
 import type { ApproveOutfitResult } from "@/lib/outfits/persist-generator-outfit";
+import {
+  generateLookbookResultSchema,
+  type OutfitLook,
+} from "@/lib/outfits/types";
 import { productTodayIso } from "@/lib/time/product-timezone";
 import { GeneratorChatStack } from "@/components/outfit/generator-chat-stack";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { z } from "zod";
 
-const MAX_NARRATIVE = 2000;
+const approveOutfitResultSchema = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), outfitId: z.string() }),
+  z.object({ ok: z.literal(false), message: z.string() }),
+]);
 
 const SUGGESTIONS = [
   "Make it more formal",
@@ -211,13 +219,11 @@ function messagesHaveGeneratedOptions(messages: ChatMessage[]) {
 
 export function GeneratorView({
   closetGarments,
-  variant = "page",
   wornOn,
   onApproved,
   onHasGeneratedOptionsChange,
 }: {
   closetGarments: ClothingCardData[];
-  variant?: "page" | "embedded";
   wornOn?: string;
   onApproved?: () => void;
   onHasGeneratedOptionsChange?: (hasOptions: boolean) => void;
@@ -284,7 +290,12 @@ export function GeneratorView({
         });
         let result: ApproveOutfitResult;
         try {
-          result = (await res.json()) as ApproveOutfitResult;
+          const parsed = approveOutfitResultSchema.safeParse(await res.json());
+          if (!parsed.success) {
+            setError("Unexpected response from the server.");
+            return;
+          }
+          result = parsed.data;
         } catch {
           setError("Unexpected response from the server.");
           return;
@@ -324,8 +335,8 @@ export function GeneratorView({
 
   function buildNarrative(latest: string) {
     const thread = [...pastUserPrompts, latest].join("\n\n");
-    if (thread.length <= MAX_NARRATIVE) return thread;
-    return thread.slice(thread.length - MAX_NARRATIVE);
+    if (thread.length <= MAX_NARRATIVE_LEN) return thread;
+    return thread.slice(thread.length - MAX_NARRATIVE_LEN);
   }
 
   function runGeneration(userText: string) {
@@ -386,17 +397,14 @@ export function GeneratorView({
               ? (payload as { message: string }).message
               : `Request failed (${res.status}).`;
           result = { ok: false, message: msg };
-        } else if (
-          typeof payload === "object" &&
-          payload !== null &&
-          "ok" in payload
-        ) {
-          result = payload as GenerateLookbookResult;
         } else {
-          result = {
-            ok: false,
-            message: "Unexpected response from the lookbook API.",
-          };
+          const parsed = generateLookbookResultSchema.safeParse(payload);
+          result = parsed.success
+            ? parsed.data
+            : {
+                ok: false,
+                message: "Unexpected response from the lookbook API.",
+              };
         }
       } catch {
         result = {
@@ -448,24 +456,7 @@ export function GeneratorView({
   }
 
   return (
-    <div
-      className={cn(
-        "mx-auto flex w-full max-w-2xl flex-col gap-5",
-        variant === "embedded" && "max-w-none",
-      )}
-    >
-      {variant === "page" ? (
-        <div className="space-y-1">
-          <h1 className="font-serif text-2xl tracking-tight text-foreground md:text-3xl">
-            Outfit dialogue
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Immersive feed—describe the moment, get a stacked lookbook from your
-            closet.
-          </p>
-        </div>
-      ) : null}
-
+    <div className="mx-auto flex w-full max-w-none flex-col gap-5">
       <details className="group rounded-2xl border border-border/70 bg-muted/20">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
           <span>Closet scope</span>
@@ -481,14 +472,7 @@ export function GeneratorView({
         </div>
       </details>
 
-      <div
-        className={cn(
-          "flex flex-col overflow-hidden rounded-3xl border border-border/80 bg-zinc-950/[0.03] shadow-inner dark:bg-zinc-950/40",
-          variant === "embedded"
-            ? "min-h-[min(420px,58svh)]"
-            : "min-h-[min(520px,72vh)]",
-        )}
-      >
+      <div className="flex min-h-[min(420px,58svh)] flex-col overflow-hidden rounded-3xl border border-border/80 bg-zinc-950/[0.03] shadow-inner dark:bg-zinc-950/40">
         <div
           ref={scrollRef}
           className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-6 md:px-6"

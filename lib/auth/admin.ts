@@ -67,16 +67,3 @@ export async function assertAdminForServerAction(): Promise<
   }
   return { ok: true, userId };
 }
-
-/**
- * For public routes (e.g. home): if someone is signed in but not admin, send them
- * to the explanation page.
- */
-export async function redirectSignedInNonAdminFromPublicPage(): Promise<void> {
-  await connection();
-  noStore();
-  const { data } = await auth.getSession();
-  if (data?.user && !isAdminUser(data.user)) {
-    redirect("/auth/not-admin");
-  }
-}

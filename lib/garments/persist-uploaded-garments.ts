@@ -2,16 +2,17 @@ import { analyzeGarmentFromImageUrl } from "@/lib/ai/garments/describe-from-imag
 import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
 import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import { requireSql } from "@/lib/db";
+import { GARMENT_FIELD_LIMITS } from "@/lib/garments/field-limits";
 import {
   isGarmentCategoryDb,
   type GarmentCategoryDb,
 } from "@/lib/garments/types";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
-const MAX_NAME_LEN = 200;
-const MAX_COLOR_LEN = 120;
-const MAX_NOTES_LEN = 4000;
-const MAX_DESCRIPTION_LEN = 4000;
+const MAX_NAME_LEN = GARMENT_FIELD_LIMITS.name;
+const MAX_COLOR_LEN = GARMENT_FIELD_LIMITS.color;
+const MAX_NOTES_LEN = GARMENT_FIELD_LIMITS.notes;
+const MAX_DESCRIPTION_LEN = GARMENT_FIELD_LIMITS.description;
 /** Cap parallel Gemini describe calls so a 24-file batch stays within route time limits. */
 const AI_DESCRIBE_CONCURRENCY = 3;
 

@@ -1,32 +1,23 @@
-import { revalidatePath, revalidateTag } from "next/cache";
 import { connection, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { isAdminUser } from "@/lib/auth/admin";
 import { auth } from "@/lib/auth/server";
-import { closetGarmentsTag } from "@/lib/garments/closet-garments-cache-tag";
+import {
+  revalidateAfterGarmentDelete,
+  revalidateClosetGarmentSurfaces,
+} from "@/lib/cache/revalidate-wearer-surfaces";
 import { deleteGarment } from "@/lib/garments/delete-garment";
+import { GARMENT_FIELD_LIMITS } from "@/lib/garments/field-limits";
 import {
   persistUploadedGarmentItems,
   type CreateGarmentItemInput,
 } from "@/lib/garments/persist-uploaded-garments";
-import { updateGarmentFields, GARMENT_FIELD_LIMITS } from "@/lib/garments/update-garment";
-import { isGarmentCategoryDb } from "@/lib/garments/types";
-import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
-import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
+import { garmentCategorySchema } from "@/lib/garments/types";
+import { updateGarmentFields } from "@/lib/garments/update-garment";
 
 /** Allow Gemini describe + optional url_context on PATCH. */
 export const maxDuration = 60;
-
-function revalidateClosetAfterWrite(userId: string) {
-  try {
-    revalidateTag(closetGarmentsTag(userId), "max");
-    // Tag alone can leave the closet PPR shell stale; path revalidation refreshes the segment.
-    revalidatePath("/closet", "page");
-    revalidatePath("/", "page");
-  } catch (e) {
-    console.error("[api/closet/garments] revalidate failed", e);
-  }
-}
 
 async function readJsonBody(
   request: Request,
@@ -85,77 +76,34 @@ async function requireAdminUserId(): Promise<
   return { ok: true, userId };
 }
 
-function parseCreateBody(json: unknown): CreateGarmentItemInput[] | null {
-  if (typeof json !== "object" || json === null) return null;
-  const items = (json as { items?: unknown }).items;
-  if (!Array.isArray(items)) return null;
-  const out: CreateGarmentItemInput[] = [];
-  for (const row of items) {
-    if (typeof row !== "object" || row === null) return null;
-    const r = row as Record<string, unknown>;
-    if (typeof r.url !== "string" || typeof r.key !== "string") return null;
-    if (typeof r.name !== "string") return null;
-    if (typeof r.category !== "string" || !isGarmentCategoryDb(r.category)) {
-      return null;
-    }
-    out.push({
-      url: r.url,
-      key: r.key,
-      name: r.name,
-      category: r.category,
-      color: typeof r.color === "string" ? r.color : undefined,
-      notes: typeof r.notes === "string" ? r.notes : undefined,
-      description:
-        typeof r.description === "string" ? r.description : undefined,
-    });
-  }
-  return out;
-}
+const createItemSchema = z.object({
+  url: z.string().min(1),
+  key: z.string().min(1),
+  name: z.string(),
+  category: garmentCategorySchema,
+  color: z.string().optional(),
+  notes: z.string().optional(),
+  description: z.string().optional(),
+});
 
-type PatchBody = {
-  id: string;
-  name: string;
-  category: CreateGarmentItemInput["category"];
-  color: string;
-  notes: string;
-  description: string;
-  regenerateNameWithAi?: boolean;
-  regenerateDescriptionWithAi?: boolean;
-};
+const createBodySchema = z.object({
+  items: z.array(createItemSchema).min(1),
+});
 
-function parseDeleteBody(json: unknown): { id: string } | null {
-  if (typeof json !== "object" || json === null) return null;
-  const id = (json as { id?: unknown }).id;
-  if (typeof id !== "string" || !id.trim()) return null;
-  return { id: id.trim() };
-}
+const patchBodySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().max(GARMENT_FIELD_LIMITS.name),
+  category: garmentCategorySchema,
+  color: z.string().max(GARMENT_FIELD_LIMITS.color),
+  notes: z.string().max(GARMENT_FIELD_LIMITS.notes),
+  description: z.string().max(GARMENT_FIELD_LIMITS.description),
+  regenerateNameWithAi: z.boolean().optional(),
+  regenerateDescriptionWithAi: z.boolean().optional(),
+});
 
-function parsePatchBody(json: unknown): PatchBody | null {
-  if (typeof json !== "object" || json === null) return null;
-  const r = json as Record<string, unknown>;
-  if (typeof r.id !== "string") return null;
-  if (typeof r.name !== "string") return null;
-  if (typeof r.category !== "string" || !isGarmentCategoryDb(r.category)) {
-    return null;
-  }
-  if (typeof r.color !== "string") return null;
-  if (typeof r.notes !== "string") return null;
-  if (typeof r.description !== "string") return null;
-  if (r.name.length > GARMENT_FIELD_LIMITS.name) return null;
-  if (r.color.length > GARMENT_FIELD_LIMITS.color) return null;
-  if (r.notes.length > GARMENT_FIELD_LIMITS.notes) return null;
-  if (r.description.length > GARMENT_FIELD_LIMITS.description) return null;
-  return {
-    id: r.id,
-    name: r.name,
-    category: r.category,
-    color: r.color,
-    notes: r.notes,
-    description: r.description,
-    regenerateNameWithAi: r.regenerateNameWithAi === true,
-    regenerateDescriptionWithAi: r.regenerateDescriptionWithAi === true,
-  };
-}
+const deleteBodySchema = z.object({
+  id: z.string().min(1),
+});
 
 /**
  * Persists UploadThing-backed closet rows. Uses JSON instead of a server action
@@ -170,20 +118,21 @@ export async function POST(request: Request) {
   const body = await readJsonBody(request);
   if (!body.ok) return body.response;
 
-  const items = parseCreateBody(body.json);
-  if (!items) {
+  const parsed = createBodySchema.safeParse(body.json);
+  if (!parsed.success) {
     return NextResponse.json(
       { ok: false as const, message: "Invalid request body." },
       { status: 400 },
     );
   }
 
+  const items: CreateGarmentItemInput[] = parsed.data.items;
   const result = await persistUploadedGarmentItems(gate.userId, items);
   if (!result.ok) {
     return NextResponse.json(result, { status: 422 });
   }
 
-  revalidateClosetAfterWrite(gate.userId);
+  revalidateClosetGarmentSurfaces(gate.userId);
   return NextResponse.json(result);
 }
 
@@ -199,14 +148,15 @@ export async function PATCH(request: Request) {
   const bodyRead = await readJsonBody(request);
   if (!bodyRead.ok) return bodyRead.response;
 
-  const body = parsePatchBody(bodyRead.json);
-  if (!body) {
+  const parsed = patchBodySchema.safeParse(bodyRead.json);
+  if (!parsed.success) {
     return NextResponse.json(
       { ok: false as const, message: "Invalid request body." },
       { status: 400 },
     );
   }
 
+  const body = parsed.data;
   const result = await updateGarmentFields(gate.userId, {
     id: body.id,
     name: body.name,
@@ -222,7 +172,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json(result, { status });
   }
 
-  revalidateClosetAfterWrite(gate.userId);
+  revalidateClosetGarmentSurfaces(gate.userId);
   return NextResponse.json(result);
 }
 
@@ -238,27 +188,24 @@ export async function DELETE(request: Request) {
   const bodyRead = await readJsonBody(request);
   if (!bodyRead.ok) return bodyRead.response;
 
-  const body = parseDeleteBody(bodyRead.json);
-  if (!body) {
+  const parsed = deleteBodySchema.safeParse(bodyRead.json);
+  if (!parsed.success) {
     return NextResponse.json(
       { ok: false as const, message: "Invalid request body." },
       { status: 400 },
     );
   }
 
-  const result = await deleteGarment(gate.userId, body.id);
+  const result = await deleteGarment(gate.userId, parsed.data.id.trim());
   if (!result.ok) {
     const status = result.message === "Garment not found." ? 404 : 422;
     return NextResponse.json(result, { status });
   }
 
   try {
-    revalidateTag(closetSavedOutfitsTag(gate.userId), "max");
-    revalidateTag(calendarMonthTag(gate.userId), "max");
-    revalidatePath("/calendar", "page");
+    revalidateAfterGarmentDelete(gate.userId);
   } catch (e) {
     console.error("[api/closet/garments] delete revalidate failed", e);
   }
-  revalidateClosetAfterWrite(gate.userId);
   return NextResponse.json(result);
 }

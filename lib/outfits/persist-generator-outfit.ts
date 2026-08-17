@@ -8,7 +8,7 @@ import {
 } from "@/lib/outfits/approve-outfit-limits";
 import { garmentSetKey } from "@/lib/outfits/garment-set-key";
 import { outfitOccasionSchema } from "@/lib/outfits/occasions";
-import { productTodayIso } from "@/lib/time/product-timezone";
+import { assertMutableWornOn } from "@/lib/time/mutable-calendar-day";
 
 export const approveGeneratorPayloadSchema = z.object({
   wornOn: z.iso.date(),
@@ -29,6 +29,51 @@ export type ApproveGeneratorPayload = z.infer<
 export type ApproveOutfitResult =
   | { ok: true; outfitId: string }
   | { ok: false; message: string };
+
+const idRowSchema = z.object({ id: z.string().uuid() });
+const priorWearRowSchema = z.object({
+  prior_outfit_id: z.string().uuid(),
+});
+const wearDeleteRowSchema = z.object({
+  outfit_id: z.string().uuid(),
+});
+const countRowSchema = z.object({ n: z.number().int() });
+
+export function normalizeCommitImageUrl(
+  url: string | null | undefined,
+): string | null {
+  if (!url) return null;
+  return url.length <= APPROVE_OUTFIT_MAX_IMAGE_URL_LEN ? url : null;
+}
+
+export async function assertGarmentsOwnedByUser(
+  userId: string,
+  garmentIds: string[],
+): Promise<ApproveOutfitResult | null> {
+  const uniqueIds = [...new Set(garmentIds)];
+  if (uniqueIds.length === 0) {
+    return {
+      ok: false,
+      message: "This look has no linked garments to save.",
+    };
+  }
+  const sql = requireSql();
+  const countRows = await sql`
+    SELECT count(*)::int AS n
+    FROM garments
+    WHERE user_id = ${userId}
+      AND id = ANY(${uniqueIds})
+  `;
+  const parsed = z.array(countRowSchema).safeParse(countRows);
+  const n = parsed.success ? (parsed.data[0]?.n ?? 0) : 0;
+  if (n !== uniqueIds.length) {
+    return {
+      ok: false,
+      message: "One or more garments are missing from your closet.",
+    };
+  }
+  return null;
+}
 
 async function deleteOutfitIfOrphaned(
   userId: string,
@@ -69,7 +114,7 @@ async function replaceWearForDay(
   outfitId: string,
 ): Promise<string | null> {
   const sql = requireSql();
-  const rows = (await sql`
+  const rows = await sql`
     WITH deleted AS (
       DELETE FROM outfit_wears
       WHERE user_id = ${userId}
@@ -84,9 +129,9 @@ async function replaceWearForDay(
       RETURNING 1
     )
     SELECT prior_outfit_id FROM deleted
-  `) as { prior_outfit_id: string }[];
-
-  const prior = rows[0]?.prior_outfit_id ?? null;
+  `;
+  const parsed = z.array(priorWearRowSchema).safeParse(rows);
+  const prior = parsed.success ? (parsed.data[0]?.prior_outfit_id ?? null) : null;
   return prior && prior !== outfitId ? prior : null;
 }
 
@@ -110,23 +155,22 @@ export async function commitOutfitForDay(input: {
     throw new Error("Missing user id");
   }
 
-  const imageUrl =
-    input.imageUrl && input.imageUrl.length <= APPROVE_OUTFIT_MAX_IMAGE_URL_LEN
-      ? input.imageUrl
-      : null;
+  const imageUrl = normalizeCommitImageUrl(input.imageUrl);
   const occasion = input.occasion ?? "casual";
 
-  const existingRows = (await sql`
+  const existingRaw = await sql`
     SELECT id FROM outfits
     WHERE user_id = ${input.userId}
       AND garment_set_key = ${setKey}
     LIMIT 1
-  `) as { id: string }[];
-
-  let outfitId = existingRows[0]?.id ?? null;
+  `;
+  const existingParsed = z.array(idRowSchema).safeParse(existingRaw);
+  let outfitId = existingParsed.success
+    ? (existingParsed.data[0]?.id ?? null)
+    : null;
 
   if (!outfitId) {
-    const inserted = (await sql`
+    const inserted = await sql`
       INSERT INTO outfits (worn_on, occasion, name, image_url, garment_set_key, user_id)
       VALUES (
         ${input.wornOn}::date,
@@ -137,14 +181,16 @@ export async function commitOutfitForDay(input: {
         ${input.userId}
       )
       RETURNING id
-    `) as { id: string }[];
-    outfitId = inserted[0]?.id ?? null;
+    `;
+    const insertedParsed = z.array(idRowSchema).parse(inserted);
+    outfitId = insertedParsed[0]?.id ?? null;
     if (!outfitId) {
       throw new Error("Insert outfit returned no id");
     }
 
     for (let i = 0; i < uniqueIds.length; i++) {
-      const gid = uniqueIds[i]!;
+      const gid = uniqueIds[i];
+      if (!gid) continue;
       await sql`
         INSERT INTO outfit_garments (outfit_id, garment_id, sort_order)
         VALUES (${outfitId}::uuid, ${gid}::uuid, ${i})
@@ -176,25 +222,6 @@ export async function commitOutfitForDay(input: {
   return outfitId;
 }
 
-/** @deprecated Prefer commitOutfitForDay */
-export async function insertOutfitWithGarments(input: {
-  userId: string;
-  wornOn: string;
-  name: string | null;
-  occasion: z.infer<typeof outfitOccasionSchema>;
-  imageUrl: string | null;
-  garmentIds: string[];
-}): Promise<string> {
-  void input.name;
-  return commitOutfitForDay({
-    userId: input.userId,
-    wornOn: input.wornOn,
-    garmentIds: input.garmentIds,
-    imageUrl: input.imageUrl,
-    occasion: input.occasion,
-  });
-}
-
 /** Assign an existing Closet Outfit to a calendar day (Wear today). */
 export async function assignOutfitToDay(input: {
   userId: string;
@@ -203,13 +230,14 @@ export async function assignOutfitToDay(input: {
 }): Promise<ApproveOutfitResult> {
   try {
     const sql = requireSql();
-    const rows = (await sql`
+    const rows = await sql`
       SELECT id FROM outfits
       WHERE id = ${input.outfitId}::uuid
         AND user_id = ${input.userId}
       LIMIT 1
-    `) as { id: string }[];
-    if (!rows[0]) {
+    `;
+    const parsed = z.array(idRowSchema).safeParse(rows);
+    if (!parsed.success || !parsed.data[0]) {
       return { ok: false, message: "That outfit was not found." };
     }
 
@@ -240,14 +268,14 @@ export async function unwearDay(
 ): Promise<ApproveOutfitResult> {
   try {
     const sql = requireSql();
-    const rows = (await sql`
+    const rows = await sql`
       DELETE FROM outfit_wears
       WHERE user_id = ${userId}
         AND worn_on = ${wornOn}::date
       RETURNING outfit_id::text AS outfit_id
-    `) as { outfit_id: string }[];
-
-    const outfitId = rows[0]?.outfit_id;
+    `;
+    const parsed = z.array(wearDeleteRowSchema).safeParse(rows);
+    const outfitId = parsed.success ? parsed.data[0]?.outfit_id : undefined;
     if (outfitId) {
       await syncLastWorn(outfitId);
       await deleteOutfitIfOrphaned(userId, outfitId);
@@ -266,25 +294,13 @@ export async function executeApproveGeneratorOutfit(
   data: ApproveGeneratorPayload,
 ): Promise<ApproveOutfitResult> {
   const { wornOn, occasion, garmentIds, imageUrl } = data;
-  if (wornOn < productTodayIso()) {
-    return { ok: false, message: "Past looks can’t be changed." };
-  }
+  const mutable = assertMutableWornOn(wornOn);
+  if (!mutable.ok) return mutable;
 
   try {
-    const sql = requireSql();
     const uniqueIds = [...new Set(garmentIds)];
-    const countRows = (await sql`
-      SELECT count(*)::int AS n
-      FROM garments
-      WHERE user_id = ${userId}
-        AND id = ANY(${uniqueIds})
-    `) as { n: number }[];
-    if ((countRows[0]?.n ?? 0) !== uniqueIds.length) {
-      return {
-        ok: false,
-        message: "One or more garments are missing from your closet.",
-      };
-    }
+    const ownership = await assertGarmentsOwnedByUser(userId, uniqueIds);
+    if (ownership) return ownership;
 
     const outfitId = await commitOutfitForDay({
       userId,
