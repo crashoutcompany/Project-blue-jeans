@@ -4,15 +4,11 @@ export const STEP2_SYSTEM = `You are an editorial fashion photographer AI. Gener
 
 export const STEP2_TRYON_SYSTEM = `You are a virtual try-on fashion photographer AI. Generate a single photorealistic full-length studio photoshoot of the person in the Wearer photo wearing the referenced garments. Preserve the wearer's face, body shape, skin tone, and identity. Dress them in the exact reference garments (color, cut, texture). Place them standing in front of a seamless solid-color backdrop (light gray, off-white, or similar cyclorama)—not a room, street, or scenic environment. No text, logos, or watermarks on the image.`;
 
-const WEEKDAYS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-] as const;
+export type AlreadyPlannedLook = {
+  weekday: string;
+  title: string;
+  garmentNames: string[];
+};
 
 export function step1UserPrompt(params: {
   lookCount: number;
@@ -21,8 +17,9 @@ export function step1UserPrompt(params: {
   narrative: string;
   catalogText: string;
   weekly?: boolean;
-  /** 0 = Monday … 6 = Sunday; only used when `weekly` and `lookCount === 1`. */
-  weeklyDayIndex?: number;
+  /** Weekday name for a single-day weekly plan, e.g. "Wednesday". */
+  weeklyWeekday?: string;
+  alreadyPlanned?: AlreadyPlannedLook[];
 }): string {
   const {
     lookCount,
@@ -31,22 +28,32 @@ export function step1UserPrompt(params: {
     narrative,
     catalogText,
     weekly,
-    weeklyDayIndex,
+    weeklyWeekday,
+    alreadyPlanned,
   } = params;
 
   let weeklyHint: string;
-  if (weekly && lookCount === 1 && weeklyDayIndex !== undefined) {
-    const name = WEEKDAYS[weeklyDayIndex] ?? `Day ${weeklyDayIndex + 1}`;
-    weeklyHint = `You are planning **one day** of the user's week: **${name}** (day ${weeklyDayIndex + 1} of 7). Produce exactly **one** outfit for that day only. Other weekdays are planned in separate requests—give this day a clear character (energy, formality) that can coexist with a varied week.`;
+  if (weekly && lookCount === 1 && weeklyWeekday) {
+    weeklyHint = `You are planning **one day** of the user's week: **${weeklyWeekday}**. Produce exactly **one** outfit for that day only. Other weekdays are planned in separate requests—give this day a clear character (energy, formality) that can coexist with a varied week.`;
   } else if (weekly) {
-    weeklyHint = `Produce exactly ${lookCount} outfits, one for each day of the week in order: Monday (index 0) through Sunday (index ${lookCount - 1}). Each look should feel distinct but compatible with the same closet.`;
+    weeklyHint = `Produce exactly ${lookCount} outfits for a Sunday-start week. Each look should feel distinct but compatible with the same closet.`;
   } else {
     weeklyHint = `Produce exactly ${lookCount} outfit concepts. The first look (index 0) is the hero / most versatile option.`;
   }
 
+  const planned =
+    alreadyPlanned && alreadyPlanned.length > 0
+      ? `Already planned this week (do not copy these looks; a garment may be reused only if it still appears in the catalog below):\n${alreadyPlanned
+          .map((row) => {
+            const names = row.garmentNames.join(", ") || "—";
+            return `- ${row.weekday} — ${row.title} (${names})`;
+          })
+          .join("\n")}\n\n`
+      : "";
+
   return `${weeklyHint}
 
-Constraints:
+${planned}Constraints:
 - Climate vibe: ${climate}
 - Occasion / setting: ${context}
 - User style notes (may be empty): ${narrative || "(none)"}

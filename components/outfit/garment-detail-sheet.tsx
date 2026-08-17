@@ -5,8 +5,17 @@ import { useId, useState, useTransition } from "react";
 import { Heart } from "lucide-react";
 
 import { extractProductUrls } from "@/lib/ai/garments/extract-product-urls";
-import type { ClothingCardData, GarmentCategoryDb } from "@/lib/garments/types";
-import { GARMENT_CATEGORY_VALUES } from "@/lib/garments/types";
+import type {
+  ClothingCardData,
+  DeleteGarmentResult,
+  GarmentCategoryDb,
+  UpdateGarmentFieldsResult,
+} from "@/lib/garments/types";
+import {
+  GARMENT_CATEGORY_LABEL,
+  GARMENT_CATEGORY_VALUES,
+  isGarmentCategoryDb,
+} from "@/lib/garments/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,12 +30,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-const CATEGORY_LABEL: Record<GarmentCategoryDb, string> = {
-  tops: "Tops",
-  bottoms: "Bottoms",
-  shoes: "Shoes",
-};
-
 export type GarmentEditSaveInput = {
   id: string;
   name: string;
@@ -38,11 +41,8 @@ export type GarmentEditSaveInput = {
   regenerateDescriptionWithAi: boolean;
 };
 
-export type GarmentEditSaveResult =
-  | { ok: true; garment: ClothingCardData }
-  | { ok: false; message: string };
-
-export type GarmentDeleteResult = { ok: true } | { ok: false; message: string };
+export type GarmentEditSaveResult = UpdateGarmentFieldsResult;
+export type GarmentDeleteResult = DeleteGarmentResult;
 
 export function GarmentDetailSheet({
   garment,
@@ -89,10 +89,8 @@ function GarmentDetailEditor({
   onDelete: (id: string) => Promise<GarmentDeleteResult>;
 }) {
   const formId = useId();
-  const initialCategory = GARMENT_CATEGORY_VALUES.includes(
-    garment.category as GarmentCategoryDb,
-  )
-    ? (garment.category as GarmentCategoryDb)
+  const initialCategory = isGarmentCategoryDb(garment.category)
+    ? garment.category
     : "tops";
 
   const [name, setName] = useState(garment.name);
@@ -140,13 +138,7 @@ function GarmentDetailEditor({
           return;
         }
         setName(result.garment.name);
-        setCategory(
-          GARMENT_CATEGORY_VALUES.includes(
-            result.garment.category as GarmentCategoryDb,
-          )
-            ? (result.garment.category as GarmentCategoryDb)
-            : category,
-        );
+        setCategory(result.garment.category);
         setColor(result.garment.color?.trim() || "");
         setDescription(result.garment.description?.trim() || "");
         setNotes(result.garment.notes?.trim() || "");
@@ -333,7 +325,7 @@ function GarmentDetailEditor({
                         "bg-primary text-primary-foreground hover:bg-primary/90",
                     )}
                   >
-                    {CATEGORY_LABEL[cat]}
+                    {GARMENT_CATEGORY_LABEL[cat]}
                   </Button>
                 );
               })}

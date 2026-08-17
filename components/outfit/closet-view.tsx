@@ -20,7 +20,12 @@ import {
   type GarmentUploadDraft,
 } from "@/components/upload/closet-garment-draft-card";
 import { useUploadThing } from "@/lib/uploadthing";
+import { publicImageUrl } from "@/lib/uploadthing/public-url";
 import type { ClothingCardData } from "@/lib/garments/types";
+import {
+  deleteGarmentResultSchema,
+  updateGarmentFieldsResultSchema,
+} from "@/lib/garments/types";
 import type { ClosetSavedOutfit } from "@/lib/outfits/closet-saved-outfits";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,14 +45,6 @@ import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ClosetMode = "pieces" | "outfits";
-
-function publicImageUrl(file: {
-  ufsUrl?: string;
-  url?: string;
-  appUrl?: string;
-}) {
-  return file.ufsUrl || file.url || file.appUrl || "";
-}
 
 function optimisticGarmentFromDraft(
   draft: GarmentUploadDraft,
@@ -143,7 +140,6 @@ export function ClosetView({
           g.category,
           g.color,
           g.colorLabel,
-          g.material,
           g.description,
           g.notes,
         ]
@@ -312,7 +308,10 @@ export function ClosetView({
       });
       let result: GarmentEditSaveResult | null = null;
       try {
-        result = (await res.json()) as GarmentEditSaveResult;
+        const parsed = updateGarmentFieldsResultSchema.safeParse(
+          await res.json(),
+        );
+        result = parsed.success ? parsed.data : null;
       } catch {
         return {
           ok: false,
@@ -353,7 +352,8 @@ export function ClosetView({
       });
       let result: GarmentDeleteResult | null = null;
       try {
-        result = (await res.json()) as GarmentDeleteResult;
+        const parsed = deleteGarmentResultSchema.safeParse(await res.json());
+        result = parsed.success ? parsed.data : null;
       } catch {
         return {
           ok: false,

@@ -1,20 +1,17 @@
 import { analyzeGarmentFromImageUrl } from "@/lib/ai/garments/describe-from-image";
 import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
 import { requireSql } from "@/lib/db";
+import { GARMENT_FIELD_LIMITS } from "@/lib/garments/field-limits";
 import { garmentRowToCardData, type GarmentRow } from "@/lib/garments/map-row";
 import {
   isGarmentCategoryDb,
-  type ClothingCardData,
   type GarmentCategoryDb,
+  type UpdateGarmentFieldsResult,
 } from "@/lib/garments/types";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
-export const GARMENT_FIELD_LIMITS = {
-  name: 200,
-  color: 120,
-  notes: 4000,
-  description: 4000,
-} as const;
+export { GARMENT_FIELD_LIMITS } from "@/lib/garments/field-limits";
+export type { UpdateGarmentFieldsResult } from "@/lib/garments/types";
 
 const MAX_NAME_LEN = GARMENT_FIELD_LIMITS.name;
 const MAX_COLOR_LEN = GARMENT_FIELD_LIMITS.color;
@@ -36,10 +33,6 @@ export type UpdateGarmentFieldsInput = {
   /** When true, rewrite description from photo (+ product URLs in notes). */
   regenerateDescriptionWithAi?: boolean;
 };
-
-export type UpdateGarmentFieldsResult =
-  | { ok: true; garment: ClothingCardData }
-  | { ok: false; message: string };
 
 /**
  * Persist closet garment field edits for one Wearer. Caller handles auth + cache.

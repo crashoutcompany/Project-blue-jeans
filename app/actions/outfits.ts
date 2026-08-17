@@ -1,33 +1,22 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { assertAdminForServerAction } from "@/lib/auth/admin";
+import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces";
 import { requireSql } from "@/lib/db";
 import { logServerError } from "@/lib/server/safe-client-error";
-import {
-  APPROVE_OUTFIT_MAX_IMAGE_URL_LEN,
-  APPROVE_OUTFIT_MAX_NAME,
-} from "@/lib/outfits/approve-outfit-limits";
-import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
+import { APPROVE_OUTFIT_MAX_NAME } from "@/lib/outfits/approve-outfit-limits";
 import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
 import {
   assignOutfitToDay,
-  commitOutfitForDay,
   type ApproveOutfitResult,
 } from "@/lib/outfits/persist-generator-outfit";
+import { promoteWeeklyFitToOutfit } from "@/lib/outfits/promote-fit";
 import { productTodayIso } from "@/lib/time/product-timezone";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export type { ApproveOutfitResult };
-
-function revalidateOutfitSurfaces(userId: string) {
-  revalidateTag(closetSavedOutfitsTag(userId), "max");
-  revalidateTag(calendarMonthTag(userId), "max");
-  revalidatePath("/calendar");
-  revalidatePath("/");
-  revalidatePath("/closet");
-}
 
 /**
  * Promotes a weekly plan day look into a shared Outfit + wear for that day.
@@ -42,80 +31,9 @@ export async function approveWeeklyPlanLook(
     return { ok: false, message: "Invalid plan look id." };
   }
 
-  try {
-    const sql = requireSql();
-    const rows = (await sql`
-      SELECT
-        l.id,
-        l.hero_image_url,
-        l.garment_ids,
-        (p.week_start + l.sort_order)::text AS worn_on
-      FROM weekly_plan_looks l
-      INNER JOIN weekly_outfit_plans p ON p.id = l.plan_id
-      WHERE l.id = ${planLookId}::uuid
-        AND p.user_id = ${gate.userId}
-      LIMIT 1
-    `) as {
-      id: string;
-      hero_image_url: string | null;
-      garment_ids: string[] | null;
-      worn_on: string;
-    }[];
-
-    const row = rows[0];
-    if (!row) {
-      return { ok: false, message: "That weekly look was not found." };
-    }
-    if (row.worn_on < productTodayIso()) {
-      return { ok: false, message: "Past looks can’t be changed." };
-    }
-
-    const garmentIds = Array.isArray(row.garment_ids)
-      ? [...new Set(row.garment_ids)]
-      : [];
-    if (garmentIds.length === 0) {
-      return {
-        ok: false,
-        message: "This look has no linked garments to save.",
-      };
-    }
-
-    const countRows = (await sql`
-      SELECT count(*)::int AS n
-      FROM garments
-      WHERE user_id = ${gate.userId}
-        AND id = ANY(${garmentIds})
-    `) as { n: number }[];
-    if ((countRows[0]?.n ?? 0) !== garmentIds.length) {
-      return {
-        ok: false,
-        message: "One or more garments are missing from your closet.",
-      };
-    }
-
-    const imageUrl =
-      row.hero_image_url &&
-      row.hero_image_url.length <= APPROVE_OUTFIT_MAX_IMAGE_URL_LEN
-        ? row.hero_image_url
-        : null;
-
-    const outfitId = await commitOutfitForDay({
-      userId: gate.userId,
-      wornOn: row.worn_on,
-      garmentIds,
-      imageUrl,
-      occasion: "casual",
-    });
-
-    revalidateOutfitSurfaces(gate.userId);
-    return { ok: true, outfitId };
-  } catch (e) {
-    logServerError("approveWeeklyPlanLook", e);
-    return {
-      ok: false,
-      message: "Could not approve this look. Try again.",
-    };
-  }
+  const result = await promoteWeeklyFitToOutfit(gate.userId, idParse.data);
+  if (result.ok) revalidateOutfitSurfaces(gate.userId);
+  return result;
 }
 
 /**
@@ -157,14 +75,17 @@ export async function renameOutfit(
 
   try {
     const sql = requireSql();
-    const rows = (await sql`
+    const rows = await sql`
       UPDATE outfits
       SET name = ${stored}, updated_at = now()
       WHERE id = ${idParse.data}::uuid
         AND user_id = ${gate.userId}
       RETURNING id
-    `) as { id: string }[];
-    if (!rows[0]) {
+    `;
+    const parsed = z
+      .array(z.object({ id: z.string().uuid() }))
+      .safeParse(rows);
+    if (!parsed.success || !parsed.data[0]) {
       return { ok: false, message: "That outfit was not found." };
     }
     revalidateTag(closetSavedOutfitsTag(gate.userId), "max");
@@ -184,14 +105,17 @@ export async function getTodaysOutfitId(): Promise<string | null> {
   try {
     const sql = requireSql();
     const todayIso = productTodayIso();
-    const rows = (await sql`
+    const rows = await sql`
       SELECT outfit_id::text AS outfit_id
       FROM outfit_wears
       WHERE user_id = ${gate.userId}
         AND worn_on = ${todayIso}::date
       LIMIT 1
-    `) as { outfit_id: string }[];
-    return rows[0]?.outfit_id ?? null;
+    `;
+    const parsed = z
+      .array(z.object({ outfit_id: z.string().uuid() }))
+      .safeParse(rows);
+    return parsed.success ? (parsed.data[0]?.outfit_id ?? null) : null;
   } catch {
     return null;
   }

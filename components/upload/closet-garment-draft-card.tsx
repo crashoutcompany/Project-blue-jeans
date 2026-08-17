@@ -10,16 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { ClosetPendingLocalImage } from "@/components/upload/closet-image-upload";
 import {
+  GARMENT_CATEGORY_LABEL,
   GARMENT_CATEGORY_VALUES,
   type GarmentCategoryDb,
 } from "@/lib/garments/types";
 import { cn } from "@/lib/utils";
-
-const CATEGORY_LABEL: Record<GarmentCategoryDb, string> = {
-  tops: "Tops",
-  bottoms: "Bottoms",
-  shoes: "Shoes",
-};
 
 export type GarmentUploadDraft = ClosetPendingLocalImage & {
   displayName: string;
@@ -120,7 +115,7 @@ export function ClosetGarmentDraftCard({
                           "bg-primary text-primary-foreground hover:bg-primary/90",
                       )}
                     >
-                      {CATEGORY_LABEL[cat]}
+                      {GARMENT_CATEGORY_LABEL[cat]}
                     </Button>
                   );
                 })}

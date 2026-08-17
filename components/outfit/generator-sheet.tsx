@@ -84,7 +84,6 @@ export function GeneratorSheet({
               <GeneratorView
                 key={sessionKey}
                 closetGarments={closetGarments}
-                variant="embedded"
                 wornOn={wornOn}
                 onHasGeneratedOptionsChange={setHasGeneratedOptions}
                 onApproved={() => {

@@ -2,7 +2,7 @@ import { generateObject } from "ai";
 
 import { geminiModel } from "@/lib/ai/gemini-provider";
 import { GEMINI_STRUCTURE_MODEL } from "@/lib/ai/gemini-models";
-import { STEP1_SYSTEM, step1UserPrompt } from "@/lib/ai/lookbook/prompts";
+import { STEP1_SYSTEM, step1UserPrompt, type AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import {
   createLookbookSchema,
   type LookbookPlan,
@@ -15,7 +15,8 @@ export type RunOutfitPlanStepParams = {
   narrative: string;
   catalogText: string;
   weekly?: boolean;
-  weeklyDayIndex?: number;
+  weeklyWeekday?: string;
+  alreadyPlanned?: AlreadyPlannedLook[];
 };
 
 export async function runOutfitPlanStep(
@@ -33,7 +34,8 @@ export async function runOutfitPlanStep(
       narrative: params.narrative,
       catalogText: params.catalogText,
       weekly: params.weekly,
-      weeklyDayIndex: params.weeklyDayIndex,
+      weeklyWeekday: params.weeklyWeekday,
+      alreadyPlanned: params.alreadyPlanned,
     }),
   });
   return object;

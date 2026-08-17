@@ -71,6 +71,11 @@ const PRODUCT_MONTH_YEAR = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
+const PRODUCT_WEEKDAY = new Intl.DateTimeFormat("en-US", {
+  timeZone: PRODUCT_TIME_ZONE,
+  weekday: "long",
+});
+
 function utcNoonFromIso(isoDate: string): Date | null {
   const [y, m, d] = isoDate.split("-").map(Number);
   if (!y || !m || !d) return null;
@@ -103,4 +108,15 @@ export function formatProductWornOn(isoDate: string): string {
 export function formatProductMonthYear(year: number, month: number): string {
   const utc = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
   return PRODUCT_MONTH_YEAR.format(utc);
+}
+
+/**
+ * Weekday name in the product timezone, e.g. "Sunday".
+ */
+export function formatProductWeekday(isoDate: string): string {
+  const utc = utcNoonFromIso(isoDate);
+  if (!utc) {
+    throw new Error(`Invalid iso date: ${isoDate}`);
+  }
+  return PRODUCT_WEEKDAY.format(utc);
 }

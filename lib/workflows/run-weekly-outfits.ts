@@ -1,4 +1,5 @@
 import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
+import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
@@ -9,8 +10,24 @@ import {
   loadGarmentCatalog,
   loadGarmentsByIds,
 } from "@/lib/garments/load-catalog";
+import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
+import {
+  availableGarments,
+  closetCategories,
+  exhaustedCategoriesAfterLook,
+  lockLookGarments,
+  todaySortOrder,
+  weeklyDaysToPlan,
+} from "@/lib/outfits/weekly-plan-catalog";
 import { logServerError } from "@/lib/server/safe-client-error";
+import {
+  addDaysIso,
+  formatProductWeekday,
+  productTodayIso,
+} from "@/lib/time/product-timezone";
 import type { WeeklyOutfitsInput } from "@/lib/workflows/types";
+import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
+import { z } from "zod";
 
 const WEEKLY_JOB_FAILED_PUBLIC =
   "Weekly outfits job failed. Check server logs for details.";
@@ -20,8 +37,23 @@ export type WeeklyOutfitsJobResult =
   | { ok: true; planId: string; skipped: false }
   | { ok: false; error: string; planId?: string };
 
-const MAX_NARRATIVE = 2000;
-const WEEKLY_DAYS = 7;
+const MAX_NARRATIVE = MAX_NARRATIVE_LEN;
+const WEEK_LENGTH = 7;
+
+const planStatusRowSchema = z.object({
+  id: z.string().uuid(),
+  status: z.string(),
+});
+
+const retainedLookRowSchema = z.object({
+  sort_order: z.number().int(),
+  title: z.string(),
+  garment_ids: z.array(z.string()).nullable().optional(),
+});
+
+const insertedIdRowSchema = z.object({
+  id: z.string().uuid(),
+});
 
 async function markPlanFailed(planId: string, message: string): Promise<void> {
   const sql = requireSql();
@@ -42,27 +74,27 @@ function buildWeeklyStep1Raw(plans: LookbookPlan[]) {
     .filter(Boolean)
     .join("\n\n");
   return {
-    source: "weekly_parallel_step1" as const,
+    source: "weekly_sequential_step1" as const,
     plans,
     curatorNote: curatorNote.length > 0 ? curatorNote : undefined,
   };
 }
 
+function garmentNamesForIds(
+  ids: string[],
+  byId: Map<string, { name: string | null }>,
+): string[] {
+  return ids.map((id) => byId.get(id)?.name?.trim() || "Untitled");
+}
+
 /**
- * Plan my week: **7 parallel** step-1 calls (one outfit per weekday), then **7 parallel**
- * hero-image calls. Same models as the generator; no batch/GCS.
+ * Plan my week: sequential step-1 (shrinking catalog, Outfit locks, per-category
+ * reuse when exhausted), then parallel hero-image calls.
  */
 export async function runWeeklyOutfitsJob(
   input: WeeklyOutfitsInput,
+  now = new Date(),
 ): Promise<WeeklyOutfitsJobResult> {
-  if (!hasGeminiCredentials()) {
-    return {
-      ok: false,
-      error:
-        "Missing Gemini credentials. Set GOOGLE_GENERATIVE_AI_API_KEY (see docs/gemini-ai-studio-env.md).",
-    };
-  }
-
   const narrative = input.narrative.trim().slice(0, MAX_NARRATIVE);
   const climate = input.climate.trim().slice(0, 80);
   const context = input.context.trim().slice(0, 80);
@@ -76,18 +108,52 @@ export async function runWeeklyOutfitsJob(
   }
 
   const sql = requireSql();
+  const todayIso = productTodayIso(now);
+  const todaySort = todaySortOrder(input.weekStart, todayIso);
+  const weekEnd = addDaysIso(input.weekStart, WEEK_LENGTH - 1);
 
-  const existingRows = (await sql`
+  const existingRaw = await sql`
     SELECT id, status::text AS status
     FROM weekly_outfit_plans
     WHERE user_id = ${input.userId}
       AND week_start = ${input.weekStart}::date
     LIMIT 1
-  `) as { id: string; status: string }[];
-
-  const row = existingRows[0];
+  `;
+  const existingParsed = z.array(planStatusRowSchema).safeParse(existingRaw);
+  const row = existingParsed.success ? existingParsed.data[0] : undefined;
   if (row?.status === "completed") {
     return { ok: true, planId: row.id, skipped: true };
+  }
+
+  const outfitRows = await loadOutfitsInRange(
+    input.userId,
+    input.weekStart,
+    weekEnd,
+  );
+  const outfitWornOn = new Set(outfitRows.map((r) => r.wornOn));
+  const outfitLockedIds = new Set<string>();
+  for (const r of outfitRows) {
+    for (const id of r.garmentIds) {
+      outfitLockedIds.add(id);
+    }
+  }
+
+  const daysToPlan = weeklyDaysToPlan(
+    input.weekStart,
+    todayIso,
+    outfitWornOn,
+  );
+  if (daysToPlan.length === 0) {
+    return { ok: true, planId: row?.id ?? "", skipped: true };
+  }
+
+  if (!hasGeminiCredentials()) {
+    return {
+      ok: false,
+      error:
+        "Missing Gemini credentials. Set GOOGLE_GENERATIVE_AI_API_KEY (see docs/gemini-ai-studio-env.md).",
+      planId: row?.id,
+    };
   }
 
   const garments = await loadGarmentCatalog(input.userId);
@@ -100,55 +166,133 @@ export async function runWeeklyOutfitsJob(
     };
   }
 
-  const validIds = new Set(garments.map((g) => g.id));
-  const catalogText = formatClosetCatalog(garments);
+  const garmentsById = new Map(garments.map((g) => [g.id, g]));
+  const closetHas = closetCategories(garments);
+  const uniqueLockedIds = new Set<string>();
+  let exhausted = new Set<string>();
+  const alreadyPlanned: AlreadyPlannedLook[] = [];
+  const plans: LookbookPlan[] = [];
+  const looksForDb: {
+    sortOrder: number;
+    title: string;
+    description: string;
+    tags: string[];
+    garmentIds: string[];
+  }[] = [];
 
-  const settled = await Promise.allSettled(
-    Array.from({ length: WEEKLY_DAYS }, (_, dayIndex) =>
-      runStep1PlanWithRetry({
+  if (row) {
+    const retainedRaw = await sql`
+      SELECT sort_order, title, garment_ids
+      FROM weekly_plan_looks
+      WHERE plan_id = ${row.id}
+        AND sort_order < ${todaySort}
+      ORDER BY sort_order
+    `;
+    const retainedParsed = z
+      .array(retainedLookRowSchema)
+      .safeParse(retainedRaw);
+    const retainedRows = retainedParsed.success ? retainedParsed.data : [];
+
+    for (const look of retainedRows) {
+      const ids = Array.isArray(look.garment_ids)
+        ? look.garment_ids.map(String)
+        : [];
+      alreadyPlanned.push({
+        weekday: formatProductWeekday(
+          addDaysIso(input.weekStart, look.sort_order),
+        ),
+        title: look.title,
+        garmentNames: garmentNamesForIds(ids, garmentsById),
+      });
+      lockLookGarments(ids, outfitLockedIds, uniqueLockedIds);
+    }
+    exhausted = exhaustedCategoriesAfterLook(
+      garments,
+      outfitLockedIds,
+      uniqueLockedIds,
+      closetHas,
+    );
+  }
+
+  try {
+    for (const day of daysToPlan) {
+      const available = availableGarments(
+        garments,
+        outfitLockedIds,
+        uniqueLockedIds,
+        exhausted,
+      );
+      if (available.length === 0) {
+        return {
+          ok: false,
+          error:
+            "Not enough unused clothes left in your closet to plan this week.",
+          planId: row?.id,
+        };
+      }
+
+      const validIds = new Set(available.map((g) => g.id));
+      const plan = await runStep1PlanWithRetry({
         lookCount: 1,
         climate,
         context,
         narrative,
-        catalogText,
+        catalogText: formatClosetCatalog(available),
         validIds,
         weekly: true,
-        weeklyDayIndex: dayIndex,
-      }),
-    ),
-  );
+        weeklyWeekday: day.weekday,
+        alreadyPlanned: alreadyPlanned.slice(),
+      });
+      const look = plan.looks[0];
+      if (!look) {
+        return {
+          ok: false,
+          error: `Day ${day.weekday} returned no look.`,
+          planId: row?.id,
+        };
+      }
 
-  const plans: LookbookPlan[] = [];
-  for (let i = 0; i < settled.length; i++) {
-    const s = settled[i]!;
-    if (s.status === "rejected") {
-      logServerError(`runWeeklyOutfitsJob step1 day ${i}`, s.reason);
-      return {
-        ok: false,
-        error: WEEKLY_JOB_FAILED_PUBLIC,
-        planId: row?.id,
-      };
+      plans.push(plan);
+      looksForDb.push({
+        sortOrder: day.sortOrder,
+        title: look.title,
+        description: look.description,
+        tags: look.tags,
+        garmentIds: look.garmentIds ?? [],
+      });
+      alreadyPlanned.push({
+        weekday: day.weekday,
+        title: look.title,
+        garmentNames: garmentNamesForIds(look.garmentIds ?? [], garmentsById),
+      });
+      lockLookGarments(look.garmentIds ?? [], outfitLockedIds, uniqueLockedIds);
+      exhausted = exhaustedCategoriesAfterLook(
+        garments,
+        outfitLockedIds,
+        uniqueLockedIds,
+        closetHas,
+      );
     }
-    const plan = s.value;
-    if (!plan.looks[0]) {
-      return {
-        ok: false,
-        error: `Day ${i} returned no look.`,
-        planId: row?.id,
-      };
-    }
-    plans.push(plan);
+  } catch (e) {
+    logServerError("runWeeklyOutfitsJob step1", e);
+    return {
+      ok: false,
+      error: WEEKLY_JOB_FAILED_PUBLIC,
+      planId: row?.id,
+    };
   }
 
-  const looksForDb = plans.map((p) => p.looks[0]!);
   const step1Raw = buildWeeklyStep1Raw(plans);
-
   let planId: string | undefined;
 
   try {
     if (row) {
       planId = row.id;
-      await sql`DELETE FROM weekly_plan_looks WHERE plan_id = ${planId}`;
+      await sql`
+        DELETE FROM weekly_plan_looks
+        WHERE plan_id = ${planId}
+          AND sort_order >= ${todaySort}
+      `;
       await sql`
         UPDATE weekly_outfit_plans
         SET
@@ -159,7 +303,7 @@ export async function runWeeklyOutfitsJob(
         WHERE id = ${planId}
       `;
     } else {
-      const insertedRows = (await sql`
+      const insertedRaw = await sql`
         INSERT INTO weekly_outfit_plans (week_start, step1_raw, status, user_id)
         VALUES (
           ${input.weekStart}::date,
@@ -168,12 +312,16 @@ export async function runWeeklyOutfitsJob(
           ${input.userId}
         )
         RETURNING id
-      `) as { id: string }[];
-      planId = insertedRows[0]!.id;
+      `;
+      const insertedParsed = z.array(insertedIdRowSchema).parse(insertedRaw);
+      const insertedId = insertedParsed[0]?.id;
+      if (!insertedId) {
+        throw new Error("Insert weekly plan returned no id");
+      }
+      planId = insertedId;
     }
 
-    for (let i = 0; i < looksForDb.length; i++) {
-      const look = looksForDb[i]!;
+    for (const look of looksForDb) {
       await sql`
         INSERT INTO weekly_plan_looks (
           plan_id,
@@ -185,22 +333,22 @@ export async function runWeeklyOutfitsJob(
         )
         VALUES (
           ${planId},
-          ${i},
+          ${look.sortOrder},
           ${look.title},
           ${look.description},
           ${JSON.stringify(look.tags)}::jsonb,
-          ${look.garmentIds ?? []}
+          ${look.garmentIds}
         )
       `;
     }
 
     const wearer = await getWearerPhoto(input.userId);
     const heroOutcomes = await Promise.all(
-      looksForDb.map(async (look, i) => {
-        const ids = look.garmentIds ?? [];
+      looksForDb.map(async (look) => {
+        const ids = look.garmentIds;
         if (ids.length === 0) {
           return {
-            i,
+            sortOrder: look.sortOrder,
             url: null as string | null,
             missingGarments: true as const,
           };
@@ -225,9 +373,17 @@ export async function runWeeklyOutfitsJob(
             })),
             wearerPhotoUrl: wearer?.imageUrl,
           });
-          return { i, url: heroImage ?? null, missingGarments: false as const };
+          return {
+            sortOrder: look.sortOrder,
+            url: heroImage ?? null,
+            missingGarments: false as const,
+          };
         } catch {
-          return { i, url: null, missingGarments: false as const };
+          return {
+            sortOrder: look.sortOrder,
+            url: null,
+            missingGarments: false as const,
+          };
         }
       }),
     );
@@ -236,11 +392,11 @@ export async function runWeeklyOutfitsJob(
     if (missing) {
       await markPlanFailed(
         planId,
-        `Look sort_order=${missing.i} has no garment_ids; cannot render hero image.`,
+        `Look sort_order=${missing.sortOrder} has no garment_ids; cannot render hero image.`,
       );
       return {
         ok: false,
-        error: `Look ${missing.i} has no garment_ids`,
+        error: `Look ${missing.sortOrder} has no garment_ids`,
         planId,
       };
     }
@@ -251,7 +407,7 @@ export async function runWeeklyOutfitsJob(
           sql`
           UPDATE weekly_plan_looks
           SET hero_image_url = ${o.url}
-          WHERE plan_id = ${planId} AND sort_order = ${o.i}
+          WHERE plan_id = ${planId} AND sort_order = ${o.sortOrder}
         `,
       ),
     );

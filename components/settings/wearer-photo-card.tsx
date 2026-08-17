@@ -5,15 +5,14 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { useUploadThing } from "@/lib/uploadthing";
+import { publicImageUrl } from "@/lib/uploadthing/public-url";
 import { Button } from "@/components/ui/button";
+import { z } from "zod";
 
-function publicImageUrl(file: {
-  ufsUrl?: string;
-  url?: string;
-  appUrl?: string;
-}) {
-  return file.ufsUrl || file.url || file.appUrl || "";
-}
+const photoApiResultSchema = z.object({
+  ok: z.boolean(),
+  message: z.string().optional(),
+});
 
 export function WearerPhotoCard({
   initialImageUrl,
@@ -38,7 +37,11 @@ export function WearerPhotoCard({
     });
     let payload: { ok: boolean; message?: string };
     try {
-      payload = (await res.json()) as { ok: boolean; message?: string };
+      const parsed = photoApiResultSchema.safeParse(await res.json());
+      if (!parsed.success) {
+        throw new Error("Save returned an invalid response.");
+      }
+      payload = parsed.data;
     } catch {
       throw new Error("Save returned an invalid response.");
     }
@@ -83,12 +86,13 @@ export function WearerPhotoCard({
           method: "DELETE",
           credentials: "same-origin",
         });
-        const payload = (await res.json()) as {
-          ok: boolean;
-          message?: string;
-        };
-        if (!payload.ok) {
-          setError(payload.message || "Could not remove photo.");
+        const parsed = photoApiResultSchema.safeParse(await res.json());
+        if (!parsed.success || !parsed.data.ok) {
+          setError(
+            parsed.success
+              ? parsed.data.message || "Could not remove photo."
+              : "Could not remove photo.",
+          );
           return;
         }
         setImageUrl(null);

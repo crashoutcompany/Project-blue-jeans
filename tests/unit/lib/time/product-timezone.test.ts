@@ -5,6 +5,7 @@ import {
   formatProductDateLong,
   formatProductMonthYear,
   formatProductWornOn,
+  formatProductWeekday,
   productTodayIso,
   sundayWeekStartIso,
 } from "@/lib/time/product-timezone";
@@ -35,5 +36,10 @@ describe("product-timezone", () => {
   it("formats last-worn and month headings in the product timezone", () => {
     expect(formatProductWornOn("2026-08-10")).toBe("Mon, Aug 10");
     expect(formatProductMonthYear(2025, 3)).toBe("March 2025");
+  });
+
+  it("formats the weekday name", () => {
+    expect(formatProductWeekday("2026-08-16")).toBe("Sunday");
+    expect(formatProductWeekday("2026-08-10")).toBe("Monday");
   });
 });

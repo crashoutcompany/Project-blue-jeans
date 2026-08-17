@@ -2,13 +2,12 @@ import { z } from "zod";
 
 import { requireSql } from "@/lib/db";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
+import type { DeleteGarmentResult } from "@/lib/garments/types";
 import { deleteUploadThingFiles } from "@/lib/uploadthing-server";
 
 const garmentIdSchema = z.string().uuid();
 
-export type DeleteGarmentResult =
-  | { ok: true }
-  | { ok: false; message: string };
+export type { DeleteGarmentResult };
 
 /** Index of the `SELECT uploadthing_key … FOR UPDATE` statement in the txn. */
 const SELECT_KEY_INDEX = 4;
