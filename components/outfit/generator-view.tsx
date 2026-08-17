@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import {
   type FormEvent,
   useCallback,
@@ -26,7 +27,6 @@ import { productTodayIso } from "@/lib/time/product-timezone";
 import { GeneratorChatStack } from "@/components/outfit/generator-chat-stack";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
 
@@ -35,7 +35,25 @@ const approveOutfitResultSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(false), message: z.string() }),
 ]);
 
-const SUGGESTIONS = [
+const STARTERS = [
+  {
+    label: "Gallery opening",
+    hint: "Polished, a little unexpected",
+    prompt: "A gallery opening tonight — polished, a little unexpected.",
+  },
+  {
+    label: "Travel day",
+    hint: "Comfortable, still put together",
+    prompt: "A long travel day — comfortable, still put together.",
+  },
+  {
+    label: "Ruby and charcoal",
+    hint: "Build the look around this palette",
+    prompt: "Build around ruby and charcoal.",
+  },
+] as const;
+
+const REMIX_SUGGESTIONS = [
   "Make it more formal",
   "Change the palette toward ruby and charcoal",
   "Add a statement accessory",
@@ -44,6 +62,27 @@ const SUGGESTIONS = [
 
 function idsSignature(garments: ClothingCardData[]) {
   return garments.map((g) => g.id).join("\0");
+}
+
+function garmentThumb(g: ClothingCardData, sizes: string) {
+  const hasImage = Boolean(g.imageUrl);
+  if (hasImage) {
+    return (
+      <Image
+        src={g.imageUrl!}
+        alt=""
+        fill
+        className="object-cover"
+        sizes={sizes}
+      />
+    );
+  }
+  return (
+    <div
+      className="size-full"
+      style={{ backgroundColor: `${g.colorHex ?? "#e8e8e6"}40` }}
+    />
+  );
 }
 
 function GeneratorClosetScope({
@@ -55,6 +94,7 @@ function GeneratorClosetScope({
   pending: boolean;
   onSelectionChange: (ids: Set<string>) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState(
     () => new Set(closetGarments.map((g) => g.id)),
   );
@@ -74,6 +114,25 @@ function GeneratorClosetScope({
     selectedIds.size === allClosetIds.size &&
     [...selectedIds].every((id) => allClosetIds.has(id));
 
+  const previewGarments: ClothingCardData[] = [];
+  for (const g of closetGarments) {
+    if (!selectedIds.has(g.id)) continue;
+    previewGarments.push(g);
+    if (previewGarments.length === 3) break;
+  }
+
+  const count = closetGarments.length;
+  const summary =
+    count === 0
+      ? "No pieces yet"
+      : allSelected
+        ? count === 1
+          ? "Using 1 piece"
+          : `Using all ${count} pieces`
+        : selectedIds.size === 0
+          ? "No pieces selected"
+          : `${selectedIds.size} of ${count} pieces`;
+
   function patchSelection(updater: (prev: Set<string>) => Set<string>) {
     const next = updater(selectedIds);
     setSelectedIds(next);
@@ -92,112 +151,114 @@ function GeneratorClosetScope({
     onSelectionChange(next);
   }
 
+  if (closetGarments.length === 0) return null;
+
   return (
-    <>
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          Closet scope
-        </p>
-        {closetGarments.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="closet-scope-panel"
+        disabled={pending}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-2xl bg-muted/50 px-3 py-2.5 text-left",
+          "transition-[transform,background-color] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
+          "active:scale-[0.985]",
+          "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          pending && "opacity-60",
+        )}
+      >
+        <div className="flex shrink-0" aria-hidden>
+          {previewGarments.map((g, i) => (
+            <div
+              key={g.id}
+              className="relative size-8 overflow-hidden rounded-md bg-muted ring-2 ring-popover"
+              style={{ marginLeft: i === 0 ? 0 : -8 }}
+            >
+              {garmentThumb(g, "32px")}
+            </div>
+          ))}
+        </div>
+        <span className="sr-only">Closet scope, </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+          {summary}
+        </span>
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      {open ? (
+        <div
+          id="closet-scope-panel"
+          role="region"
+          aria-label="Pieces to include"
+          className="flex flex-col gap-2 animate-in fade-in duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:animate-none"
+        >
+          <div className="flex items-center justify-end gap-1 px-1">
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full text-xs"
+              variant="ghost"
+              size="xs"
               disabled={pending || allSelected}
               onClick={selectAllGarments}
             >
-              Select all
+              All
             </Button>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full text-xs"
+              variant="ghost"
+              size="xs"
               disabled={pending || selectedIds.size === 0}
               onClick={clearGarmentSelection}
             >
-              Clear
+              None
             </Button>
           </div>
-        ) : null}
-      </div>
-      {closetGarments.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
-          Add pieces in{" "}
-          <span className="font-medium text-foreground">Closet</span> first.
-        </p>
-      ) : (
-        <ScrollArea className="h-[min(200px,28vh)] rounded-xl border border-border/60 bg-background/40">
-          <ul className="divide-y divide-border/60 p-1.5">
+          <ul className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {closetGarments.map((g) => {
               const checked = selectedIds.has(g.id);
-              const hasImage = Boolean(g.imageUrl);
               return (
-                <li key={g.id}>
-                  <label
+                <li key={g.id} className="shrink-0">
+                  <button
+                    type="button"
+                    aria-pressed={checked}
+                    disabled={pending}
+                    onClick={() =>
+                      patchSelection((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(g.id)) next.delete(g.id);
+                        else next.add(g.id);
+                        return next;
+                      })
+                    }
                     className={cn(
-                      "flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 transition-colors",
-                      "hover:bg-muted/50",
-                      pending && "pointer-events-none opacity-60",
+                      "flex w-[4.5rem] flex-col gap-1.5 text-left",
+                      "transition-[transform,opacity] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                      "active:scale-[0.97]",
+                      "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      checked ? "opacity-100" : "opacity-40",
+                      pending && "pointer-events-none",
                     )}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() =>
-                        patchSelection((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(g.id)) next.delete(g.id);
-                          else next.add(g.id);
-                          return next;
-                        })
-                      }
-                      className="size-3.5 shrink-0 rounded border-input accent-primary"
-                      disabled={pending}
-                    />
-                    <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-muted">
-                      {hasImage ? (
-                        <Image
-                          src={g.imageUrl!}
-                          alt={g.name}
-                          fill
-                          className="object-cover"
-                          sizes="40px"
-                        />
-                      ) : (
-                        <div
-                          className="flex size-full items-center justify-center text-[0.6rem] text-muted-foreground"
-                          style={{
-                            backgroundColor: `${g.colorHex ?? "#e8e8e6"}40`,
-                          }}
-                        >
-                          Piece
-                        </div>
-                      )}
+                    <div className="relative aspect-[0.78] w-[4.5rem] overflow-hidden rounded-xl bg-muted">
+                      {garmentThumb(g, "72px")}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {g.name}
-                      </p>
-                      <p className="truncate text-[0.65rem] capitalize text-muted-foreground">
-                        {g.category}
-                      </p>
-                    </div>
-                  </label>
+                    <span className="truncate text-[0.65rem] leading-tight text-foreground">
+                      {g.name}
+                    </span>
+                  </button>
                 </li>
               );
             })}
           </ul>
-        </ScrollArea>
-      )}
-      {closetGarments.length > 0 ? (
-        <p className="text-[0.65rem] text-muted-foreground">
-          {selectedIds.size} of {closetGarments.length} included
-        </p>
+        </div>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -455,154 +516,200 @@ export function GeneratorView({
     );
   }
 
+  const showStarters = messages.length === 0 && !pending;
+  const showRemix = messagesHaveGeneratedOptions(messages);
+  const sendDisabled =
+    pending || (closetGarments.length > 0 && selectedIds.size === 0);
+
   return (
-    <div className="mx-auto flex w-full max-w-none flex-col gap-5">
-      <details className="group rounded-2xl border border-border/70 bg-muted/20">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
-          <span>Closet scope</span>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="space-y-3 border-t border-border/60 px-4 py-4">
-          <GeneratorClosetScope
-            key={closetSig}
-            closetGarments={closetGarments}
-            pending={pending}
-            onSelectionChange={onClosetSelectionChange}
-          />
-        </div>
-      </details>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <div className="shrink-0 px-4 pt-3 sm:px-6">
+        <GeneratorClosetScope
+          key={closetSig}
+          closetGarments={closetGarments}
+          pending={pending}
+          onSelectionChange={onClosetSelectionChange}
+        />
+      </div>
 
-      <div className="flex min-h-[min(420px,58svh)] flex-col overflow-hidden rounded-3xl border border-border/80 bg-zinc-950/[0.03] shadow-inner dark:bg-zinc-950/40">
-        <div
-          ref={scrollRef}
-          className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-6 md:px-6"
-        >
-          {messages.length === 0 && !pending ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-              <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/80">
-                <Sparkles className="size-6 text-muted-foreground" />
-              </div>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Ask for a gallery opening, a travel day, or a color direction.
-                Your stylist returns three concepts you can flip through, each
-                with an editorial hero when image generation is available.
+      <div
+        ref={scrollRef}
+        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-4 sm:px-6"
+      >
+        {showStarters ? (
+          <div className="flex flex-col gap-6 pt-2">
+            <div className="flex max-w-md flex-col gap-2">
+              <h2 className="font-serif text-2xl tracking-tight text-foreground sm:text-[1.75rem]">
+                What are you dressing for?
+              </h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Three looks from your closet. Pick a starting point, or type
+                your own.
               </p>
+              {closetGarments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Add pieces in{" "}
+                  <Link
+                    href="/closet"
+                    className="font-medium text-foreground underline underline-offset-2"
+                  >
+                    Closet
+                  </Link>{" "}
+                  to dress from what you own.
+                </p>
+              ) : null}
             </div>
-          ) : null}
 
-          {messages.map((msg) => {
-            if (msg.role === "user") {
-              return (
-                <div key={msg.id} className="flex justify-end">
-                  <div className="max-w-[min(100%,28rem)] rounded-2xl bg-muted px-4 py-2.5 text-sm leading-relaxed text-foreground">
-                    {msg.text}
-                  </div>
-                </div>
-              );
-            }
-
-            if ("error" in msg) {
-              return (
-                <div key={msg.id} className="flex justify-start gap-3">
-                  <div
-                    className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
-                    aria-hidden
+            <ul className="flex max-w-lg flex-col gap-2">
+              {STARTERS.map((starter, index) => (
+                <li
+                  key={starter.label}
+                  className="animate-in fade-in slide-in-from-bottom-2 duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:animate-none motion-reduce:opacity-100"
+                  style={{
+                    animationDelay: `${index * 40}ms`,
+                    animationFillMode: "both",
+                  }}
+                >
+                  <button
+                    type="button"
+                    disabled={sendDisabled}
+                    onClick={() => runGeneration(starter.prompt)}
+                    className={cn(
+                      "flex w-full flex-col gap-0.5 rounded-2xl bg-muted/50 px-4 py-3.5 text-left",
+                      "transition-[transform,background-color] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                      "active:scale-[0.97]",
+                      "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "disabled:pointer-events-none disabled:opacity-50",
+                      "[@media(hover:hover)_and_(pointer:fine)]:hover:bg-muted",
+                    )}
                   >
-                    <Sparkles className="size-4 text-foreground" />
-                  </div>
-                  <p
-                    className="max-w-[min(100%,32rem)] rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive"
-                    role="alert"
-                  >
-                    {msg.error}
-                  </p>
-                </div>
-              );
-            }
+                    <span className="font-serif text-base tracking-tight text-foreground">
+                      {starter.label}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {starter.hint}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
+        {messages.map((msg) => {
+          if (msg.role === "user") {
+            return (
+              <div
+                key={msg.id}
+                className="flex justify-end animate-in fade-in duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:animate-none"
+              >
+                <div className="max-w-[min(100%,28rem)] rounded-2xl bg-muted px-4 py-2.5 text-sm leading-relaxed text-foreground">
+                  {msg.text}
+                </div>
+              </div>
+            );
+          }
+
+          if ("error" in msg) {
             return (
               <div key={msg.id} className="flex justify-start gap-3">
                 <div
-                  className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
                   aria-hidden
                 >
                   <Sparkles className="size-4 text-foreground" />
                 </div>
-                <div className="min-w-0 flex-1 space-y-3">
-                  <GeneratorChatStack
-                    key={msg.id}
-                    messageId={msg.id}
-                    looks={msg.looks}
-                    approvedLookId={approvedByMessage[msg.id] ?? null}
-                    onApprove={handleApprove}
-                    onRemix={handleRemix}
-                    disabled={pending}
-                    busyLookId={approveSavingLookId}
-                  />
-                  {msg.note.trim().length > 0 ? (
-                    <p className="max-w-prose pl-1 text-xs leading-relaxed text-muted-foreground">
-                      {msg.note}
-                    </p>
-                  ) : null}
-                </div>
+                <p
+                  className="max-w-[min(100%,32rem)] rounded-2xl bg-destructive/10 px-4 py-2.5 text-sm text-destructive"
+                  role="alert"
+                >
+                  {msg.error}
+                </p>
               </div>
             );
-          })}
+          }
 
-          {pending ? (
-            <div className="flex justify-start gap-3">
+          return (
+            <div key={msg.id} className="flex justify-start gap-3">
               <div
-                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
+                className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
                 aria-hidden
               >
-                <Sparkles className="size-4 animate-pulse text-foreground" />
+                <Sparkles className="size-4 text-foreground" />
               </div>
-              <div className="flex items-center gap-1.5 pt-2">
-                <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.2s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.1s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <GeneratorChatStack
+                  key={msg.id}
+                  messageId={msg.id}
+                  looks={msg.looks}
+                  approvedLookId={approvedByMessage[msg.id] ?? null}
+                  onApprove={handleApprove}
+                  onRemix={handleRemix}
+                  disabled={pending}
+                  busyLookId={approveSavingLookId}
+                />
+                {msg.note.trim().length > 0 ? (
+                  <p className="max-w-prose pl-1 text-xs leading-relaxed text-muted-foreground">
+                    {msg.note}
+                  </p>
+                ) : null}
               </div>
             </div>
-          ) : null}
-        </div>
+          );
+        })}
 
-        <div className="shrink-0 space-y-3 border-t border-border/60 bg-background/80 px-4 py-4 backdrop-blur-md md:px-5">
+        {pending ? (
+          <p className="text-sm text-muted-foreground animate-pulse">
+            Pulling three looks…
+          </p>
+        ) : null}
+      </div>
+
+      <div className="shrink-0 bg-popover/80 px-4 py-3 backdrop-blur-md sm:px-6">
+        <div className="flex flex-col gap-3">
           {error ? (
-            <p className="text-center text-xs text-destructive" role="alert">
+            <p className="text-xs text-destructive" role="alert">
               {error}
             </p>
           ) : null}
-          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {SUGGESTIONS.map((label) => (
-              <Button
-                key={label}
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={pending}
-                className="shrink-0 rounded-full text-xs font-normal"
-                onClick={() => runGeneration(label)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-          <form onSubmit={handleSubmit} className="flex gap-2">
+          {showRemix ? (
+            <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {REMIX_SUGGESTIONS.map((label) => (
+                <Button
+                  key={label}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={pending}
+                  className="shrink-0 rounded-full text-xs font-normal active:scale-[0.97] transition-transform duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                  onClick={() => runGeneration(label)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          <form
+            onSubmit={handleSubmit}
+            className={cn(
+              "flex items-center gap-1 rounded-2xl bg-muted/60 p-1.5",
+              "transition-[box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]",
+              "focus-within:ring-3 focus-within:ring-ring/50",
+            )}
+          >
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your request…"
+              placeholder="A dinner, a color, a mood…"
               disabled={pending}
-              className="h-11 flex-1 rounded-2xl border-border/80 bg-muted/40 px-4 text-base md:text-sm"
+              className="h-10 flex-1 border-0 bg-transparent px-3 text-base shadow-none focus-visible:ring-0 md:text-sm dark:bg-transparent"
               aria-label="Outfit request"
             />
             <Button
               type="submit"
               size="icon"
-              disabled={
-                pending || (closetGarments.length > 0 && selectedIds.size === 0)
-              }
-              className="size-11 shrink-0 rounded-2xl"
+              disabled={sendDisabled}
+              className="size-10 shrink-0 rounded-xl active:scale-[0.97] transition-transform duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]"
               aria-label="Send"
             >
               <SendHorizontal className="size-4" />

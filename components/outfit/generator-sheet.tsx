@@ -79,7 +79,7 @@ export function GeneratorSheet({
               Pick a new outfit for today from your closet.
             </SheetDescription>
           </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {open ? (
               <GeneratorView
                 key={sessionKey}
