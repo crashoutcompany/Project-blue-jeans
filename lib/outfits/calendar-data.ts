@@ -112,27 +112,25 @@ export async function loadCalendarMonthData(
       ORDER BY worn_on ASC, l.sort_order ASC
     `;
 
-    const [savedRows, weeklyRows] = await Promise.all([
-      savedQuery as Promise<
-        {
-          id: string;
-          worn_on: string;
-          image_url: string | null;
-          name: string | null;
-          occasion: string;
-          garment_ids: string[] | null;
-        }[]
-      >,
-      weeklyQuery as Promise<
-        {
-          plan_look_id: string;
-          worn_on: string;
-          title: string;
-          hero_image_url: string | null;
-          garment_ids: string[] | null;
-        }[]
-      >,
+    const [savedResult, weeklyResult] = await Promise.all([
+      savedQuery,
+      weeklyQuery,
     ]);
+    const savedRows = savedResult as {
+      id: string;
+      worn_on: string;
+      image_url: string | null;
+      name: string | null;
+      occasion: string;
+      garment_ids: string[] | null;
+    }[];
+    const weeklyRows = weeklyResult as {
+      plan_look_id: string;
+      worn_on: string;
+      title: string;
+      hero_image_url: string | null;
+      garment_ids: string[] | null;
+    }[];
 
     const savedDrafts = savedRows.map((r) => ({
       id: r.id,
