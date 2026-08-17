@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "@neondatabase/auth/ui/tailwind";
+@import "../node_modules/@neondatabase/auth/dist/ui/tailwind.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
