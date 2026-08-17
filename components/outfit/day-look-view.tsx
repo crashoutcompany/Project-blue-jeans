@@ -18,6 +18,8 @@ import { GeneratorSheet } from "@/components/outfit/generator-sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const PRESS =
+  "active:scale-[0.97] transition-transform duration-160 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transform-none";
 
 function initialSelectedDay(
   data: TodayPageData,
@@ -74,11 +76,17 @@ export function DayLookView({
   if (data.garmentCount === 0) {
     return (
       <>
-        <div className="page-canvas mx-auto flex min-h-[70svh] max-w-lg flex-col items-center justify-center gap-6 px-4 text-center">
-          <p className="text-muted-foreground">
+        <div className="page-canvas mx-auto flex min-h-[70svh] max-w-lg flex-col justify-center gap-5">
+          <h1 className="font-serif text-3xl tracking-tight text-foreground">
+            Your closet is empty
+          </h1>
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
             Add clothes to your closet to get started.
           </p>
-          <Link href="/closet" className={cn(buttonVariants({ size: "lg" }))}>
+          <Link
+            href="/closet"
+            className={cn(buttonVariants({ size: "lg" }), "w-fit", PRESS)}
+          >
             Add clothes
           </Link>
         </div>
@@ -100,29 +108,29 @@ export function DayLookView({
   const dateHeading = formatProductDateLong(selectedWornOn);
 
   return (
-    <div className="page-canvas mx-auto flex max-w-3xl flex-col gap-8 px-4 pb-16 pt-2 sm:px-6">
-      <p className="text-sm font-medium tracking-wide text-muted-foreground">
-        {dateHeading}
-      </p>
-
+    <div className="page-canvas mx-auto flex w-full max-w-3xl flex-col gap-12 pb-16">
       {look ? (
-        <>
-          <section className="relative aspect-[3/4] w-full overflow-hidden bg-muted sm:aspect-[4/5]">
+        <div className="flex flex-col gap-5">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            {dateHeading}
+          </p>
+
+          <section className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-muted">
             {look.heroImageUrl ? (
               <Image
                 key={look.heroImageUrl}
                 src={look.heroImageUrl}
-                alt=""
+                alt={look.title ?? "Look for this day"}
                 fill
                 priority
                 unoptimized={look.heroImageUrl.startsWith("data:")}
-                className="object-cover transition-opacity duration-220 ease-[cubic-bezier(0.2,0.7,0.2,1)]"
+                className="object-cover transition-opacity duration-220 ease-[cubic-bezier(0.23,1,0.32,1)]"
                 sizes="(max-width: 768px) 100vw, 48rem"
               />
             ) : collage ? (
               <div className="grid h-full w-full grid-cols-2 grid-rows-2">
                 {collage.map((g) => (
-                  <div key={g.id} className="relative border border-background/40">
+                  <div key={g.id} className="relative">
                     <Image
                       src={g.imageUrl}
                       alt=""
@@ -138,15 +146,16 @@ export function DayLookView({
                 Look brewing…
               </div>
             )}
+            {look.title ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background from-10% via-background/75 to-transparent px-5 pb-5 pt-24">
+                <h1 className="font-serif text-3xl leading-[1.15] tracking-tight text-foreground sm:text-4xl">
+                  {look.title}
+                </h1>
+              </div>
+            ) : null}
           </section>
 
-          <div className="flex flex-col gap-4">
-            {look.title ? (
-              <h1 className="font-serif text-2xl tracking-tight text-foreground sm:text-3xl">
-                {look.title}
-              </h1>
-            ) : null}
-
+          <div className="flex flex-col gap-3">
             {error ? (
               <p className="text-sm text-destructive" role="alert">
                 {error}
@@ -154,12 +163,12 @@ export function DayLookView({
             ) : null}
 
             {canEdit ? (
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 {look.kind === "fit" && look.planLookId ? (
                   <Button
                     size="lg"
                     disabled={pending}
-                    className="active:scale-[0.97] transition-transform duration-160 ease-out"
+                    className={PRESS}
                     onClick={() => {
                       setError(null);
                       startTransition(async () => {
@@ -179,6 +188,7 @@ export function DayLookView({
                 <Button
                   variant={look.kind === "outfit" ? "default" : "outline"}
                   size="lg"
+                  className={PRESS}
                   onClick={() => setChangeLookOpen(true)}
                 >
                   Change look
@@ -189,6 +199,7 @@ export function DayLookView({
                     variant="ghost"
                     size="lg"
                     disabled={pending}
+                    className={PRESS}
                     onClick={() => {
                       setError(null);
                       startTransition(async () => {
@@ -224,45 +235,17 @@ export function DayLookView({
               </p>
             ) : null}
           </div>
-
-          {look.garments.length > 0 ? (
-            <section className="flex flex-col gap-3">
-              <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                Garments used
-              </h2>
-              <ul className="flex gap-3 overflow-x-auto pb-1">
-                {look.garments.map((g) => (
-                  <li key={g.id} className="shrink-0">
-                    <Link
-                      href="/closet"
-                      className="block w-20 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <div className="relative aspect-[0.78] w-20 overflow-hidden bg-muted">
-                        <Image
-                          src={g.imageUrl}
-                          alt={g.name ?? g.category}
-                          fill
-                          className="object-cover"
-                          sizes="80px"
-                        />
-                      </div>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {g.name ?? g.category}
-                      </p>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </>
+        </div>
       ) : (
-        <div className="flex min-h-[40svh] flex-col items-center justify-center gap-6 text-center">
-          <p className="text-muted-foreground">
+        <div className="flex min-h-[36svh] flex-col justify-center gap-5 py-6">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            {dateHeading}
+          </p>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground">
             {isTodaySelected
               ? "No look for today yet."
               : "No look for this day yet."}
-          </p>
+          </h1>
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {error}
@@ -272,6 +255,7 @@ export function DayLookView({
             <Button
               size="lg"
               disabled={pending}
+              className={cn("w-fit", PRESS)}
               onClick={() => {
                 setError(null);
                 startTransition(async () => {
@@ -287,7 +271,11 @@ export function DayLookView({
               {pending ? "Planning…" : "Plan my week"}
             </Button>
           ) : canEdit ? (
-            <Button size="lg" onClick={() => setChangeLookOpen(true)}>
+            <Button
+              size="lg"
+              className={cn("w-fit", PRESS)}
+              onClick={() => setChangeLookOpen(true)}
+            >
               Change look
             </Button>
           ) : (
@@ -298,24 +286,63 @@ export function DayLookView({
         </div>
       )}
 
-      <section className="flex flex-col gap-3" aria-label="This week">
+      {look && look.garments.length > 0 ? (
+        <section className="flex flex-col gap-4">
+          <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            The pieces
+          </h2>
+          <ul className="flex gap-4 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {look.garments.map((g) => (
+              <li key={g.id} className="shrink-0">
+                <Link
+                  href="/closet"
+                  className="block w-28 outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-32"
+                >
+                  <div className="garment-tile relative aspect-[0.78] w-28 overflow-hidden rounded-xl bg-muted sm:w-32">
+                    <Image
+                      src={g.imageUrl}
+                      alt={g.name ?? g.category}
+                      fill
+                      data-garment-image
+                      className="object-cover"
+                      sizes="128px"
+                    />
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs leading-snug text-muted-foreground">
+                    {g.name ?? g.category}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="flex flex-col gap-4" aria-label="This week">
         <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
           This week
         </h2>
-        <ul className="grid grid-cols-7 gap-2">
+        <ul className="grid grid-cols-7 gap-2 sm:gap-3">
           {data.weekPeek.map((day) => {
             const isToday = day.wornOn === data.todayIso;
             const isSelected = day.wornOn === selectedWornOn;
             const hasLook = day.kind !== "empty";
             return (
-              <li
-                key={day.wornOn}
-                className={cn(
-                  "flex flex-col items-center gap-1.5",
-                  isToday && "font-medium",
-                )}
-              >
-                <span className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+              <li key={day.wornOn} className="flex flex-col items-center gap-2">
+                <span
+                  className={cn(
+                    "flex items-center gap-1 text-[0.65rem] uppercase tracking-wider",
+                    isSelected || isToday
+                      ? "text-foreground"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {isToday ? (
+                    <span
+                      className="size-1 rounded-full bg-foreground"
+                      aria-hidden
+                    />
+                  ) : null}
                   {day.label}
                 </span>
                 <button
@@ -324,9 +351,11 @@ export function DayLookView({
                   aria-current={isSelected ? "true" : undefined}
                   onClick={() => setSelectedWornOn(day.wornOn)}
                   className={cn(
-                    "relative aspect-square w-full overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isToday && "ring-1 ring-foreground",
-                    isSelected && !isToday && "ring-1 ring-foreground/50",
+                    "relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-muted",
+                    "outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "transition-[transform,opacity] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                    "active:scale-[0.97] motion-reduce:transform-none",
+                    isSelected ? "opacity-100" : "opacity-40",
                   )}
                 >
                   {day.heroImageUrl ? (

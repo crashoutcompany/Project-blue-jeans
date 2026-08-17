@@ -42,7 +42,6 @@ import {
 } from "@/lib/garments/color-facets";
 import { formatProductWornOn } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ClosetMode = "pieces" | "outfits";
 
@@ -403,114 +402,137 @@ export function ClosetView({
 
   return (
     <div className="relative flex min-h-[calc(100svh-5rem)] flex-col">
-      <header className="flex flex-col px-1 pt-2 sm:px-0 sm:pt-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="text-[13px] font-medium uppercase tracking-[0.1em] leading-none text-foreground">
-            {headerLabel}
-          </p>
-          {showGarments ? (
-            <label className="group/search relative flex w-full max-w-[15rem] items-center gap-2.5 border-b border-border/55 pb-2 transition-[border-color] duration-160 ease-[ease] focus-within:border-foreground">
-              <Search
-                className="size-3.5 shrink-0 text-muted-foreground transition-colors duration-160 group-focus-within/search:text-foreground"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search pieces"
-                className="h-7 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-[13px] tracking-[0.02em] shadow-none placeholder:text-muted-foreground/65 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
-                aria-label="Search closet"
-              />
-              {query ? (
+      <header className="flex flex-col gap-6 px-1 pt-2 sm:px-0 sm:pt-6">
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+          <div
+            role="tablist"
+            aria-label="Closet modes"
+            className="flex w-fit items-center gap-5"
+          >
+            {(
+              [
+                { id: "pieces", label: "Pieces" },
+                { id: "outfits", label: "Outfits" },
+              ] as const
+            ).map((tab) => {
+              const active = mode === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setMode(tab.id)}
+                  className={cn(
+                    "shrink-0 border-b-2 py-1 text-xs font-medium uppercase tracking-[0.08em]",
+                    "transition-[color,border-color,transform] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                    "active:scale-[0.98] motion-reduce:transform-none",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground",
+                    "[@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground",
+                    active
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground",
+                  )}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-4 sm:flex-none">
+            <p className="shrink-0 text-xs tracking-[0.02em] text-muted-foreground">
+              {headerLabel}
+            </p>
+            {showGarments ? (
+              <label className="group/search relative flex w-full max-w-[15rem] items-center gap-2.5 border-b border-border/55 pb-1.5 transition-[border-color] duration-200 ease-[ease] focus-within:border-foreground">
+                <Search
+                  className="size-3.5 shrink-0 text-muted-foreground transition-colors duration-200 ease-[ease] group-focus-within/search:text-foreground"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search pieces"
+                  className="h-7 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-[13px] tracking-[0.02em] shadow-none placeholder:text-muted-foreground/65 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+                  aria-label="Search closet"
+                />
+                {query ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="grid size-6 shrink-0 place-items-center text-muted-foreground transition-[color,transform] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] motion-reduce:transform-none [@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+                    aria-label="Clear search"
+                  >
+                    <X className="size-3.5" strokeWidth={1.75} />
+                  </button>
+                ) : null}
+              </label>
+            ) : null}
+          </div>
+        </div>
+
+        {showGarments ? (
+          <div className="flex flex-col gap-4">
+            <FilterPills value={category} onChange={setCategory} />
+            {dynamicColorFacets.length > 0 ? (
+              <div
+                className="flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                role="group"
+                aria-label="Filter by color"
+              >
                 <button
                   type="button"
-                  onClick={() => setQuery("")}
-                  className="grid size-6 shrink-0 place-items-center text-muted-foreground transition-colors duration-160 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
-                  aria-label="Clear search"
+                  aria-pressed={activeColorId === "all"}
+                  onClick={() => setColorId("all")}
+                  className={cn(
+                    "shrink-0 py-1 text-xs font-medium uppercase tracking-[0.08em]",
+                    "transition-[color,transform] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                    "active:scale-[0.98] motion-reduce:transform-none",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground",
+                    "[@media(hover:hover)_and_(pointer:fine)]:hover:text-foreground",
+                    activeColorId === "all"
+                      ? "text-foreground"
+                      : "text-muted-foreground",
+                  )}
                 >
-                  <X className="size-3.5" strokeWidth={1.75} />
+                  Any
                 </button>
-              ) : null}
-            </label>
-          ) : null}
-        </div>
-
-        <div className="mt-10 flex flex-col gap-5 sm:mt-12">
-          <Tabs
-            value={mode}
-            onValueChange={(value) => {
-              if (value === "pieces" || value === "outfits") setMode(value);
-            }}
-          >
-            <TabsList
-              variant="line"
-              aria-label="Closet modes"
-              className="h-auto w-full justify-start gap-6 rounded-none border-b border-border/60 p-0"
-            >
-              <TabsTrigger
-                value="pieces"
-                className="rounded-none px-0 pb-2.5 text-xs font-medium uppercase tracking-[0.08em]"
-              >
-                Pieces
-              </TabsTrigger>
-              <TabsTrigger
-                value="outfits"
-                className="rounded-none px-0 pb-2.5 text-xs font-medium uppercase tracking-[0.08em]"
-              >
-                Outfits
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {showGarments ? (
-            <FilterPills value={category} onChange={setCategory} />
-          ) : null}
-          {showGarments && dynamicColorFacets.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setColorId("all")}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-full ring-1 ring-offset-2 ring-offset-background transition duration-160 ease-[ease]",
-                  activeColorId === "all" ? "ring-foreground" : "ring-transparent",
-                )}
-                aria-label="All colors"
-                title="All colors"
-              >
-                <span
-                  className="size-5 rounded-full border border-border/50"
-                  style={{ backgroundColor: "#e2e3e0" }}
-                />
-              </button>
-              {dynamicColorFacets.map((c) => {
-                const active = activeColorId === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setColorId(c.id)}
-                    className={cn(
-                      "flex size-7 items-center justify-center rounded-full ring-1 ring-offset-2 ring-offset-background transition duration-160 ease-[ease]",
-                      active ? "ring-foreground" : "ring-transparent",
-                    )}
-                    aria-label={`Color: ${c.label}`}
-                    title={c.label}
-                  >
-                    <span
-                      className="size-5 rounded-full border border-border/40"
-                      style={{ backgroundColor: c.hex }}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
+                {dynamicColorFacets.map((c) => {
+                  const active = activeColorId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setColorId(c.id)}
+                      className={cn(
+                        "flex size-7 shrink-0 items-center justify-center rounded-full",
+                        "ring-2 ring-offset-2 ring-offset-background",
+                        "transition-[box-shadow,transform] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                        "active:scale-[0.97] motion-reduce:transform-none",
+                        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground",
+                        active ? "ring-foreground" : "ring-transparent",
+                      )}
+                      aria-label={`Color: ${c.label}`}
+                      title={c.label}
+                    >
+                      <span
+                        className="size-5 rounded-full border border-border/40"
+                        style={{ backgroundColor: c.hex }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       {mode === "outfits" ? (
-        <section className="mt-11 sm:mt-12" aria-label="Saved outfits">
+        <section className="mt-6 sm:mt-8" aria-label="Saved outfits">
           {outfitArchive.length === 0 ? (
             <div className="px-1 py-16 text-center sm:px-0">
               <p className="text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
@@ -575,7 +597,7 @@ export function ClosetView({
 
       {showGarments ? (
         <div
-          className="mt-8 grid grid-cols-2 gap-x-2 gap-y-3 sm:mt-11 sm:grid-cols-3 sm:gap-x-[18px] sm:gap-y-[22px] md:grid-cols-4 lg:grid-cols-[repeat(auto-fill,minmax(165px,1fr))]"
+          className="mt-6 grid grid-cols-2 gap-x-2 gap-y-3 sm:mt-8 sm:grid-cols-3 sm:gap-x-[18px] sm:gap-y-[22px] md:grid-cols-4 lg:grid-cols-[repeat(auto-fill,minmax(165px,1fr))]"
           aria-label="Closet pieces"
         >
           {filtered.map((g) => (

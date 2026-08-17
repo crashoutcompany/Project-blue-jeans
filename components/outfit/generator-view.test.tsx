@@ -52,4 +52,21 @@ describe("GeneratorView", () => {
       );
     });
   });
+
+  it("starts generation from an empty-state starter", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+    render(<GeneratorView closetGarments={garments} />);
+    await user.click(screen.getByRole("button", { name: /gallery opening/i }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/generate-lookbook",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0]?.[1] as RequestInit).body as string,
+    );
+    expect(body.narrative).toMatch(/gallery opening/i);
+  });
 });
