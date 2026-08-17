@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   STEP2_SYSTEM,
   STEP2_TRYON_SYSTEM,
+  step1UserPrompt,
   step2TryOnUserPrompt,
   step2UserPrompt,
 } from "@/lib/ai/lookbook/prompts";
@@ -38,5 +39,32 @@ describe("studio photoshoot backdrop", () => {
     expect(tryOn).toMatch(/photoshoot/);
     expect(tryOn).toMatch(/solid/);
     expect(tryOn).not.toMatch(/natural light/);
+  });
+});
+
+describe("weekly sequential step-1 prompt", () => {
+  it("names the weekday and lists already-planned looks", () => {
+    const prompt = step1UserPrompt({
+      lookCount: 1,
+      climate: "Temperate",
+      context: "Everyday week",
+      narrative: "",
+      catalogText:
+        "- **id-1** | tops | Tee | color: — | desc: (no description) | notes: —",
+      weekly: true,
+      weeklyWeekday: "Friday",
+      alreadyPlanned: [
+        {
+          weekday: "Thursday",
+          title: "Office polo",
+          garmentNames: ["Polo", "Grey trousers"],
+        },
+      ],
+    });
+
+    expect(prompt).toContain("**Friday**");
+    expect(prompt).toContain("one day");
+    expect(prompt).toContain("Thursday — Office polo (Polo, Grey trousers)");
+    expect(prompt).not.toContain("Monday (index 0)");
   });
 });

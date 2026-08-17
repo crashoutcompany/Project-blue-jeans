@@ -1,3 +1,4 @@
+import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import { runOutfitPlanStep } from "@/lib/ai/lookbook/step1-plan";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import {
@@ -13,8 +14,8 @@ export type RunStep1PlanWithRetryParams = {
   catalogText: string;
   validIds: ReadonlySet<string>;
   weekly?: boolean;
-  /** When set with `weekly` and `lookCount === 1`, prompt targets that weekday only. */
-  weeklyDayIndex?: number;
+  weeklyWeekday?: string;
+  alreadyPlanned?: AlreadyPlannedLook[];
 };
 
 /**
@@ -31,7 +32,8 @@ export async function runStep1PlanWithRetry(
     catalogText,
     validIds,
     weekly,
-    weeklyDayIndex,
+    weeklyWeekday,
+    alreadyPlanned,
   } = params;
 
   let plan = await runOutfitPlanStep({
@@ -41,7 +43,8 @@ export async function runStep1PlanWithRetry(
     narrative,
     catalogText,
     weekly,
-    weeklyDayIndex,
+    weeklyWeekday,
+    alreadyPlanned,
   });
 
   plan = filterPlanToValidGarmentIds(plan, validIds);
@@ -56,7 +59,8 @@ export async function runStep1PlanWithRetry(
         `\n\nIMPORTANT: You must only output garmentIds that appear in this exact list: ${[...validIds].join(", ")}`,
       catalogText,
       weekly,
-      weeklyDayIndex,
+      weeklyWeekday,
+      alreadyPlanned,
     });
     plan = filterPlanToValidGarmentIds(plan, validIds);
   }
