@@ -49,7 +49,7 @@ function buildWeeklyStep1Raw(plans: LookbookPlan[]) {
 }
 
 /**
- * Weekly cron: **7 parallel** step-1 calls (one outfit per weekday), then **7 parallel**
+ * Plan my week: **7 parallel** step-1 calls (one outfit per weekday), then **7 parallel**
  * hero-image calls. Same models as the generator; no batch/GCS.
  */
 export async function runWeeklyOutfitsJob(

@@ -19,6 +19,9 @@ vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
 
 import { OutfitCalendar } from "@/components/outfit/outfit-calendar";
 
+const PLAN_LOOK_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+const GARMENT_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+
 describe("OutfitCalendar", () => {
   afterEach(() => {
     cleanup();
@@ -44,7 +47,6 @@ describe("OutfitCalendar", () => {
       ok: true,
       outfitId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
     });
-    const planLookId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
     render(
       <OutfitCalendar
         year={2025}
@@ -53,16 +55,17 @@ describe("OutfitCalendar", () => {
         weeklyDrafts={[
           {
             wornOn: "2025-01-06",
-            planLookId,
+            planLookId: PLAN_LOOK_ID,
             title: "Weekly",
             heroImageUrl: null,
-            garmentIds: ["f47ac10b-58cc-4372-a567-0e02b2c3d479"],
+            garmentIds: [GARMENT_ID],
+            garmentThumbs: [],
           },
         ]}
       />,
     );
     await user.click(screen.getByRole("button", { name: /approve/i }));
-    expect(approveWeeklyPlanLook).toHaveBeenCalledWith(planLookId);
+    expect(approveWeeklyPlanLook).toHaveBeenCalledWith(PLAN_LOOK_ID);
   });
 
   it("rings the product-timezone today cell", () => {
@@ -71,5 +74,64 @@ describe("OutfitCalendar", () => {
     );
     const day = screen.getByText("10", { selector: "span.tabular-nums" });
     expect(day.parentElement?.parentElement).toHaveClass("ring-primary/35");
+  });
+
+  it("fills the day tile with a hero image", () => {
+    render(
+      <OutfitCalendar
+        year={2025}
+        month={1}
+        saved={[]}
+        weeklyDrafts={[
+          {
+            wornOn: "2025-01-06",
+            planLookId: PLAN_LOOK_ID,
+            title: "Monday Kickoff",
+            heroImageUrl: "https://cdn.example.com/hero.jpg",
+            garmentIds: [],
+            garmentThumbs: [],
+          },
+        ]}
+      />,
+    );
+    expect(
+      document.querySelector('img[src="https://cdn.example.com/hero.jpg"]'),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a garment collage when the hero is missing", () => {
+    render(
+      <OutfitCalendar
+        year={2025}
+        month={1}
+        saved={[]}
+        weeklyDrafts={[
+          {
+            wornOn: "2025-01-06",
+            planLookId: PLAN_LOOK_ID,
+            title: "Monday Focus",
+            heroImageUrl: null,
+            garmentIds: [GARMENT_ID],
+            garmentThumbs: [
+              { id: GARMENT_ID, imageUrl: "https://cdn.example.com/g1.jpg" },
+              {
+                id: "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22",
+                imageUrl: "https://cdn.example.com/g2.jpg",
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(
+      document.querySelectorAll("img[src^='https://cdn.example.com/g']"),
+    ).toHaveLength(2);
+  });
+
+  it("does not use a dash placeholder on empty days", () => {
+    render(
+      <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
+    );
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });

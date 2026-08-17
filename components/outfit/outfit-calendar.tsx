@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -7,6 +8,7 @@ import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { approveWeeklyPlanLook } from "@/app/actions/outfits";
 import type {
+  CalendarLookThumb,
   CalendarSavedOutfit,
   CalendarWeeklyLook,
 } from "@/lib/outfits/calendar-data";
@@ -26,6 +28,8 @@ const WEEKDAY_LABELS = [
   "Sat",
   "Sun",
 ] as const;
+
+const CELL_ASPECT = "aspect-[3/4]";
 
 function shiftMonth(year: number, month: number, delta: number) {
   const d = new Date(year, month - 1 + delta, 1);
@@ -54,6 +58,50 @@ function buildMonthCells(year: number, month: number) {
 
 function isoDay(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function DayLookMedia({
+  heroUrl,
+  thumbs,
+}: {
+  heroUrl: string | null;
+  thumbs: CalendarLookThumb[];
+}) {
+  if (heroUrl) {
+    return (
+      <Image
+        src={heroUrl}
+        alt=""
+        fill
+        className="object-cover"
+        sizes="(max-width: 640px) 28vw, (max-width: 1024px) 14vw, 12vw"
+        unoptimized={heroUrl.startsWith("data:") ? true : undefined}
+      />
+    );
+  }
+
+  if (thumbs.length === 0) return null;
+
+  const slice = thumbs.slice(0, 4);
+  const cols = slice.length === 1 ? "grid-cols-1" : "grid-cols-2";
+  const rows = slice.length <= 2 ? "grid-rows-1" : "grid-rows-2";
+
+  return (
+    <div className={cn("grid size-full", cols, rows)}>
+      {slice.map((thumb) => (
+        <div key={thumb.id} className="relative min-h-0 min-w-0">
+          <Image
+            src={thumb.imageUrl}
+            alt=""
+            fill
+            className="object-cover"
+            sizes="(max-width: 640px) 14vw, 8vw"
+            unoptimized={thumb.imageUrl.startsWith("data:") ? true : undefined}
+          />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function OutfitCalendar({
@@ -118,7 +166,7 @@ export function OutfitCalendar({
   );
 
   return (
-    <div className="flex min-h-[min(720px,78svh)] flex-col gap-4">
+    <div className="flex min-h-[min(720px,78svh)] flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-serif text-3xl tracking-tight text-foreground md:text-4xl">
@@ -162,11 +210,11 @@ export function OutfitCalendar({
         </p>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-7 gap-px overflow-hidden rounded-3xl border border-border/80 bg-border/60">
+      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
         {WEEKDAY_LABELS.map((d) => (
           <div
             key={d}
-            className="bg-muted/50 px-2 py-2 text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+            className="px-1 pb-1 text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
           >
             {d}
           </div>
@@ -176,7 +224,7 @@ export function OutfitCalendar({
             return (
               <div
                 key={`e-${idx}`}
-                className="min-h-[clamp(5.5rem,12vh,8rem)] bg-muted/15"
+                className={cn(CELL_ASPECT, "rounded-xl bg-muted/15")}
               />
             );
           }
@@ -186,67 +234,98 @@ export function OutfitCalendar({
           const weekly = byDayWeekly.get(key) ?? null;
           const isToday = key === todayIso;
           const primary = outfits[0];
-          const thumb = primary?.imageUrl ?? weekly?.heroImageUrl ?? null;
+          const heroUrl = primary?.imageUrl ?? weekly?.heroImageUrl ?? null;
+          const thumbs = primary?.garmentThumbs ?? weekly?.garmentThumbs ?? [];
+          const hasMedia = Boolean(heroUrl) || thumbs.length > 0;
           const label =
             primary?.name?.trim() || primary?.occasion || weekly?.title || null;
+          const canApprove = Boolean(weekly) && outfits.length === 0;
+          const isSaved = Boolean(primary);
 
           return (
             <div
               key={key}
               className={cn(
-                "flex min-h-[clamp(5.5rem,12vh,8rem)] flex-col gap-1.5 bg-background p-2",
+                CELL_ASPECT,
+                "relative min-w-0 overflow-hidden rounded-xl bg-muted/30",
                 isToday && "ring-1 ring-inset ring-primary/35",
               )}
             >
-              <div className="flex items-start justify-between gap-1">
-                <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+              <div className="absolute inset-0">
+                <DayLookMedia heroUrl={heroUrl} thumbs={thumbs} />
+              </div>
+
+              <div className="relative z-10 flex items-start justify-between gap-1 p-1.5">
+                <span
+                  className={cn(
+                    "text-xs font-semibold tabular-nums",
+                    hasMedia
+                      ? "rounded-md bg-black/45 px-1.5 py-0.5 text-white"
+                      : "text-muted-foreground",
+                  )}
+                >
                   {cell.day}
                 </span>
                 {outfits.length > 1 ? (
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.6rem] font-medium text-muted-foreground">
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium",
+                      hasMedia
+                        ? "bg-black/45 text-white"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
                     +{outfits.length - 1}
+                  </span>
+                ) : isSaved ? (
+                  <span
+                    className={cn(
+                      "inline-flex size-5 items-center justify-center rounded-full",
+                      hasMedia
+                        ? "bg-black/45 text-white"
+                        : "bg-muted text-primary",
+                    )}
+                    aria-label="Saved"
+                  >
+                    <Check className="size-3" />
                   </span>
                 ) : null}
               </div>
 
-              <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-muted/40">
-                {thumb ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={thumb}
-                    alt=""
-                    className="absolute inset-0 size-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-full min-h-[4rem] items-center justify-center text-[0.65rem] text-muted-foreground">
-                    —
-                  </div>
-                )}
-              </div>
-
-              {label ? (
-                <p className="line-clamp-2 text-[0.65rem] leading-snug text-foreground/90">
-                  {label}
-                </p>
-              ) : null}
-
-              {weekly && outfits.length === 0 ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={pendingLookId === weekly.planLookId}
-                  className="h-7 w-full rounded-lg text-[0.7rem]"
-                  onClick={() => onApproveWeekly(weekly.planLookId)}
+              {label || canApprove ? (
+                <div
+                  className={cn(
+                    "absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 p-1.5 pt-8",
+                    hasMedia
+                      ? "bg-gradient-to-t from-black/75 via-black/35 to-transparent"
+                      : null,
+                  )}
                 >
-                  <Check className="mr-1 size-3" />
-                  {pendingLookId === weekly.planLookId ? "Saving…" : "Approve"}
-                </Button>
-              ) : null}
-
-              {primary && outfits.length > 0 ? (
-                <div className="flex items-center gap-1 text-[0.6rem] text-muted-foreground">
-                  <Check className="size-3 shrink-0 text-primary" />
-                  Saved
+                  {label ? (
+                    <p
+                      className={cn(
+                        "line-clamp-2 text-[0.65rem] leading-snug",
+                        hasMedia ? "text-white" : "text-foreground/90",
+                      )}
+                    >
+                      {label}
+                    </p>
+                  ) : null}
+                  {canApprove && weekly ? (
+                    <Button
+                      type="button"
+                      size="xs"
+                      disabled={pendingLookId === weekly.planLookId}
+                      className="h-6 w-full rounded-md text-[0.65rem] shadow-sm"
+                      aria-label={`Approve ${weekly.title}`}
+                      onClick={() => onApproveWeekly(weekly.planLookId)}
+                    >
+                      <Check className="size-3" />
+                      {pendingLookId === weekly.planLookId
+                        ? "Saving…"
+                        : "Approve"}
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </div>

@@ -235,7 +235,9 @@ export function GeneratorView({
   const [pending, startTransition] = useTransition();
   const scrollRef = useRef<HTMLDivElement>(null);
   const onHasGeneratedOptionsChangeRef = useRef(onHasGeneratedOptionsChange);
-  onHasGeneratedOptionsChangeRef.current = onHasGeneratedOptionsChange;
+  useEffect(() => {
+    onHasGeneratedOptionsChangeRef.current = onHasGeneratedOptionsChange;
+  });
 
   const closetSig = useMemo(
     () => idsSignature(closetGarments),
