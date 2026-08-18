@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
 import type { MembershipPolicy } from "@/lib/auth/membership";
 import { requireSql } from "@/lib/db";
@@ -207,18 +208,44 @@ export async function readPendingInviteCookie(): Promise<string | null> {
   return token || null;
 }
 
-export async function writePendingInviteCookie(token: string): Promise<void> {
-  const store = await cookies();
-  store.set(PENDING_INVITE_COOKIE, token, {
+function pendingInviteCookieOptions(maxAge: number) {
+  return {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "lax" as const,
     path: "/",
-    maxAge: Math.floor(INVITE_TTL_MS / 1000),
+    maxAge,
     secure: process.env.NODE_ENV === "production",
-  });
+  };
 }
 
-export async function clearPendingInviteCookie(): Promise<void> {
-  const store = await cookies();
-  store.delete(PENDING_INVITE_COOKIE);
+/** Attach cookies to a Route Handler redirect — never cookies().set() then redirect(). */
+export function redirectTo(request: Request, path: string): NextResponse {
+  return NextResponse.redirect(new URL(path, request.url));
+}
+
+export function redirectWithPendingInvite(
+  request: Request,
+  path: string,
+  token: string,
+): NextResponse {
+  const response = redirectTo(request, path);
+  response.cookies.set(
+    PENDING_INVITE_COOKIE,
+    token,
+    pendingInviteCookieOptions(Math.floor(INVITE_TTL_MS / 1000)),
+  );
+  return response;
+}
+
+export function redirectClearingPendingInvite(
+  request: Request,
+  path: string,
+): NextResponse {
+  const response = redirectTo(request, path);
+  response.cookies.set(
+    PENDING_INVITE_COOKIE,
+    "",
+    pendingInviteCookieOptions(0),
+  );
+  return response;
 }
