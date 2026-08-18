@@ -48,6 +48,18 @@ _Avoid_: Treating Generator as the home or as a dateless mood board; week planni
 A signed-in user whose **Digital Closet**, **Fits**, **Outfits**, and **Today** are private to them.
 _Avoid_: Shared household closet as the default; multi-profile under one login (deferred)
 
+**Admitted Wearer account**:
+A **Wearer account** that accepted a one-time, expiring owner invitation and is bound to that authenticated identity; authentication alone does not grant product access, and admission can be revoked.
+_Avoid_: Treating administrator status as the definition of a Wearer; open access for every authenticated account
+
+**Provider connections**:
+The Google AI Studio and UploadThing accounts that fund and persist a Wearer account’s AI and media usage. Every UploadThing connection uses one app created specifically for Blue Jeans. Its token may rotate, but the connected app cannot change while it owns Blue Jeans media.
+_Avoid_: Reusing or sharing an UploadThing app; sharing Google credentials (discouraged but not enforced); stranding files by switching UploadThing apps
+
+**Wearer media**:
+Private image files owned by one **Wearer account**: Garment photos, the **Wearer photo**, and generated Fit / Outfit heroes. Access requires authorization even when someone knows a file URL.
+_Avoid_: Public CDN objects; treating an unguessable URL as access control
+
 **Calendar**:
 The week/month map of **Fits** and **Outfits** — browse and open days; not the primary commit surface and not the default home.
 _Avoid_: Treating Calendar as the planner-first product; making it the place you “decide today”
@@ -63,6 +75,40 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 ## Relationships
 
 - **Project Blue Jeans** is the formal name; **Blue Jeans** is the in-app chrome label
+- Signed-in product access is invite-gated to **Admitted Wearer accounts**
+- The owner manages invitations and admissions; invitations target a normalized email, expire, can be accepted once, and bind the resulting authenticated user id
+- Revoking an admission immediately and irreversibly begins that Wearer account’s full media, credential, and product-data deletion with no grace period
+- Product admission, administrative authority, and provider funding are independent account policies; administrator status does not implicitly define a Wearer or choose who pays
+- The owner is an **Admitted Wearer account** whose AI and media provider usage always uses platform environment credentials; every other **Admitted Wearer account** connects and funds its own Google AI Studio and UploadThing providers
+- Ownership transfer is not supported in v1; the sole owner cannot delete their account while any other Admitted Wearer account remains
+- The owner may see another Wearer’s provider setup and health state for support, but not credential hints, provider account identifiers, usage, prompts, Closet data, or media
+- Provider funding is isolated: a missing, invalid, rate-limited, or exhausted Wearer-funded connection never falls back to the owner’s platform-funded connection
+- Provider-side quotas control Wearer-funded spending; Blue Jeans does not add spending quotas, but still prevents duplicate, concurrent, replayed, or unbounded requests from multiplying work
+- Multi-step media, AI, notification, migration, and deletion work is durable and idempotent; each external step rechecks current admission, consent, and provider state before acting
+- Wearer-funded provider credentials are write-only: Settings may show connection status and non-secret identifying details, but never reveals a stored key or token
+- A new or replacement provider credential becomes active only after validation; a failed replacement leaves the last valid connection active, and an UploadThing token rotation must identify the already-connected app
+- Google setup accepts any working Google AI Studio API key; Blue Jeans neither requires nor verifies that the key is dedicated or API-restricted
+- Connecting, replacing, or forgetting a provider credential and deleting an account require authentication within the previous 10 minutes, not merely an existing session
+- A broken **Provider connection** does not block access to existing Closet, Fit, Outfit, Today, or Calendar data; only actions that require that provider are unavailable until the connection is repaired
+- Adding and editing Garments requires UploadThing for new media but not Google; when Google is unavailable, AI description is skipped and manual Garment fields remain usable
+- **Plan my week** and **Outfit Generator** require healthy Google and UploadThing connections because their generated heroes must be persisted as private Wearer media; they do not create image-less Fits while storage is unavailable
+- Every platform-funded or Wearer-funded UploadThing connection must use a dedicated UploadThing app for Blue Jeans because its credential controls the whole app
+- A Wearer may rotate the token for the same UploadThing app only when no upload is pending; switching to another UploadThing app is blocked until the current app owns no Blue Jeans media
+- An active Wearer cannot disconnect or forget an UploadThing connection while it owns Blue Jeans media; only same-app token rotation or full account deletion can proceed
+- Uploaded images become **Wearer media** only after decoded-dimension validation and metadata-stripping re-encoding into an allowed format; rejected and unsanitized temporary objects are deleted
+- All **Wearer media** is private; Blue Jeans authorizes each read rather than exposing persistent public URLs
+- Neon persists encrypted provider credentials, media identity / ownership, and product records; all uploaded and generated image bytes live in the owning UploadThing app rather than database fields or data URLs
+- AI results persist only schema-validated, length-bounded Fit / Outfit fields and usage metadata; raw provider responses are discarded
+- Per-Wearer privacy is enforced both by application authorization and by database row-level isolation; no query path relies on only one of those boundaries
+- Connecting Google discloses which private Wearer data AI features send to Google and consents to Garment-photo / notes analysis; the first try-on separately records explicit Wearer-photo consent with the disclosure version, timestamp, and authenticated identity, material disclosure changes require renewed consent, and revocation cancels queued image work, best-effort aborts active requests, discards late results, and disables future AI image processing
+- Production diagnostics retain operational metadata only; provider credentials, prompts, provider responses, private media, and temporary media access URLs are never logged or sent to analytics
+- Suspected exposure of both encrypted credentials and their master key immediately disables every affected connection, notifies Wearers to revoke provider-side credentials, and requires fresh credentials after Blue Jeans rotates its master key
+- Invitations, authentication email customization, and security notifications use the platform-funded Resend service; Resend is product infrastructure, not a Wearer-funded Provider connection
+- Blue Jeans sends the affected Wearer an out-of-band email for provider credential lifecycle changes, AI consent changes, and account deletion / owner revocation without including provider identifiers, content, media, or secrets
+- Account deletion retains for 90 days only a pseudonymous security audit of invitation, credential lifecycle, security events, and deletion outcome; it contains no provider identifiers, content, media, or secrets
+- Blue Jeans does not provide an in-product Wearer data export before deletion
+- Deleting a **Wearer account** first stops new writes, revokes every session, and attempts to remove all of its **Wearer media**, then forgets provider credentials and product data even if UploadThing deletion fails and deletes the app-specific authentication identity; unreachable leftovers remain private in the Wearer-owned dedicated UploadThing app
+- Deleted encrypted credentials and product data may remain only in bounded database backups until the disclosed retention window expires; they are not active product data during that window
 - Each **Wearer account** owns one **Digital Closet** and one **Today**
 - Each **Wearer account** has at most one **Wearer photo** used for try-on heroes
 - The **Primary job** is answered by an **Outfit** for today
