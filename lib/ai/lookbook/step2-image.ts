@@ -19,6 +19,7 @@ export type GarmentImageSource = {
 };
 
 export type RunHeroImageStepParams = {
+  apiKey: string;
   title: string;
   description: string;
   climate: string;
@@ -92,7 +93,7 @@ export async function runHeroImageStep(
   }
 
   const imageResult = await generateText({
-    model: geminiModel(GEMINI_IMAGE_MODEL),
+    model: geminiModel(GEMINI_IMAGE_MODEL, params.apiKey),
     system: tryOn ? STEP2_TRYON_SYSTEM : STEP2_SYSTEM,
     prompt: [
       {

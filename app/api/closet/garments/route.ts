@@ -2,6 +2,7 @@ import { connection, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { isAdminUser } from "@/lib/auth/admin";
+import { platformOwnerMembership } from "@/lib/auth/membership";
 import { auth } from "@/lib/auth/server";
 import {
   revalidateAfterGarmentDelete,
@@ -127,7 +128,11 @@ export async function POST(request: Request) {
   }
 
   const items: CreateGarmentItemInput[] = parsed.data.items;
-  const result = await persistUploadedGarmentItems(gate.userId, items);
+  const result = await persistUploadedGarmentItems(
+    gate.userId,
+    items,
+    platformOwnerMembership(gate.userId),
+  );
   if (!result.ok) {
     return NextResponse.json(result, { status: 422 });
   }
@@ -157,16 +162,20 @@ export async function PATCH(request: Request) {
   }
 
   const body = parsed.data;
-  const result = await updateGarmentFields(gate.userId, {
-    id: body.id,
-    name: body.name,
-    category: body.category,
-    color: body.color,
-    notes: body.notes,
-    description: body.description,
-    regenerateNameWithAi: body.regenerateNameWithAi,
-    regenerateDescriptionWithAi: body.regenerateDescriptionWithAi,
-  });
+  const result = await updateGarmentFields(
+    gate.userId,
+    {
+      id: body.id,
+      name: body.name,
+      category: body.category,
+      color: body.color,
+      notes: body.notes,
+      description: body.description,
+      regenerateNameWithAi: body.regenerateNameWithAi,
+      regenerateDescriptionWithAi: body.regenerateDescriptionWithAi,
+    },
+    platformOwnerMembership(gate.userId),
+  );
   if (!result.ok) {
     const status = result.message === "Garment not found." ? 404 : 422;
     return NextResponse.json(result, { status });

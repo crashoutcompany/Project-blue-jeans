@@ -6,9 +6,13 @@ All Gemini usage in this app goes through the **Gemini Developer API** (Google A
 
 | Variable                        | Description                                                                 |
 | ------------------------------- | --------------------------------------------------------------------------- |
-| `GOOGLE_GENERATIVE_AI_API_KEY`  | API key from [Google AI Studio](https://aistudio.google.com/apikey).        |
+| `GOOGLE_GENERATIVE_AI_API_KEY`  | API key from [Google AI Studio](https://aistudio.google.com/apikey). Used only for the platform-funded owner. Admitted Wearers save their own key in Settings. |
 
 Store the value **raw** (no surrounding quotes). The app strips accidental wrapping quotes from this key if present.
+
+Admitted Wearers never fall back to this environment key. If they have not
+connected Google AI Studio, lookbook generation asks them to do that in
+Settings instead of using the owner's quota.
 
 ## Models
 
@@ -25,7 +29,7 @@ Closet edit / describe flows extract `http(s)` links from notes and enable Gemin
 
 ## What uses what
 
-- **Lookbook step 1 / step 2, closet image analysis, Plan my week / weekly hero images** — AI Studio via `@ai-sdk/google` / `geminiModel()` in `lib/ai/gemini-provider.ts`.
+- **Lookbook step 1 / step 2, closet image analysis, Plan my week / weekly hero images** — AI Studio via `@ai-sdk/google` / `geminiModel(modelId, apiKey)` after `resolveGeminiApiKey()` in `lib/credentials/resolve.ts`.
 
 ## Local quick check
 

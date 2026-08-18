@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/ai/gemini-provider", () => ({
-  hasGeminiCredentials: vi.fn(),
+vi.mock("@/lib/credentials/resolve", () => ({
+  resolveGeminiApiKey: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/garments/describe-from-image", () => ({
@@ -12,16 +12,16 @@ vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
 
-import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
+import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { persistUploadedGarmentItems } from "@/lib/garments/persist-uploaded-garments";
 
-const hasGemini = vi.mocked(hasGeminiCredentials);
+const resolveGemini = vi.mocked(resolveGeminiApiKey);
 const requireSqlMock = vi.mocked(requireSql);
 
 describe("persistUploadedGarmentItems", () => {
   beforeEach(() => {
-    hasGemini.mockReset();
+    resolveGemini.mockReset();
     requireSqlMock.mockReset();
   });
 
@@ -57,7 +57,10 @@ describe("persistUploadedGarmentItems", () => {
   });
 
   it("inserts without Gemini when credentials missing", async () => {
-    hasGemini.mockReturnValue(false);
+    resolveGemini.mockResolvedValue({
+      ok: false,
+      message: "Connect Google AI Studio in Settings before using this feature.",
+    });
     const sql = vi.fn().mockResolvedValue(undefined);
     requireSqlMock.mockReturnValue(sql as never);
     const res = await persistUploadedGarmentItems("u1", [

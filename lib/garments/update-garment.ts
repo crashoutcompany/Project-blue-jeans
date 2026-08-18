@@ -1,5 +1,6 @@
 import { analyzeGarmentFromImageUrl } from "@/lib/ai/garments/describe-from-image";
-import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
+import type { MembershipPolicy } from "@/lib/auth/membership";
+import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { GARMENT_FIELD_LIMITS } from "@/lib/garments/field-limits";
 import { garmentRowToCardData, type GarmentRow } from "@/lib/garments/map-row";
@@ -42,6 +43,7 @@ export type UpdateGarmentFieldsInput = {
 export async function updateGarmentFields(
   userId: string,
   input: UpdateGarmentFieldsInput,
+  membership?: MembershipPolicy | null,
 ): Promise<UpdateGarmentFieldsResult> {
   if (!userId) {
     return { ok: false, message: "Missing user id." };
@@ -69,11 +71,11 @@ export async function updateGarmentFields(
     const sql = requireSql();
 
     if (fillName || fillDescription) {
-      if (!hasGeminiCredentials()) {
+      const gemini = await resolveGeminiApiKey(userId, membership);
+      if (!gemini.ok) {
         return {
           ok: false,
-          message:
-            "Missing Gemini credentials. Set GOOGLE_GENERATIVE_AI_API_KEY (see docs/gemini-ai-studio-env.md).",
+          message: gemini.message,
         };
       }
 
@@ -102,6 +104,7 @@ export async function updateGarmentFields(
       const abortSignal = AbortSignal.timeout(AI_UPDATE_TIMEOUT_MS);
       try {
         const ai = await analyzeGarmentFromImageUrl({
+          apiKey: gemini.apiKey,
           imageUrl: row.image_url,
           name,
           category: input.category,

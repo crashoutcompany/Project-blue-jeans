@@ -94,6 +94,10 @@ describe("POST /api/closet/garments", () => {
     expect(persistMock).toHaveBeenCalledWith(
       "u1",
       expect.arrayContaining([expect.objectContaining({ key: "k1" })]),
+      expect.objectContaining({
+        accessRole: "owner",
+        credentialSource: "platform_env",
+      }),
     );
   });
 

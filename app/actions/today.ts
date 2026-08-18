@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { assertAdminForServerAction } from "@/lib/auth/admin";
+import { platformOwnerMembership } from "@/lib/auth/membership";
 import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces";
 import { logServerError } from "@/lib/server/safe-client-error";
 import { unwearDay } from "@/lib/outfits/persist-generator-outfit";
@@ -31,6 +32,7 @@ export async function planMyWeek(): Promise<
   try {
     const result = await runWeeklyOutfitsJob({
       userId: gate.userId,
+      membership: platformOwnerMembership(gate.userId),
       weekStart,
       climate: "Temperate",
       context: "Everyday week",

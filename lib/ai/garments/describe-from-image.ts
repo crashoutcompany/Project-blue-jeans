@@ -43,6 +43,7 @@ Rules:
 - If product page URLs are listed, use the url_context tool to read them. Use factual details (garment type, cut, fabric, fit) that align with the photo. Do not invent specs that contradict the image. Color still comes from the photo.`;
 
 export type AnalyzeGarmentFromImageParams = {
+  apiKey: string;
   imageUrl: string;
   name: string;
   category: string;
@@ -129,7 +130,7 @@ export async function analyzeGarmentFromImageUrl(
   const needsPageContext = params.fillName || params.fillDescription;
   const productUrls = needsPageContext ? resolveProductUrls(params) : [];
   const userText = buildUserText(params, productUrls);
-  const model = geminiModel(GEMINI_STRUCTURE_MODEL);
+  const model = geminiModel(GEMINI_STRUCTURE_MODEL, params.apiKey);
   const messages = [
     {
       role: "user" as const,

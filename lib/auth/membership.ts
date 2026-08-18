@@ -50,13 +50,17 @@ export async function getMembershipPolicy(
   }
 
   if (ownerBootstrapUserId() === userId) {
-    return {
-      userId,
-      accessRole: "owner",
-      credentialSource: "platform_env",
-      status: "active",
-      persisted: false,
-    };
+    return platformOwnerMembership(userId);
   }
   return null;
+}
+
+export function platformOwnerMembership(userId: string): MembershipPolicy {
+  return {
+    userId,
+    accessRole: "owner",
+    credentialSource: "platform_env",
+    status: "active",
+    persisted: false,
+  };
 }
