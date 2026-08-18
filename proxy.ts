@@ -36,7 +36,7 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/") {
+  if (pathname === "/" || pathname.startsWith("/invite/")) {
     return NextResponse.next();
   }
 

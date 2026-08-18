@@ -8,7 +8,7 @@ import { AuthenticatedShellSuspense } from "@/components/shell/authenticated-she
 import { DayLookView } from "@/components/outfit/day-look-view";
 import { LandingPage } from "@/components/landing/landing-page";
 import { auth } from "@/lib/auth/server";
-import { isAdminUser } from "@/lib/auth/admin";
+import { getMembershipPolicyForUser } from "@/lib/auth/admitted";
 import { getClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
 import { loadTodayPageData } from "@/lib/outfits/today-data";
 
@@ -30,15 +30,12 @@ async function HomeContent() {
   noStore();
   const { data } = await auth.getSession();
 
-  if (data?.user && !isAdminUser(data.user)) {
-    redirect("/auth/not-admin");
-  }
-
-  if (data?.user && isAdminUser(data.user)) {
-    const userId = typeof data.user.id === "string" ? data.user.id.trim() : "";
-    if (!userId) {
-      redirect("/auth/sign-in");
+  if (data?.user) {
+    const membership = await getMembershipPolicyForUser(data.user);
+    if (!membership || membership.status !== "active") {
+      redirect("/auth/accept-invite");
     }
+    const userId = membership.userId;
     const [todayData, closetGarments] = await Promise.all([
       loadTodayPageData(userId),
       getClosetGarmentsCached(userId),

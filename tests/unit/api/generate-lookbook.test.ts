@@ -6,21 +6,30 @@ vi.mock("@/lib/auth/server", () => ({
   },
 }));
 
+vi.mock("@/lib/db", () => ({
+  getSql: vi.fn(),
+  requireSql: vi.fn(),
+}));
+
 vi.mock("@/lib/lookbook/generate-lookbook", () => ({
   generateLookbook: vi.fn(),
 }));
 
 import { auth } from "@/lib/auth/server";
+import { getSql } from "@/lib/db";
 import { generateLookbook } from "@/lib/lookbook/generate-lookbook";
 import { POST } from "@/app/api/generate-lookbook/route";
 
 const getSession = vi.mocked(auth.getSession);
+const getSqlMock = vi.mocked(getSql);
 const generateLookbookMock = vi.mocked(generateLookbook);
 
 describe("POST /api/generate-lookbook", () => {
   beforeEach(() => {
     getSession.mockReset();
     generateLookbookMock.mockReset();
+    getSqlMock.mockReset();
+    getSqlMock.mockReturnValue(undefined);
   });
 
   it("returns 401 when not signed in", async () => {
@@ -34,7 +43,7 @@ describe("POST /api/generate-lookbook", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when signed in but not admin", async () => {
+  it("returns 403 when signed in but not admitted", async () => {
     getSession.mockResolvedValue({
       data: { user: { email: "u@x.com", role: "user" } },
     });
@@ -73,7 +82,7 @@ describe("POST /api/generate-lookbook", () => {
     expect(res.status).toBe(400);
   });
 
-  it("calls generateLookbook for admin", async () => {
+  it("calls generateLookbook for an admitted session", async () => {
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });

@@ -73,6 +73,24 @@ EXCEPTION
 END $$;
 
 -- Admission, authorization, and provider funding are separate account policies.
+CREATE TABLE IF NOT EXISTS wearer_invitations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email_normalized text NOT NULL,
+  token_hash text NOT NULL UNIQUE,
+  invited_by_user_id text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  accepted_at timestamptz,
+  accepted_user_id text,
+  revoked_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS wearer_invitations_open_email_uidx
+  ON wearer_invitations (email_normalized)
+  WHERE accepted_at IS NULL AND revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS wearer_invitations_invited_by_idx
+  ON wearer_invitations (invited_by_user_id);
+
 CREATE TABLE IF NOT EXISTS wearer_memberships (
   user_id text PRIMARY KEY,
   access_role wearer_access_role NOT NULL DEFAULT 'wearer',
@@ -293,6 +311,7 @@ COMMENT ON TYPE outfit_occasion IS 'everyday | casual | business | evening | off
 COMMENT ON TYPE weekly_plan_status IS 'draft | completed | failed';
 COMMENT ON TYPE provider_kind IS 'External services that may use platform env credentials or per-Wearer BYOK.';
 COMMENT ON TYPE credential_source IS 'platform_env for the sole owner; user_byok for admitted Wearers.';
+COMMENT ON TABLE wearer_invitations IS 'Owner-issued, one-time expiring email invites that bind an authenticated Wearer id.';
 COMMENT ON TABLE wearer_memberships IS 'Invite-gated product admission and provider funding policy.';
 COMMENT ON TABLE provider_connections IS 'Logical provider account/app; media_assets.connection_id is UploadThing provenance.';
 COMMENT ON TABLE provider_credentials IS 'Write-only encrypted BYOK credentials; master keys stay outside Neon.';

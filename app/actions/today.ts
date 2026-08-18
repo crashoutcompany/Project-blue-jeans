@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 
-import { assertAdminForServerAction } from "@/lib/auth/admin";
-import { platformOwnerMembership } from "@/lib/auth/membership";
+import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
 import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces";
 import { logServerError } from "@/lib/server/safe-client-error";
 import { unwearDay } from "@/lib/outfits/persist-generator-outfit";
@@ -23,7 +22,7 @@ const wornOnSchema = z.iso.date();
 export async function planMyWeek(): Promise<
   { ok: true; skipped?: boolean } | { ok: false; message: string }
 > {
-  const gate = await assertAdminForServerAction();
+  const gate = await assertAdmittedForServerAction();
   if (!gate.ok) return { ok: false, message: gate.message };
 
   const todayIso = productTodayIso();
@@ -32,7 +31,7 @@ export async function planMyWeek(): Promise<
   try {
     const result = await runWeeklyOutfitsJob({
       userId: gate.userId,
-      membership: platformOwnerMembership(gate.userId),
+      membership: gate.membership,
       weekStart,
       climate: "Temperate",
       context: "Everyday week",
@@ -71,7 +70,7 @@ export async function wearThisFit(
 export async function unwearDayForUser(
   wornOn: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const gate = await assertAdminForServerAction();
+  const gate = await assertAdmittedForServerAction();
   if (!gate.ok) return { ok: false, message: gate.message };
 
   const parsed = wornOnSchema.safeParse(wornOn);

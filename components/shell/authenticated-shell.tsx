@@ -3,11 +3,11 @@ import { Suspense } from "react";
 import { AppSidebar } from "@/components/shell/sidebar";
 import { MainChrome } from "@/components/shell/main-chrome";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { requireAdminAccess } from "@/lib/auth/admin";
+import { requireAdmittedAccess } from "@/lib/auth/admitted";
 
-/** Request-time admin gate; suspends during prerender so the shell can build. */
-async function AdminAccessGate() {
-  await requireAdminAccess();
+/** Request-time admission gate; suspends during prerender so the shell can build. */
+async function AdmittedAccessGate() {
+  await requireAdmittedAccess();
   return null;
 }
 
@@ -30,7 +30,7 @@ export function AuthenticatedShell({
         data-testid="main-shell-marker"
       >
         <Suspense fallback={null}>
-          <AdminAccessGate />
+            <AdmittedAccessGate />
         </Suspense>
         <MainChrome>{children}</MainChrome>
       </SidebarInset>

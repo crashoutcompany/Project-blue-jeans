@@ -2,7 +2,7 @@
 
 import { revalidateTag, updateTag } from "next/cache";
 
-import { assertAdminForServerAction } from "@/lib/auth/admin";
+import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
 import { closetGarmentsTag } from "@/lib/garments/closet-garments-cache-tag";
 import { requireSql } from "@/lib/db";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
@@ -24,7 +24,7 @@ export type ToggleFavoriteResult =
 export async function toggleGarmentFavorite(
   id: string,
 ): Promise<ToggleFavoriteResult> {
-  const gate = await assertAdminForServerAction();
+  const gate = await assertAdmittedForServerAction();
   if (!gate.ok) return { ok: false, message: gate.message };
   try {
     const sql = requireSql();

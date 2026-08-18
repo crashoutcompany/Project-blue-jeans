@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { assertAdminForServerAction } from "@/lib/auth/admin";
+import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
 import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces";
 import { requireSql } from "@/lib/db";
 import { logServerError } from "@/lib/server/safe-client-error";
@@ -24,7 +24,7 @@ export type { ApproveOutfitResult };
 export async function approveWeeklyPlanLook(
   planLookId: string,
 ): Promise<ApproveOutfitResult> {
-  const gate = await assertAdminForServerAction();
+  const gate = await assertAdmittedForServerAction();
   if (!gate.ok) return { ok: false, message: gate.message };
   const idParse = z.string().uuid().safeParse(planLookId);
   if (!idParse.success) {
@@ -42,7 +42,7 @@ export async function approveWeeklyPlanLook(
 export async function wearOutfitToday(
   outfitId: string,
 ): Promise<ApproveOutfitResult> {
-  const gate = await assertAdminForServerAction();
+  const gate = await assertAdmittedForServerAction();
   if (!gate.ok) return { ok: false, message: gate.message };
   const idParse = z.string().uuid().safeParse(outfitId);
   if (!idParse.success) {
@@ -63,7 +63,7 @@ export async function renameOutfit(
   outfitId: string,
   name: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const gate = await assertAdminForServerAction();
+  const gate = await assertAdmittedForServerAction();
   if (!gate.ok) return { ok: false, message: gate.message };
   const idParse = z.string().uuid().safeParse(outfitId);
   if (!idParse.success) {
@@ -100,7 +100,7 @@ export async function renameOutfit(
 
 /** Today’s committed Outfit id, if any (for Wear today replace confirm). */
 export async function getTodaysOutfitId(): Promise<string | null> {
-  const gate = await assertAdminForServerAction();
+  const gate = await assertAdmittedForServerAction();
   if (!gate.ok) return null;
   try {
     const sql = requireSql();

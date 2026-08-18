@@ -10,6 +10,7 @@ Run these once in the Neon SQL editor, in order:
 
 1. `db/migrate-byok-foundation.sql`
 2. `db/migrate-byok-uploadthing.sql`
+3. `db/migrate-admission-invites.sql`
 
 Seed the sole platform-funded owner with the stable Neon Auth user id:
 
@@ -29,8 +30,8 @@ VALUES (
 ON CONFLICT (user_id) DO NOTHING;
 ```
 
-Admitted non-owner accounts must be inserted as `wearer` / `user_byok`. The
-invitation flow will own that write in a later slice.
+Admitted non-owner accounts are inserted as `wearer` / `user_byok` when they
+accept an owner invite from Settings.
 
 ## Configure production
 
@@ -73,9 +74,10 @@ upload request: ACL moves to private where possible, keys bind to
 `media_assets`, and display paths switch to `/api/media/{id}`. Files that no
 longer exist in the owning app are left unreachable rather than grandfathered.
 
-Settings currently sits behind the admin shell, so the Wearer save forms are
-reachable from the UI only after admission opens. The `/api/settings/providers`
-routes already enforce membership.
+Settings is gated by admitted membership. The owner invites Wearers from
+Settings (copy a one-time `/invite/{token}` link). Invited Wearers must sign in
+with that email, then open the link. The `/api/settings/providers` routes
+enforce membership and never fall back to platform keys for `user_byok`.
 
 ## UploadThing app requirements
 

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { GoogleAiStudioCard } from "@/components/settings/google-ai-studio-card";
+import { InvitesCard } from "@/components/settings/invites-card";
 import { UploadThingCard } from "@/components/settings/uploadthing-card";
 import { WearerPhotoCard } from "@/components/settings/wearer-photo-card";
 import { auth } from "@/lib/auth/server";
@@ -60,6 +61,15 @@ async function SettingsContent() {
 
   return (
     <>
+      {membership?.accessRole === "owner" ? (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Invite Wearers
+          </h2>
+          <InvitesCard />
+        </div>
+      ) : null}
+
       {googleAiStudio ? (
         <div className="flex flex-col gap-3">
           <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
