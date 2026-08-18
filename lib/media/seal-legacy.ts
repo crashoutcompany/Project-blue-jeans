@@ -6,6 +6,7 @@ import { insertLegacyMediaAsset } from "@/lib/media/assets";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 import { ensurePlatformUploadThingConnection } from "@/lib/media/platform-connection";
 import { makeUploadThingFilesPrivate } from "@/lib/media/uploadthing-api";
+import { logServerError } from "@/lib/server/safe-client-error";
 
 type LegacyFileRow = {
   id: string;
@@ -67,7 +68,14 @@ export async function sealLegacyUploadThingMedia(userId: string): Promise<void> 
   const keys = legacy
     .map((row) => row.uploadthing_key?.trim() || "")
     .filter(Boolean);
-  await makeUploadThingFilesPrivate(keys, resolved.token);
+  const sealed = await makeUploadThingFilesPrivate(keys, resolved.token);
+  if (!sealed) {
+    logServerError(
+      "sealLegacyUploadThingMedia",
+      `updateACL failed for ${keys.length} legacy file(s); media remains public.`,
+    );
+    return;
+  }
 
   for (const row of legacy) {
     const fileKey = row.uploadthing_key?.trim();

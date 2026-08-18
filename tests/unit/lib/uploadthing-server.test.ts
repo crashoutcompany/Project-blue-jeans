@@ -40,7 +40,7 @@ describe("deleteUploadThingFiles", () => {
 
   it("skips the API when the token is missing", async () => {
     delete process.env.UPLOADTHING_TOKEN;
-    await deleteUploadThingFiles(["file-key"]);
+    await deleteUploadThingFiles(["file-key"], undefined);
     expect(deleteFiles).not.toHaveBeenCalled();
     expect(logServerError).toHaveBeenCalled();
   });
@@ -50,9 +50,10 @@ describe("deleteUploadThingFiles", () => {
     expect(deleteFiles).toHaveBeenCalledWith(["file-key"]);
   });
 
-  it("falls back to UPLOADTHING_TOKEN when no token is passed", async () => {
+  it("does not fall back to UPLOADTHING_TOKEN", async () => {
     process.env.UPLOADTHING_TOKEN = "tok";
-    await deleteUploadThingFiles(["file-key"]);
-    expect(deleteFiles).toHaveBeenCalledWith(["file-key"]);
+    await deleteUploadThingFiles(["file-key"], undefined);
+    expect(deleteFiles).not.toHaveBeenCalled();
+    expect(logServerError).toHaveBeenCalled();
   });
 });

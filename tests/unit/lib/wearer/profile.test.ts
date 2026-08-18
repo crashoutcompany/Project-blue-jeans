@@ -79,6 +79,25 @@ describe("wearer photo UploadThing cleanup", () => {
     expect(deleteFilesMock).toHaveBeenCalledWith(["old-key"], "owner-token");
   });
 
+  it("deletes a previous media row even when there is no file key", async () => {
+    const sql = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { uploadthing_key: null, media_asset_id: "old-media" },
+      ])
+      .mockResolvedValue([]);
+    requireSqlMock.mockReturnValue(sql as never);
+
+    const res = await saveWearerPhoto({
+      userId: "u1",
+      mediaAssetId: mediaId,
+    });
+    expect(res.ok).toBe(true);
+    expect(deleteFilesMock).not.toHaveBeenCalled();
+    const sent = sql.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(sent).toMatch(/DELETE FROM media_assets/i);
+  });
+
   it("keeps the file when the key is unchanged", async () => {
     getAssetMock.mockResolvedValue({
       id: mediaId,

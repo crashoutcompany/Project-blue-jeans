@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
@@ -9,6 +10,7 @@ import {
 } from "@/lib/media/intents";
 import { resolveUploadSession } from "@/lib/media/resolve-upload-session";
 import { sealLegacyUploadThingMedia } from "@/lib/media/seal-legacy";
+import { logServerError } from "@/lib/server/safe-client-error";
 
 const f = createUploadthing();
 
@@ -27,7 +29,11 @@ async function uploadMiddleware(endpoint: UploadEndpoint) {
     throw new Error(session.message);
   }
 
-  void sealLegacyUploadThingMedia(gate.userId).catch(() => undefined);
+  after(() =>
+    sealLegacyUploadThingMedia(gate.userId).catch((error) => {
+      logServerError("sealLegacyUploadThingMedia", error);
+    }),
+  );
 
   const { intentId } = await createUploadIntent({
     userId: gate.userId,

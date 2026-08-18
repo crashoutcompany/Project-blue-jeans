@@ -8,7 +8,7 @@ import { logServerError } from "@/lib/server/safe-client-error";
  */
 export async function deleteUploadThingFiles(
   keys: string[],
-  token: string | null | undefined = process.env.UPLOADTHING_TOKEN,
+  token: string | null | undefined,
 ): Promise<void> {
   const fileKeys = keys.map((k) => k.trim()).filter(Boolean);
   if (fileKeys.length === 0) return;

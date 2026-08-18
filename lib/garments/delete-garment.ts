@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { resolveUploadThingToken } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
-import { safeClientMessage } from "@/lib/server/safe-client-error";
+import { logServerError, safeClientMessage } from "@/lib/server/safe-client-error";
 import type { DeleteGarmentResult } from "@/lib/garments/types";
 import { deleteUploadThingFiles } from "@/lib/uploadthing-server";
 
@@ -201,19 +201,23 @@ export async function deleteGarment(
     const uploadthingKey = found[0]?.uploadthing_key?.trim() || null;
     const mediaAssetId = found[0]?.media_asset_id?.trim() || null;
 
-    if (uploadthingKey) {
-      const resolved = await resolveUploadThingToken(userId);
-      await deleteUploadThingFiles(
-        [uploadthingKey],
-        resolved.ok ? resolved.token : null,
-      );
-    }
-    if (mediaAssetId) {
-      await sql`
-        DELETE FROM media_assets
-        WHERE id = ${mediaAssetId}::uuid
-          AND user_id = ${userId}
-      `;
+    try {
+      if (uploadthingKey) {
+        const resolved = await resolveUploadThingToken(userId);
+        await deleteUploadThingFiles(
+          [uploadthingKey],
+          resolved.ok ? resolved.token : null,
+        );
+      }
+      if (mediaAssetId) {
+        await sql`
+          DELETE FROM media_assets
+          WHERE id = ${mediaAssetId}::uuid
+            AND user_id = ${userId}
+        `;
+      }
+    } catch (cleanupError) {
+      logServerError("deleteGarment cleanup", cleanupError);
     }
 
     return { ok: true };
