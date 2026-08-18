@@ -1,12 +1,12 @@
-import { redirect } from "next/navigation";
 import { connection } from "next/server";
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
 import { auth } from "@/lib/auth/server";
 import {
   acceptInviteToken,
-  clearPendingInviteCookie,
   readPendingInviteCookie,
+  redirectClearingPendingInvite,
+  redirectTo,
   sessionEmailOf,
 } from "@/lib/auth/invites";
 
@@ -14,15 +14,14 @@ import {
  * Completes a pending invite cookie after sign-in, then sends the Wearer
  * home or to the wait screen.
  */
-export async function GET() {
+export async function GET(request: Request) {
   await connection();
   const gate = await assertAdmittedSession();
   if (gate.ok) {
-    await clearPendingInviteCookie();
-    redirect("/");
+    return redirectClearingPendingInvite(request, "/");
   }
   if (gate.status === 401) {
-    redirect("/auth/sign-in");
+    return redirectTo(request, "/auth/sign-in");
   }
 
   const { data } = await auth.getSession();
@@ -34,11 +33,10 @@ export async function GET() {
 
   if (token && email && userId) {
     const accepted = await acceptInviteToken({ userId, email, token });
-    await clearPendingInviteCookie();
     if (accepted.ok) {
-      redirect("/");
+      return redirectClearingPendingInvite(request, "/");
     }
   }
 
-  redirect("/auth/not-admitted");
+  return redirectClearingPendingInvite(request, "/auth/not-admitted");
 }

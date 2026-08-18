@@ -9,7 +9,11 @@ import {
   acceptInviteToken,
   createWearerInvite,
   hashInviteToken,
+  INVITE_TTL_MS,
   normalizeInviteEmail,
+  PENDING_INVITE_COOKIE,
+  redirectClearingPendingInvite,
+  redirectWithPendingInvite,
   sessionEmailOf,
 } from "@/lib/auth/invites";
 import { requireSql } from "@/lib/db";
@@ -136,5 +140,33 @@ describe("acceptInviteToken", () => {
       ok: false,
       message: "This account already has a membership.",
     });
+  });
+});
+
+describe("pending invite redirect cookies", () => {
+  const request = new Request("https://jeans.test/invite/abc");
+
+  it("sets the pending invite on the redirect response", () => {
+    const response = redirectWithPendingInvite(
+      request,
+      "/auth/sign-in",
+      "invite-token",
+    );
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://jeans.test/auth/sign-in");
+    expect(response.cookies.get(PENDING_INVITE_COOKIE)?.value).toBe(
+      "invite-token",
+    );
+    expect(response.cookies.get(PENDING_INVITE_COOKIE)?.maxAge).toBe(
+      Math.floor(INVITE_TTL_MS / 1000),
+    );
+  });
+
+  it("expires the pending invite on the redirect response", () => {
+    const response = redirectClearingPendingInvite(request, "/");
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://jeans.test/");
+    expect(response.cookies.get(PENDING_INVITE_COOKIE)?.value).toBe("");
+    expect(response.cookies.get(PENDING_INVITE_COOKIE)?.maxAge).toBe(0);
   });
 });
