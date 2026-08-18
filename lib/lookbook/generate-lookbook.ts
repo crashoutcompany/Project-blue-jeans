@@ -1,7 +1,8 @@
 import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
-import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
+import type { MembershipPolicy } from "@/lib/auth/membership";
+import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import {
   loadGarmentCatalog,
@@ -16,6 +17,7 @@ const DEFAULT_CONTEXT = "Versatile day-to-night";
 
 export type GenerateLookbookInput = {
   userId: string;
+  membership?: MembershipPolicy | null;
   climate?: string;
   context?: string;
   narrative: string;
@@ -53,12 +55,13 @@ function buildOutfitLooks(
 export async function generateLookbook(
   input: GenerateLookbookInput,
 ): Promise<GenerateLookbookResult> {
-  if (!hasGeminiCredentials()) {
-    return {
-      ok: false,
-      message:
-        "Missing Gemini credentials. Set GOOGLE_GENERATIVE_AI_API_KEY (see docs/gemini-ai-studio-env.md).",
-    };
+  if (!input.userId) {
+    return { ok: false, message: "Sign in to continue." };
+  }
+
+  const gemini = await resolveGeminiApiKey(input.userId, input.membership);
+  if (!gemini.ok) {
+    return { ok: false, message: gemini.message };
   }
 
   const rawLookCount = input.lookCount ?? 3;
@@ -68,10 +71,6 @@ export async function generateLookbook(
   const narrative = input.narrative.trim().slice(0, MAX_NARRATIVE_LEN);
   const climate = (input.climate?.trim() || DEFAULT_CLIMATE).slice(0, 80);
   const context = (input.context?.trim() || DEFAULT_CONTEXT).slice(0, 80);
-
-  if (!input.userId) {
-    return { ok: false, message: "Sign in to continue." };
-  }
 
   let garments = await loadGarmentCatalog(input.userId);
   if (garments.length === 0) {
@@ -100,6 +99,7 @@ export async function generateLookbook(
 
   try {
     const plan = await runStep1PlanWithRetry({
+      apiKey: gemini.apiKey,
       lookCount,
       climate,
       context,
@@ -131,6 +131,7 @@ export async function generateLookbook(
             if (rows.length === 0) return undefined;
 
             return await runHeroImageStep({
+              apiKey: gemini.apiKey,
               title: look.title,
               description: look.description,
               climate,

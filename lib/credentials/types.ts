@@ -16,3 +16,11 @@ export type ResolvedProviderCredential<P extends ProviderKind = ProviderKind> = 
   connectionId: string | null;
   secret: ProviderSecretByKind[P];
 };
+
+export type GoogleAiStudioSettingsView = {
+  funding: "platform" | "byok";
+  canEdit: boolean;
+  connected: boolean;
+  secretHint: string | null;
+  testedAt: string | null;
+};

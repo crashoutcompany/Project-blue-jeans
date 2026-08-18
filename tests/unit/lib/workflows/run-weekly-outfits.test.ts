@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/ai/gemini-provider", () => ({
-  hasGeminiCredentials: vi.fn(),
+vi.mock("@/lib/credentials/resolve", () => ({
+  resolveGeminiApiKey: vi.fn(),
 }));
 
 vi.mock("@/lib/garments/load-catalog", () => ({
@@ -33,7 +33,7 @@ vi.mock("@/lib/server/safe-client-error", () => ({
   logServerError: vi.fn(),
 }));
 
-import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
+import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { requireSql } from "@/lib/db";
@@ -45,7 +45,7 @@ import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
 
-const hasGemini = vi.mocked(hasGeminiCredentials);
+const resolveGemini = vi.mocked(resolveGeminiApiKey);
 const loadCatalog = vi.mocked(loadGarmentCatalog);
 const loadByIds = vi.mocked(loadGarmentsByIds);
 const step1 = vi.mocked(runStep1PlanWithRetry);
@@ -149,7 +149,7 @@ const input = {
 
 describe("runWeeklyOutfitsJob sequential uniqueness", () => {
   beforeEach(() => {
-    hasGemini.mockReset();
+    resolveGemini.mockReset();
     loadCatalog.mockReset();
     loadByIds.mockReset();
     step1.mockReset();
@@ -157,7 +157,7 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     wearerPhoto.mockReset();
     requireSqlMock.mockReset();
     loadOutfits.mockReset();
-    hasGemini.mockReturnValue(true);
+    resolveGemini.mockResolvedValue({ ok: true, apiKey: "gemini-key" });
     loadCatalog.mockResolvedValue(closet);
     loadOutfits.mockResolvedValue([]);
     wearerPhoto.mockResolvedValue(null);
@@ -191,13 +191,16 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
         garmentIds: [TOP_A],
       },
     ]);
-    hasGemini.mockReturnValue(false);
+    resolveGemini.mockResolvedValue({
+      ok: false,
+      message: "Connect Google AI Studio in Settings before using this feature.",
+    });
 
     const res = await runWeeklyOutfitsJob(input, SATURDAY_NOON_UTC);
 
     expect(res).toEqual({ ok: true, planId: "", skipped: true });
     expect(step1).not.toHaveBeenCalled();
-    expect(hasGemini).not.toHaveBeenCalled();
+    expect(resolveGemini).not.toHaveBeenCalled();
   });
 
   it("plans remaining days sequentially with a shrinking catalog", async () => {

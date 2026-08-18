@@ -9,6 +9,7 @@ import {
 } from "@/lib/ai/lookbook/schemas";
 
 export type RunOutfitPlanStepParams = {
+  apiKey: string;
   lookCount: number;
   climate: string;
   context: string;
@@ -24,7 +25,7 @@ export async function runOutfitPlanStep(
 ): Promise<LookbookPlan> {
   const schema = createLookbookSchema(params.lookCount);
   const { object } = await generateObject({
-    model: geminiModel(GEMINI_STRUCTURE_MODEL),
+    model: geminiModel(GEMINI_STRUCTURE_MODEL, params.apiKey),
     system: STEP1_SYSTEM,
     schema,
     prompt: step1UserPrompt({

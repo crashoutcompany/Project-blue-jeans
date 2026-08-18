@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/ai/gemini-provider", () => ({
-  hasGeminiCredentials: vi.fn(),
+vi.mock("@/lib/credentials/resolve", () => ({
+  resolveGeminiApiKey: vi.fn(),
 }));
 
 vi.mock("@/lib/garments/load-catalog", () => ({
@@ -21,7 +21,7 @@ vi.mock("@/lib/wearer/profile", () => ({
   getWearerPhoto: vi.fn(),
 }));
 
-import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
+import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import {
   loadGarmentCatalog,
   loadGarmentsByIds,
@@ -31,7 +31,7 @@ import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 import { generateLookbook } from "@/lib/lookbook/generate-lookbook";
 
-const hasGemini = vi.mocked(hasGeminiCredentials);
+const resolveGemini = vi.mocked(resolveGeminiApiKey);
 const loadCatalog = vi.mocked(loadGarmentCatalog);
 const loadByIds = vi.mocked(loadGarmentsByIds);
 const step1 = vi.mocked(runStep1PlanWithRetry);
@@ -43,7 +43,7 @@ const GID_B = "b47ac10b-58cc-4372-a567-0e02b2c3d479";
 
 describe("generateLookbook", () => {
   beforeEach(() => {
-    hasGemini.mockReset();
+    resolveGemini.mockReset();
     loadCatalog.mockReset();
     loadByIds.mockReset();
     step1.mockReset();
@@ -52,14 +52,17 @@ describe("generateLookbook", () => {
   });
 
   it("returns error when Gemini credentials missing", async () => {
-    hasGemini.mockReturnValue(false);
+    resolveGemini.mockResolvedValue({
+      ok: false,
+      message: "Connect Google AI Studio in Settings before using this feature.",
+    });
     const res = await generateLookbook({ userId: "u1", narrative: "x" });
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toContain("Gemini");
+    if (!res.ok) expect(res.message).toContain("Google AI Studio");
   });
 
   it("returns error when closet empty", async () => {
-    hasGemini.mockReturnValue(true);
+    resolveGemini.mockResolvedValue({ ok: true, apiKey: "gemini-key" });
     loadCatalog.mockResolvedValue([]);
     const res = await generateLookbook({ userId: "u1", narrative: "x" });
     expect(res.ok).toBe(false);
@@ -67,7 +70,7 @@ describe("generateLookbook", () => {
   });
 
   it("returns ok when plan succeeds and skips hero", async () => {
-    hasGemini.mockReturnValue(true);
+    resolveGemini.mockResolvedValue({ ok: true, apiKey: "gemini-key" });
     loadCatalog.mockResolvedValue([
       {
         id: GID_A,
@@ -99,7 +102,7 @@ describe("generateLookbook", () => {
   });
 
   it("keeps ok when hero images partially fail", async () => {
-    hasGemini.mockReturnValue(true);
+    resolveGemini.mockResolvedValue({ ok: true, apiKey: "gemini-key" });
     loadCatalog.mockResolvedValue([
       {
         id: GID_A,

@@ -1,8 +1,8 @@
 # BYOK foundation
 
-This first implementation slice adds admission and provider-funding policy,
-encrypted credential storage, and strict credential resolution. It does not yet
-switch Gemini or UploadThing production call sites to BYOK.
+This slice adds admission-aware Google AI Studio settings and switches
+Gemini call sites onto `resolveGeminiApiKey`. UploadThing is still
+platform-env only.
 
 ## Apply the database migration
 
@@ -52,11 +52,14 @@ value for a `user_byok` membership.
 
 ## Current boundary
 
-`lib/credentials/resolve.ts` is the only policy-aware credential entry point for
-new provider integrations. The settings APIs must validate a provider secret
-before calling `saveByokCredential`; the vault's `tested_at` timestamp is an
-assertion that validation already succeeded.
+Admitted Wearers save a Google AI Studio key in Settings. The API validates
+the key against Google, then encrypts it. The owner account keeps using
+`GOOGLE_GENERATIVE_AI_API_KEY` and cannot paste a BYOK key.
 
-The next slice should add the authenticated settings API/UI, provider-specific
-validation, and then migrate Gemini call sites. UploadThing requires media
-provenance and dynamic routing before its call sites can safely switch.
+Lookbook generation, closet describe/regenerate, and Plan my week resolve
+Gemini through `resolveGeminiApiKey`. UploadThing still uses
+`UPLOADTHING_TOKEN` until media provenance and per-Wearer routing exist.
+
+Settings currently sits behind the admin shell, so the Wearer save form is
+reachable from the UI only after admission opens. The
+`/api/settings/providers` routes already enforce membership.

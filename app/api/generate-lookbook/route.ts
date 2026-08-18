@@ -5,6 +5,7 @@ import {
   sessionAllowsAdminApi,
 } from "@/lib/auth/admin-api";
 import { auth } from "@/lib/auth/server";
+import { platformOwnerMembership } from "@/lib/auth/membership";
 import {
   generateLookbook,
   type GenerateLookbookInput,
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
 
   const input: GenerateLookbookInput = {
     userId,
+    membership: platformOwnerMembership(userId),
     narrative: body.narrative,
   };
 

@@ -359,3 +359,54 @@ export async function revokeByokCredential(
   `) as Array<{ id: string }>;
   return rows.length > 0;
 }
+
+export type PublicByokConnection = {
+  connectionId: string;
+  status: "active" | "action_required" | "disabled";
+  secretHint: string | null;
+  testedAt: string | null;
+};
+
+export async function getByokConnectionPublic(
+  userIdInput: string,
+  provider: ProviderKind,
+): Promise<PublicByokConnection | null> {
+  const userId = required(userIdInput, "userId");
+  const sql = requireSql();
+  const rows = (await sql`
+    SELECT
+      pc.id AS connection_id,
+      pc.status::text AS status,
+      secret.secret_hint,
+      secret.tested_at
+    FROM provider_connections pc
+    LEFT JOIN provider_credentials secret
+      ON secret.connection_id = pc.id
+      AND secret.revoked_at IS NULL
+    WHERE pc.user_id = ${userId}
+      AND pc.provider = ${provider}::provider_kind
+      AND pc.credential_source = 'user_byok'
+      AND pc.is_default = true
+    LIMIT 1
+  `) as Array<{
+    connection_id: string;
+    status: PublicByokConnection["status"];
+    secret_hint: string | null;
+    tested_at: Date | string | null;
+  }>;
+
+  const row = rows[0];
+  if (!row) return null;
+
+  const testedAt =
+    row.tested_at instanceof Date
+      ? row.tested_at.toISOString()
+      : row.tested_at;
+
+  return {
+    connectionId: row.connection_id,
+    status: row.status,
+    secretHint: row.secret_hint,
+    testedAt,
+  };
+}

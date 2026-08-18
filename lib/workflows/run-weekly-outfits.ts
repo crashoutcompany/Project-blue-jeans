@@ -4,7 +4,7 @@ import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { getWearerPhoto } from "@/lib/wearer/profile";
-import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
+import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import {
   loadGarmentCatalog,
@@ -147,11 +147,11 @@ export async function runWeeklyOutfitsJob(
     return { ok: true, planId: row?.id ?? "", skipped: true };
   }
 
-  if (!hasGeminiCredentials()) {
+  const gemini = await resolveGeminiApiKey(input.userId, input.membership);
+  if (!gemini.ok) {
     return {
       ok: false,
-      error:
-        "Missing Gemini credentials. Set GOOGLE_GENERATIVE_AI_API_KEY (see docs/gemini-ai-studio-env.md).",
+      error: gemini.message,
       planId: row?.id,
     };
   }
@@ -233,6 +233,7 @@ export async function runWeeklyOutfitsJob(
 
       const validIds = new Set(available.map((g) => g.id));
       const plan = await runStep1PlanWithRetry({
+        apiKey: gemini.apiKey,
         lookCount: 1,
         climate,
         context,
@@ -360,6 +361,7 @@ export async function runWeeklyOutfitsJob(
         );
         try {
           const heroImage = await runHeroImageStep({
+            apiKey: gemini.apiKey,
             title: look.title,
             description: look.description,
             climate,

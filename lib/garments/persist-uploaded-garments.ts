@@ -1,6 +1,7 @@
 import { analyzeGarmentFromImageUrl } from "@/lib/ai/garments/describe-from-image";
-import { hasGeminiCredentials } from "@/lib/ai/gemini-provider";
+import type { MembershipPolicy } from "@/lib/auth/membership";
 import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
+import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { GARMENT_FIELD_LIMITS } from "@/lib/garments/field-limits";
 import {
@@ -16,10 +17,6 @@ const MAX_DESCRIPTION_LEN = GARMENT_FIELD_LIMITS.description;
 /** Cap parallel Gemini describe calls so a 24-file batch stays within route time limits. */
 const AI_DESCRIBE_CONCURRENCY = 3;
 
-function canUseGemini(): boolean {
-  return hasGeminiCredentials();
-}
-
 function fallbackGarmentDescription(
   displayName: string,
   category: GarmentCategoryDb,
@@ -33,6 +30,7 @@ async function resolveGarmentAiFields(
   displayName: string,
   descRaw: string,
   colorRaw: string,
+  apiKey: string | null,
 ): Promise<{ description: string; color: string | null }> {
   const hasDesc = descRaw.length > 0;
   const hasColor = colorRaw.length > 0;
@@ -44,7 +42,7 @@ async function resolveGarmentAiFields(
     };
   }
 
-  if (!canUseGemini()) {
+  if (!apiKey) {
     return {
       description: hasDesc
         ? descRaw.slice(0, MAX_DESCRIPTION_LEN)
@@ -55,6 +53,7 @@ async function resolveGarmentAiFields(
 
   try {
     const ai = await analyzeGarmentFromImageUrl({
+      apiKey,
       imageUrl: item.url.trim(),
       name: displayName,
       category: item.category,
@@ -111,6 +110,7 @@ export type CreateGarmentsResult =
 export async function persistUploadedGarmentItems(
   userId: string,
   items: CreateGarmentItemInput[],
+  membership?: MembershipPolicy | null,
 ): Promise<CreateGarmentsResult> {
   if (!userId) {
     return { ok: false, message: "Missing user id." };
@@ -128,6 +128,17 @@ export async function persistUploadedGarmentItems(
 
   try {
     const sql = requireSql();
+    const needsAi = items.some((item) => {
+      const hasDesc = Boolean(
+        item.description?.trim().slice(0, MAX_DESCRIPTION_LEN),
+      );
+      const hasColor = Boolean(item.color?.trim().slice(0, MAX_COLOR_LEN));
+      return !hasDesc || !hasColor;
+    });
+    const gemini = needsAi
+      ? await resolveGeminiApiKey(userId, membership)
+      : { ok: false as const, message: "" };
+    const apiKey = gemini.ok ? gemini.apiKey : null;
 
     const rows = await mapWithConcurrency(
       items,
@@ -145,6 +156,7 @@ export async function persistUploadedGarmentItems(
           displayName,
           descRaw,
           colorRaw,
+          apiKey,
         );
 
         return {

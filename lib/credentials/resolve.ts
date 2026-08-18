@@ -1,6 +1,10 @@
 import "server-only";
 
-import { getMembershipPolicy } from "@/lib/auth/membership";
+import {
+  getMembershipPolicy,
+  type MembershipPolicy,
+} from "@/lib/auth/membership";
+import { normalizePastedSecret } from "@/lib/credentials/paste";
 import type {
   ProviderKind,
   ProviderSecretByKind,
@@ -23,16 +27,24 @@ export class ProviderCredentialUnavailableError extends Error {
 }
 
 export function googleAiStudioEnvApiKey(): string | null {
-  let key = process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim();
+  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!key) return null;
-  if (
-    (key.startsWith('"') && key.endsWith('"')) ||
-    (key.startsWith("'") && key.endsWith("'"))
-  ) {
-    key = key.slice(1, -1).trim();
+  return normalizePastedSecret(key) || null;
+}
+
+export function geminiCredentialMessage(
+  error: ProviderCredentialUnavailableError,
+): string {
+  switch (error.code) {
+    case "byok_credential_missing":
+      return "Connect Google AI Studio in Settings before using this feature.";
+    case "platform_credential_missing":
+      return "Missing Gemini credentials. Set GOOGLE_GENERATIVE_AI_API_KEY (see docs/gemini-ai-studio-env.md).";
+    case "membership_inactive":
+      return "This account is not active.";
+    case "not_admitted":
+      return "This account has not been admitted to Blue Jeans.";
   }
-  if (key.startsWith("=")) key = key.slice(1).trim();
-  return key || null;
 }
 
 function platformSecret<P extends ProviderKind>(
@@ -50,8 +62,12 @@ function platformSecret<P extends ProviderKind>(
 export async function resolveProviderCredential<P extends ProviderKind>(
   userId: string,
   provider: P,
+  membershipInput?: MembershipPolicy | null,
 ): Promise<ResolvedProviderCredential<P>> {
-  const membership = await getMembershipPolicy(userId);
+  const membership =
+    membershipInput === undefined
+      ? await getMembershipPolicy(userId)
+      : membershipInput;
   if (!membership) {
     throw new ProviderCredentialUnavailableError(
       "This account has not been admitted to Blue Jeans.",
@@ -94,4 +110,25 @@ export async function resolveProviderCredential<P extends ProviderKind>(
     connectionId: stored.connectionId,
     secret: stored.secret,
   };
+}
+
+export async function resolveGeminiApiKey(
+  userId: string,
+  fallbackMembership?: MembershipPolicy | null,
+): Promise<{ ok: true; apiKey: string } | { ok: false; message: string }> {
+  const fromDb = await getMembershipPolicy(userId);
+  const membership = fromDb ?? fallbackMembership ?? null;
+  try {
+    const resolved = await resolveProviderCredential(
+      userId,
+      "google_ai_studio",
+      membership,
+    );
+    return { ok: true, apiKey: resolved.secret.apiKey };
+  } catch (error) {
+    if (error instanceof ProviderCredentialUnavailableError) {
+      return { ok: false, message: geminiCredentialMessage(error) };
+    }
+    throw error;
+  }
 }

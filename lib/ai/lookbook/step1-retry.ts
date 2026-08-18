@@ -7,6 +7,7 @@ import {
 } from "@/lib/ai/lookbook/validate-ids";
 
 export type RunStep1PlanWithRetryParams = {
+  apiKey: string;
   lookCount: number;
   climate: string;
   context: string;
@@ -25,6 +26,7 @@ export async function runStep1PlanWithRetry(
   params: RunStep1PlanWithRetryParams,
 ): Promise<LookbookPlan> {
   const {
+    apiKey,
     lookCount,
     climate,
     context,
@@ -37,6 +39,7 @@ export async function runStep1PlanWithRetry(
   } = params;
 
   let plan = await runOutfitPlanStep({
+    apiKey,
     lookCount,
     climate,
     context,
@@ -51,6 +54,7 @@ export async function runStep1PlanWithRetry(
 
   if (planHasEmptyGarmentIds(plan)) {
     plan = await runOutfitPlanStep({
+      apiKey,
       lookCount,
       climate,
       context,
