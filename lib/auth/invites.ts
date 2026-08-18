@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 
 import type { MembershipPolicy } from "@/lib/auth/membership";
 import { requireSql } from "@/lib/db";
+import { logServerError } from "@/lib/server/safe-client-error";
 
 export const PENDING_INVITE_COOKIE = "pending_invite";
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -58,6 +59,13 @@ export async function createWearerInvite(input: {
   const sql = requireSql();
 
   try {
+    await sql`
+      DELETE FROM wearer_invitations
+      WHERE email_normalized = ${email}
+        AND accepted_at IS NULL
+        AND revoked_at IS NULL
+        AND expires_at <= now()
+    `;
     await sql`
       INSERT INTO wearer_invitations (
         email_normalized,
@@ -148,30 +156,45 @@ export async function acceptInviteToken(input: {
   }
 
   try {
-    await sql`
-      INSERT INTO wearer_memberships (
-        user_id,
-        access_role,
-        credential_source,
-        status,
-        invited_by_user_id
+    const consumed = (await sql`
+      WITH inserted AS (
+        INSERT INTO wearer_memberships (
+          user_id,
+          access_role,
+          credential_source,
+          status,
+          invited_by_user_id
+        )
+        SELECT
+          ${input.userId},
+          'wearer',
+          'user_byok',
+          'active',
+          invited_by_user_id
+        FROM wearer_invitations
+        WHERE id = ${invite.id}::uuid
+          AND NOT EXISTS (
+            SELECT 1
+            FROM wearer_memberships
+            WHERE user_id = ${input.userId}
+          )
+        RETURNING user_id
       )
-      VALUES (
-        ${input.userId},
-        'wearer',
-        'user_byok',
-        'active',
-        (SELECT invited_by_user_id FROM wearer_invitations WHERE id = ${invite.id}::uuid)
-      )
-      ON CONFLICT (user_id) DO NOTHING
-    `;
-    await sql`
-      UPDATE wearer_invitations
+      UPDATE wearer_invitations w
       SET accepted_at = now(), accepted_user_id = ${input.userId}
-      WHERE id = ${invite.id}::uuid
-        AND accepted_at IS NULL
-    `;
-  } catch {
+      FROM inserted
+      WHERE w.id = ${invite.id}::uuid
+        AND w.accepted_at IS NULL
+      RETURNING w.id
+    `) as Array<{ id: string }>;
+    if (!consumed[0]) {
+      return {
+        ok: false,
+        message: "This account already has a membership.",
+      };
+    }
+  } catch (error) {
+    logServerError("acceptInviteToken", error);
     return { ok: false, message: "Could not accept that invite. Try again." };
   }
 

@@ -9,7 +9,7 @@ import {
 } from "@/lib/auth/invites";
 
 const postSchema = z.object({
-  email: z.string().min(3).max(320),
+  email: z.string().trim().email().max(320),
 });
 
 export async function GET() {
