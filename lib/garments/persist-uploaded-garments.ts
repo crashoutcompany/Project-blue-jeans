@@ -8,6 +8,9 @@ import {
   isGarmentCategoryDb,
   type GarmentCategoryDb,
 } from "@/lib/garments/types";
+import { claimOwnedMediaAssets } from "@/lib/media/assets";
+import { mediaAssetDisplayPath } from "@/lib/media/display";
+import { resolveOwnedImageFetchUrl } from "@/lib/media/owned-image";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
 const MAX_NAME_LEN = GARMENT_FIELD_LIMITS.name;
@@ -16,6 +19,8 @@ const MAX_NOTES_LEN = GARMENT_FIELD_LIMITS.notes;
 const MAX_DESCRIPTION_LEN = GARMENT_FIELD_LIMITS.description;
 /** Cap parallel Gemini describe calls so a 24-file batch stays within route time limits. */
 const AI_DESCRIBE_CONCURRENCY = 3;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function fallbackGarmentDescription(
   displayName: string,
@@ -25,74 +30,8 @@ function fallbackGarmentDescription(
   return `${n} (${category}). Add a richer description in the closet anytime for better outfit ideas.`;
 }
 
-async function resolveGarmentAiFields(
-  item: CreateGarmentItemInput,
-  displayName: string,
-  descRaw: string,
-  colorRaw: string,
-  apiKey: string | null,
-): Promise<{ description: string; color: string | null }> {
-  const hasDesc = descRaw.length > 0;
-  const hasColor = colorRaw.length > 0;
-
-  if (hasDesc && hasColor) {
-    return {
-      description: descRaw.slice(0, MAX_DESCRIPTION_LEN),
-      color: colorRaw.slice(0, MAX_COLOR_LEN),
-    };
-  }
-
-  if (!apiKey) {
-    return {
-      description: hasDesc
-        ? descRaw.slice(0, MAX_DESCRIPTION_LEN)
-        : fallbackGarmentDescription(displayName, item.category),
-      color: hasColor ? colorRaw.slice(0, MAX_COLOR_LEN) : null,
-    };
-  }
-
-  try {
-    const ai = await analyzeGarmentFromImageUrl({
-      apiKey,
-      imageUrl: item.url.trim(),
-      name: displayName,
-      category: item.category,
-      notes: item.notes,
-      maxNameLen: MAX_NAME_LEN,
-      maxDescriptionLen: MAX_DESCRIPTION_LEN,
-      maxColorLen: MAX_COLOR_LEN,
-      fillName: false,
-      fillDescription: !hasDesc,
-      fillColor: !hasColor,
-    });
-
-    const description = hasDesc
-      ? descRaw.slice(0, MAX_DESCRIPTION_LEN)
-      : (
-          ai.description.trim() ||
-          fallbackGarmentDescription(displayName, item.category)
-        ).slice(0, MAX_DESCRIPTION_LEN);
-
-    const color = hasColor
-      ? colorRaw.slice(0, MAX_COLOR_LEN)
-      : ai.color.trim().length > 0
-        ? ai.color.trim().slice(0, MAX_COLOR_LEN)
-        : null;
-
-    return { description, color };
-  } catch {
-    return {
-      description: hasDesc
-        ? descRaw.slice(0, MAX_DESCRIPTION_LEN)
-        : fallbackGarmentDescription(displayName, item.category),
-      color: hasColor ? colorRaw.slice(0, MAX_COLOR_LEN) : null,
-    };
-  }
-}
-
 export type CreateGarmentItemInput = {
-  url: string;
-  key: string;
+  mediaAssetId: string;
   name: string;
   category: GarmentCategoryDb;
   color?: string;
@@ -104,8 +43,88 @@ export type CreateGarmentsResult =
   | { ok: true }
   | { ok: false; message: string };
 
+async function resolveGarmentAiFields(input: {
+  userId: string;
+  mediaAssetId: string;
+  category: GarmentCategoryDb;
+  displayName: string;
+  descRaw: string;
+  colorRaw: string;
+  notes: string | null;
+  apiKey: string | null;
+}): Promise<{ description: string; color: string | null }> {
+  const hasDesc = input.descRaw.length > 0;
+  const hasColor = input.colorRaw.length > 0;
+
+  if (hasDesc && hasColor) {
+    return {
+      description: input.descRaw.slice(0, MAX_DESCRIPTION_LEN),
+      color: input.colorRaw.slice(0, MAX_COLOR_LEN),
+    };
+  }
+
+  if (!input.apiKey) {
+    return {
+      description: hasDesc
+        ? input.descRaw.slice(0, MAX_DESCRIPTION_LEN)
+        : fallbackGarmentDescription(input.displayName, input.category),
+      color: hasColor ? input.colorRaw.slice(0, MAX_COLOR_LEN) : null,
+    };
+  }
+
+  const imageUrl = await resolveOwnedImageFetchUrl(input.userId, {
+    mediaAssetId: input.mediaAssetId,
+  });
+  if (!imageUrl) {
+    return {
+      description: hasDesc
+        ? input.descRaw.slice(0, MAX_DESCRIPTION_LEN)
+        : fallbackGarmentDescription(input.displayName, input.category),
+      color: hasColor ? input.colorRaw.slice(0, MAX_COLOR_LEN) : null,
+    };
+  }
+
+  try {
+    const ai = await analyzeGarmentFromImageUrl({
+      apiKey: input.apiKey,
+      imageUrl,
+      name: input.displayName,
+      category: input.category,
+      notes: input.notes,
+      maxNameLen: MAX_NAME_LEN,
+      maxDescriptionLen: MAX_DESCRIPTION_LEN,
+      maxColorLen: MAX_COLOR_LEN,
+      fillName: false,
+      fillDescription: !hasDesc,
+      fillColor: !hasColor,
+    });
+
+    const description = hasDesc
+      ? input.descRaw.slice(0, MAX_DESCRIPTION_LEN)
+      : (
+          ai.description.trim() ||
+          fallbackGarmentDescription(input.displayName, input.category)
+        ).slice(0, MAX_DESCRIPTION_LEN);
+
+    const color = hasColor
+      ? input.colorRaw.slice(0, MAX_COLOR_LEN)
+      : ai.color.trim().length > 0
+        ? ai.color.trim().slice(0, MAX_COLOR_LEN)
+        : null;
+
+    return { description, color };
+  } catch {
+    return {
+      description: hasDesc
+        ? input.descRaw.slice(0, MAX_DESCRIPTION_LEN)
+        : fallbackGarmentDescription(input.displayName, input.category),
+      color: hasColor ? input.colorRaw.slice(0, MAX_COLOR_LEN) : null,
+    };
+  }
+}
+
 /**
- * Inserts garment rows from UploadThing URLs/keys. Caller handles auth and cache revalidation.
+ * Inserts garment rows from owned media assets. Caller handles auth and cache.
  */
 export async function persistUploadedGarmentItems(
   userId: string,
@@ -118,13 +137,21 @@ export async function persistUploadedGarmentItems(
   if (items.length === 0) return { ok: true };
 
   for (const item of items) {
-    if (!item.url?.trim() || !item.key?.trim()) {
-      return { ok: false, message: "Each item needs an image URL and key." };
+    if (!UUID_RE.test(item.mediaAssetId?.trim() ?? "")) {
+      return { ok: false, message: "Each item needs a media id." };
     }
     if (!isGarmentCategoryDb(item.category)) {
       return { ok: false, message: "Invalid category." };
     }
   }
+
+  const claimed = await claimOwnedMediaAssets({
+    userId,
+    mediaAssetIds: items.map((item) => item.mediaAssetId.trim()),
+    kind: "closet_image",
+  });
+  if (!claimed.ok) return claimed;
+  const assetById = new Map(claimed.assets.map((asset) => [asset.id, asset]));
 
   try {
     const sql = requireSql();
@@ -151,16 +178,21 @@ export async function persistUploadedGarmentItems(
         const descRaw =
           item.description?.trim().slice(0, MAX_DESCRIPTION_LEN) ?? "";
         const notes = notesRaw.length > 0 ? notesRaw : null;
-        const { description, color } = await resolveGarmentAiFields(
-          item,
+        const { description, color } = await resolveGarmentAiFields({
+          userId,
+          mediaAssetId: item.mediaAssetId.trim(),
+          category: item.category,
           displayName,
           descRaw,
           colorRaw,
+          notes,
           apiKey,
-        );
+        });
+        const asset = assetById.get(item.mediaAssetId.trim())!;
 
         return {
           item,
+          asset,
           displayName,
           color,
           notes,
@@ -174,6 +206,7 @@ export async function persistUploadedGarmentItems(
         INSERT INTO garments (
           image_url,
           uploadthing_key,
+          media_asset_id,
           category,
           name,
           color,
@@ -182,8 +215,9 @@ export async function persistUploadedGarmentItems(
           user_id
         )
         VALUES (
-          ${row.item.url.trim()},
-          ${row.item.key.trim()},
+          ${mediaAssetDisplayPath(row.asset.id)},
+          ${row.asset.providerFileKey},
+          ${row.asset.id}::uuid,
           ${row.item.category},
           ${row.displayName},
           ${row.color},

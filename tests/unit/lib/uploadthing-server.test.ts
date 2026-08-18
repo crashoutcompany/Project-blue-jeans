@@ -45,7 +45,12 @@ describe("deleteUploadThingFiles", () => {
     expect(logServerError).toHaveBeenCalled();
   });
 
-  it("deletes files through UTApi", async () => {
+  it("deletes files through UTApi with an explicit token", async () => {
+    await deleteUploadThingFiles(["file-key"], "explicit-token");
+    expect(deleteFiles).toHaveBeenCalledWith(["file-key"]);
+  });
+
+  it("falls back to UPLOADTHING_TOKEN when no token is passed", async () => {
     process.env.UPLOADTHING_TOKEN = "tok";
     await deleteUploadThingFiles(["file-key"]);
     expect(deleteFiles).toHaveBeenCalledWith(["file-key"]);

@@ -4,6 +4,10 @@ import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { getWearerPhoto } from "@/lib/wearer/profile";
+import {
+  resolveGarmentImageSourcesForAi,
+  resolveOwnedImageFetchUrl,
+} from "@/lib/media/owned-image";
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import {
@@ -360,6 +364,23 @@ export async function runWeeklyOutfitsJob(
           (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
         );
         try {
+          const garments = await resolveGarmentImageSourcesForAi(
+            input.userId,
+            rows,
+          );
+          if (garments.length === 0) {
+            return {
+              sortOrder: look.sortOrder,
+              url: null as string | null,
+              missingGarments: true as const,
+            };
+          }
+          const wearerPhotoUrl = wearer
+            ? await resolveOwnedImageFetchUrl(input.userId, {
+                mediaAssetId: wearer.mediaAssetId,
+                imageUrl: wearer.imageUrl,
+              })
+            : null;
           const heroImage = await runHeroImageStep({
             apiKey: gemini.apiKey,
             title: look.title,
@@ -367,13 +388,8 @@ export async function runWeeklyOutfitsJob(
             climate,
             context,
             narrative,
-            garments: rows.map((r) => ({
-              id: r.id,
-              category: r.category,
-              name: r.name,
-              imageUrl: r.image_url,
-            })),
-            wearerPhotoUrl: wearer?.imageUrl,
+            garments,
+            wearerPhotoUrl,
           });
           return {
             sortOrder: look.sortOrder,

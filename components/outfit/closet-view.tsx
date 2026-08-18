@@ -20,7 +20,7 @@ import {
   type GarmentUploadDraft,
 } from "@/components/upload/closet-garment-draft-card";
 import { useUploadThing } from "@/lib/uploadthing";
-import { publicImageUrl } from "@/lib/uploadthing/public-url";
+import { mediaAssetDisplayPath } from "@/lib/media/display";
 import type { ClothingCardData } from "@/lib/garments/types";
 import {
   deleteGarmentResultSchema,
@@ -47,14 +47,13 @@ type ClosetMode = "pieces" | "outfits";
 
 function optimisticGarmentFromDraft(
   draft: GarmentUploadDraft,
-  uploaded: { ufsUrl?: string; url?: string; appUrl?: string },
+  mediaAssetId: string,
 ): ClothingCardData {
-  const imageUrl = publicImageUrl(uploaded);
   return {
     id: `pending:${draft.clientKey}`,
     name: draft.displayName.trim() || "Untitled",
     category: draft.category,
-    imageUrl: imageUrl || undefined,
+    imageUrl: mediaAssetDisplayPath(mediaAssetId),
     isFavorite: false,
     color: draft.color?.trim() || null,
     description: draft.description?.trim() || null,
@@ -179,26 +178,35 @@ export function ClosetView({
       if (!uploaded?.length || uploaded.length !== draftsSnapshot.length) {
         setPersistError(
           uploaded === undefined
-            ? "Upload did not finish. Set UPLOADTHING_TOKEN, restart the dev server, and try again."
+            ? "Upload did not finish. Connect UploadThing in Settings, then try again."
             : "Some files did not upload. Try again or remove items from the queue.",
         );
         return;
       }
 
-      const payload = [];
+      const payload: Array<{
+        mediaAssetId: string;
+        name: string;
+        category: GarmentUploadDraft["category"];
+        color?: string;
+        notes?: string;
+        description?: string;
+      }> = [];
       for (let i = 0; i < draftsSnapshot.length; i++) {
         const u = uploaded[i]!;
-        const url = publicImageUrl(u);
-        if (!url) {
+        const mediaAssetId =
+          typeof u.serverData?.mediaAssetId === "string"
+            ? u.serverData.mediaAssetId
+            : "";
+        if (!mediaAssetId) {
           setPersistError(
-            "Upload succeeded but no public URL was returned. Try again or refresh the page.",
+            "Upload succeeded but Blue Jeans could not record the file. Try again.",
           );
           return;
         }
         const d = draftsSnapshot[i]!;
         payload.push({
-          url,
-          key: u.key,
+          mediaAssetId,
           name: d.displayName,
           category: d.category,
           color: d.color,
@@ -226,7 +234,10 @@ export function ClosetView({
       }
       if (result.ok) {
         const added = draftsSnapshot.map((d, i) =>
-          optimisticGarmentFromDraft(d, uploaded[i]!),
+          optimisticGarmentFromDraft(
+            d,
+            payload[i]!.mediaAssetId,
+          ),
         );
         draftsSnapshot.forEach((d) => {
           URL.revokeObjectURL(d.previewUrl);

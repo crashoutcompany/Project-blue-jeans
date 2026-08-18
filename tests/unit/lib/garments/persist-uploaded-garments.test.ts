@@ -8,21 +8,30 @@ vi.mock("@/lib/ai/garments/describe-from-image", () => ({
   analyzeGarmentFromImageUrl: vi.fn(),
 }));
 
+vi.mock("@/lib/media/assets", () => ({
+  claimOwnedMediaAssets: vi.fn(),
+}));
+
 vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
 
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
+import { claimOwnedMediaAssets } from "@/lib/media/assets";
 import { persistUploadedGarmentItems } from "@/lib/garments/persist-uploaded-garments";
 
 const resolveGemini = vi.mocked(resolveGeminiApiKey);
 const requireSqlMock = vi.mocked(requireSql);
+const claimMock = vi.mocked(claimOwnedMediaAssets);
+
+const mediaId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 
 describe("persistUploadedGarmentItems", () => {
   beforeEach(() => {
     resolveGemini.mockReset();
     requireSqlMock.mockReset();
+    claimMock.mockReset();
   });
 
   it("returns ok for empty items", async () => {
@@ -30,24 +39,22 @@ describe("persistUploadedGarmentItems", () => {
     expect(res.ok).toBe(true);
   });
 
-  it("returns error when url missing", async () => {
+  it("returns error when media id missing", async () => {
     const res = await persistUploadedGarmentItems("u1", [
       {
-        url: "   ",
-        key: "k",
+        mediaAssetId: "not-a-uuid",
         name: "n",
         category: "tops",
       },
     ]);
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toContain("URL");
+    if (!res.ok) expect(res.message).toContain("media id");
   });
 
   it("returns error for invalid category", async () => {
     const res = await persistUploadedGarmentItems("u1", [
       {
-        url: "https://x.com/a.jpg",
-        key: "k",
+        mediaAssetId: mediaId,
         name: "n",
         category: "invalid" as "tops",
       },
@@ -61,12 +68,23 @@ describe("persistUploadedGarmentItems", () => {
       ok: false,
       message: "Connect Google AI Studio in Settings before using this feature.",
     });
+    claimMock.mockResolvedValue({
+      ok: true,
+      assets: [
+        {
+          id: mediaId,
+          userId: "u1",
+          connectionId: "c1",
+          kind: "closet_image",
+          providerFileKey: "file-key",
+        },
+      ],
+    });
     const sql = vi.fn().mockResolvedValue(undefined);
     requireSqlMock.mockReturnValue(sql as never);
     const res = await persistUploadedGarmentItems("u1", [
       {
-        url: "https://x.com/a.jpg",
-        key: "k",
+        mediaAssetId: mediaId,
         name: "n",
         category: "tops",
       },

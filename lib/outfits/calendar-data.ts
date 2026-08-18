@@ -2,6 +2,7 @@ import { cacheTag } from "next/cache";
 import { z } from "zod";
 
 import { getSql } from "@/lib/db";
+import { mediaAssetDisplayPath } from "@/lib/media/display";
 import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
 import {
   loadFitsInRange,
@@ -34,6 +35,7 @@ export type CalendarWeeklyLook = {
 const thumbRowSchema = z.object({
   id: z.string().uuid(),
   image_url: z.string().min(1),
+  media_asset_id: z.string().uuid().nullable(),
 });
 
 function monthRangeIso(
@@ -122,7 +124,7 @@ export async function loadCalendarMonthData(
     const thumbById = new Map<string, CalendarLookThumb>();
     if (uniqueIds.length > 0) {
       const thumbRows = await sql`
-        SELECT id, image_url
+        SELECT id, image_url, media_asset_id
         FROM garments
         WHERE user_id = ${userId}
           AND id = ANY(${uniqueIds}::uuid[])
@@ -132,7 +134,12 @@ export async function loadCalendarMonthData(
       const parsed = z.array(thumbRowSchema).safeParse(thumbRows);
       if (parsed.success) {
         for (const row of parsed.data) {
-          thumbById.set(row.id, { id: row.id, imageUrl: row.image_url });
+          thumbById.set(row.id, {
+            id: row.id,
+            imageUrl: row.media_asset_id
+              ? mediaAssetDisplayPath(row.media_asset_id)
+              : row.image_url,
+          });
         }
       }
     }

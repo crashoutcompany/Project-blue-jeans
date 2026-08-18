@@ -16,6 +16,7 @@ import {
   GARMENT_CATEGORY_VALUES,
   isGarmentCategoryDb,
 } from "@/lib/garments/types";
+import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,6 +190,7 @@ function GarmentDetailEditor({
             className="object-contain p-8 pb-16 sm:p-12 sm:pb-20"
             sizes="(max-width: 640px) 100vw, 44vw"
             priority
+            unoptimized={shouldBypassImageOptimizer(garment.imageUrl)}
           />
         ) : (
           <div className="flex min-h-[42svh] items-center justify-center text-sm capitalize text-muted-foreground">
@@ -207,6 +209,7 @@ function GarmentDetailEditor({
               fill
               className="object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.14)]"
               sizes="160px"
+              unoptimized={shouldBypassImageOptimizer(garment.imageUrl)}
             />
           </div>
         ) : null}

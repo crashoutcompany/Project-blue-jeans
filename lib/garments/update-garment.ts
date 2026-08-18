@@ -9,6 +9,7 @@ import {
   type GarmentCategoryDb,
   type UpdateGarmentFieldsResult,
 } from "@/lib/garments/types";
+import { resolveOwnedImageFetchUrl } from "@/lib/media/owned-image";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
 export { GARMENT_FIELD_LIMITS } from "@/lib/garments/field-limits";
@@ -84,6 +85,7 @@ export async function updateGarmentFields(
           id,
           image_url,
           uploadthing_key,
+          media_asset_id,
           category::text AS category,
           color,
           is_favorite,
@@ -103,9 +105,16 @@ export async function updateGarmentFields(
 
       const abortSignal = AbortSignal.timeout(AI_UPDATE_TIMEOUT_MS);
       try {
+        const imageUrl = await resolveOwnedImageFetchUrl(userId, {
+          mediaAssetId: row.media_asset_id,
+          imageUrl: row.image_url,
+        });
+        if (!imageUrl) {
+          return { ok: false, message: "Could not load that photo." };
+        }
         const ai = await analyzeGarmentFromImageUrl({
           apiKey: gemini.apiKey,
-          imageUrl: row.image_url,
+          imageUrl,
           name,
           category: input.category,
           notes,
@@ -156,6 +165,7 @@ export async function updateGarmentFields(
         id,
         image_url,
         uploadthing_key,
+        media_asset_id,
         category::text AS category,
         color,
         is_favorite,

@@ -2,6 +2,7 @@ import { cacheTag } from "next/cache";
 
 import { getSql } from "@/lib/db";
 import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
+import { mediaAssetDisplayPath } from "@/lib/media/display";
 
 export type ClosetSavedOutfit = {
   id: string;
@@ -48,6 +49,14 @@ export async function loadSavedOutfitsForCloset(
           ORDER BY og.sort_order ASC, g.created_at ASC
           LIMIT 1
         ) AS fallback_garment_image_url,
+        (
+          SELECT g.media_asset_id
+          FROM outfit_garments og
+          INNER JOIN garments g ON g.id = og.garment_id
+          WHERE og.outfit_id = o.id
+          ORDER BY og.sort_order ASC, g.created_at ASC
+          LIMIT 1
+        ) AS fallback_media_asset_id,
         coalesce(
           (
             SELECT array_agg(og.garment_id::text ORDER BY og.sort_order)
@@ -71,6 +80,7 @@ export async function loadSavedOutfitsForCloset(
       name: string | null;
       occasion: string;
       fallback_garment_image_url: string | null;
+      fallback_media_asset_id: string | null;
       garment_ids: string[] | null;
     }[];
 
@@ -78,7 +88,9 @@ export async function loadSavedOutfitsForCloset(
       id: r.id,
       wornOn: r.last_worn,
       imageUrl: r.image_url,
-      fallbackGarmentImageUrl: r.fallback_garment_image_url,
+      fallbackGarmentImageUrl: r.fallback_media_asset_id
+        ? mediaAssetDisplayPath(r.fallback_media_asset_id)
+        : r.fallback_garment_image_url,
       name: r.name,
       occasion: r.occasion,
       garmentIds: Array.isArray(r.garment_ids) ? r.garment_ids : [],

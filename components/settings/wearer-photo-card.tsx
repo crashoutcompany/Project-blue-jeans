@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { useUploadThing } from "@/lib/uploadthing";
-import { publicImageUrl } from "@/lib/uploadthing/public-url";
+import { mediaAssetDisplayPath, shouldBypassImageOptimizer } from "@/lib/media/display";
 import { Button } from "@/components/ui/button";
 import { z } from "zod";
 
@@ -28,12 +28,12 @@ export function WearerPhotoCard({
 
   const { startUpload } = useUploadThing("wearerPhoto");
 
-  async function persist(url: string, key?: string) {
+  async function persist(mediaAssetId: string) {
     const res = await fetch("/api/wearer/photo", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ url, key: key ?? null }),
+      body: JSON.stringify({ mediaAssetId }),
     });
     let payload: { ok: boolean; message?: string };
     try {
@@ -57,15 +57,18 @@ export function WearerPhotoCard({
     try {
       const uploaded = await startUpload([file]);
       const first = uploaded?.[0];
-      const url = first ? publicImageUrl(first) : "";
-      if (!url) {
+      const mediaAssetId =
+        typeof first?.serverData?.mediaAssetId === "string"
+          ? first.serverData.mediaAssetId
+          : "";
+      if (!mediaAssetId) {
         setError(
-          "Upload did not finish. Set UPLOADTHING_TOKEN, restart the dev server, and try again.",
+          "Upload did not finish. Connect UploadThing in Settings, then try again.",
         );
         return;
       }
-      await persist(url, first?.key);
-      setImageUrl(url);
+      await persist(mediaAssetId);
+      setImageUrl(mediaAssetDisplayPath(mediaAssetId));
       router.refresh();
     } catch (e) {
       setError(
@@ -115,7 +118,10 @@ export function WearerPhotoCard({
             fill
             className="object-cover"
             sizes="320px"
-            unoptimized={imageUrl.startsWith("data:")}
+            unoptimized={
+              imageUrl.startsWith("data:") ||
+              shouldBypassImageOptimizer(imageUrl)
+            }
           />
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">

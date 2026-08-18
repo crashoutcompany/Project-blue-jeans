@@ -2,20 +2,19 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { assertAdminForServerAction } from "@/lib/auth/admin";
+import { assertAdmittedSession } from "@/lib/auth/admitted";
 import { clearWearerPhoto, saveWearerPhoto } from "@/lib/wearer/profile";
 
 const putSchema = z.object({
-  url: z.string().url().max(2048),
-  key: z.string().max(512).optional().nullable(),
+  mediaAssetId: z.string().uuid(),
 });
 
 export async function PUT(request: Request) {
-  const gate = await assertAdminForServerAction();
+  const gate = await assertAdmittedSession();
   if (!gate.ok) {
     return NextResponse.json(
       { ok: false, message: gate.message },
-      { status: 401 },
+      { status: gate.status },
     );
   }
 
@@ -39,8 +38,7 @@ export async function PUT(request: Request) {
 
   const result = await saveWearerPhoto({
     userId: gate.userId,
-    imageUrl: parsed.data.url,
-    uploadthingKey: parsed.data.key,
+    mediaAssetId: parsed.data.mediaAssetId,
   });
   if (!result.ok) {
     return NextResponse.json(result, { status: 500 });
@@ -52,11 +50,11 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE() {
-  const gate = await assertAdminForServerAction();
+  const gate = await assertAdmittedSession();
   if (!gate.ok) {
     return NextResponse.json(
       { ok: false, message: gate.message },
-      { status: 401 },
+      { status: gate.status },
     );
   }
 

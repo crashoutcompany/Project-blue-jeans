@@ -11,6 +11,7 @@ import {
   wearThisFit,
 } from "@/app/actions/today";
 import type { ClothingCardData } from "@/lib/garments/types";
+import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import type { TodayPageData } from "@/lib/outfits/today-data";
 import { formatProductDateLong } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
@@ -137,6 +138,7 @@ export function DayLookView({
                       fill
                       className="object-cover"
                       sizes="25vw"
+                      unoptimized={shouldBypassImageOptimizer(g.imageUrl)}
                     />
                   </div>
                 ))}
@@ -306,6 +308,7 @@ export function DayLookView({
                       data-garment-image
                       className="object-cover"
                       sizes="128px"
+                      unoptimized={shouldBypassImageOptimizer(g.imageUrl)}
                     />
                   </div>
                   <p className="mt-2 line-clamp-2 text-xs leading-snug text-muted-foreground">

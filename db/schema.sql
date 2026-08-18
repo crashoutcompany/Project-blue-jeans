@@ -66,6 +66,12 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
+DO $$ BEGIN
+  CREATE TYPE media_kind AS ENUM ('closet_image', 'wearer_photo');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 -- Admission, authorization, and provider funding are separate account policies.
 CREATE TABLE IF NOT EXISTS wearer_memberships (
   user_id text PRIMARY KEY,
@@ -133,10 +139,41 @@ CREATE UNIQUE INDEX IF NOT EXISTS provider_credentials_active_connection_uidx
   ON provider_credentials (connection_id)
   WHERE revoked_at IS NULL;
 
+-- Private UploadThing objects. Display uses /api/media/{id}, never a durable public CDN URL.
+CREATE TABLE IF NOT EXISTS media_assets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,
+  connection_id uuid REFERENCES provider_connections (id) ON DELETE SET NULL,
+  kind media_kind NOT NULL,
+  provider_file_key text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, provider_file_key)
+);
+
+CREATE INDEX IF NOT EXISTS media_assets_user_id_idx ON media_assets (user_id);
+CREATE INDEX IF NOT EXISTS media_assets_connection_id_idx
+  ON media_assets (connection_id);
+
+CREATE TABLE IF NOT EXISTS upload_intents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,
+  connection_id uuid REFERENCES provider_connections (id) ON DELETE SET NULL,
+  endpoint text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  consumed_at timestamptz,
+  media_asset_id uuid REFERENCES media_assets (id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS upload_intents_user_id_idx ON upload_intents (user_id);
+CREATE INDEX IF NOT EXISTS upload_intents_expires_at_idx ON upload_intents (expires_at);
+
 CREATE TABLE IF NOT EXISTS garments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   image_url text NOT NULL,
   uploadthing_key text,
+  media_asset_id uuid REFERENCES media_assets (id) ON DELETE SET NULL,
   category garment_category NOT NULL,
   color text,
   is_favorite boolean NOT NULL DEFAULT false,
@@ -154,12 +191,14 @@ CREATE INDEX IF NOT EXISTS garments_category_idx ON garments (category);
 CREATE INDEX IF NOT EXISTS garments_color_idx ON garments (color);
 CREATE INDEX IF NOT EXISTS garments_is_favorite_idx ON garments (is_favorite) WHERE is_favorite = true;
 CREATE INDEX IF NOT EXISTS garments_user_id_idx ON garments (user_id);
+CREATE INDEX IF NOT EXISTS garments_media_asset_id_idx ON garments (media_asset_id);
 
 -- Wearer photo per account for try-on heroes.
 CREATE TABLE IF NOT EXISTS wearer_profile (
   user_id text PRIMARY KEY,
   image_url text NOT NULL,
   uploadthing_key text,
+  media_asset_id uuid REFERENCES media_assets (id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -252,8 +291,10 @@ COMMENT ON TYPE weekly_plan_status IS 'draft | completed | failed';
 COMMENT ON TYPE provider_kind IS 'External services that may use platform env credentials or per-Wearer BYOK.';
 COMMENT ON TYPE credential_source IS 'platform_env for the sole owner; user_byok for admitted Wearers.';
 COMMENT ON TABLE wearer_memberships IS 'Invite-gated product admission and provider funding policy.';
-COMMENT ON TABLE provider_connections IS 'Logical provider account/app; media provenance will reference UploadThing connections.';
+COMMENT ON TABLE provider_connections IS 'Logical provider account/app; media_assets.connection_id is UploadThing provenance.';
 COMMENT ON TABLE provider_credentials IS 'Write-only encrypted BYOK credentials; master keys stay outside Neon.';
+COMMENT ON TABLE media_assets IS 'Owned UploadThing file identity. Browser reads go through /api/media/{id}.';
+COMMENT ON TABLE upload_intents IS 'Server-issued upload slots consumed by onUploadComplete; client mutations use media ids.';
 COMMENT ON COLUMN garments.color IS 'Free text: e.g. hex #1a1c1b or name "navy".';
 COMMENT ON COLUMN garments.description IS 'Stylist-facing text for AI outfit selection (closet catalog).';
 COMMENT ON TABLE garments IS 'Clothing pieces; category enum; is_favorite for closet highlights.';

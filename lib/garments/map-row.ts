@@ -1,10 +1,12 @@
 import type { ClothingCardData } from "@/lib/garments/types";
 import { GARMENT_HEX_COLOR } from "@/lib/garments/types";
+import { mediaAssetDisplayPath } from "@/lib/media/display";
 
 export type GarmentRow = {
   id: string;
   image_url: string;
   uploadthing_key: string | null;
+  media_asset_id: string | null;
   category: string;
   color: string | null;
   is_favorite: boolean;
@@ -26,7 +28,9 @@ export function garmentRowToCardData(row: GarmentRow): ClothingCardData {
     id: row.id,
     name: row.name?.trim() || "Untitled",
     category,
-    imageUrl: row.image_url,
+    imageUrl: row.media_asset_id
+      ? mediaAssetDisplayPath(row.media_asset_id)
+      : row.image_url,
     isFavorite: row.is_favorite,
     color: rawColor,
     colorHex,

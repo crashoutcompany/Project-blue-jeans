@@ -4,18 +4,25 @@ vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
 
+vi.mock("@/lib/credentials/resolve", () => ({
+  resolveUploadThingToken: vi.fn(),
+}));
+
 vi.mock("@/lib/uploadthing-server", () => ({
   deleteUploadThingFiles: vi.fn(),
 }));
 
+import { resolveUploadThingToken } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { deleteGarment } from "@/lib/garments/delete-garment";
 import { deleteUploadThingFiles } from "@/lib/uploadthing-server";
 
 const requireSqlMock = vi.mocked(requireSql);
 const deleteFilesMock = vi.mocked(deleteUploadThingFiles);
+const resolveUploadMock = vi.mocked(resolveUploadThingToken);
 
 const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+const mediaId = "a47ac10b-58cc-4372-a567-0e02b2c3d479";
 
 function sqlText(strings: TemplateStringsArray) {
   return strings.join(" ");
@@ -43,7 +50,14 @@ describe("deleteGarment", () => {
   beforeEach(() => {
     requireSqlMock.mockReset();
     deleteFilesMock.mockReset();
+    resolveUploadMock.mockReset();
     deleteFilesMock.mockResolvedValue(undefined);
+    resolveUploadMock.mockResolvedValue({
+      ok: true,
+      token: "owner-token",
+      connectionId: null,
+      source: "platform_env",
+    });
   });
 
   it("rejects invalid ids", async () => {
@@ -66,10 +80,13 @@ describe("deleteGarment", () => {
     let transactionFinished = false;
     const sql = mockSql((text) => {
       if (text.includes("uploadthing_key")) {
-        return [{ uploadthing_key: "file-key" }];
+        return [{ uploadthing_key: "file-key", media_asset_id: mediaId }];
       }
       if (text.includes("DELETE FROM garments")) {
         return [{ id: gid }];
+      }
+      if (text.includes("DELETE FROM media_assets")) {
+        return [];
       }
       return [];
     });
@@ -89,7 +106,7 @@ describe("deleteGarment", () => {
     const res = await deleteGarment("u1", gid);
     expect(res.ok).toBe(true);
     expect(sql.transaction).toHaveBeenCalledTimes(1);
-    expect(deleteFilesMock).toHaveBeenCalledWith(["file-key"]);
+    expect(deleteFilesMock).toHaveBeenCalledWith(["file-key"], "owner-token");
 
     const sent = sql.mock.calls.map((call) => sqlText(call[0])).join("\n");
     expect(sent).toMatch(/DELETE FROM outfit_garments/i);
@@ -100,7 +117,7 @@ describe("deleteGarment", () => {
   it("skips UploadThing when there is no key", async () => {
     const sql = mockSql((text) => {
       if (text.includes("uploadthing_key")) {
-        return [{ uploadthing_key: null }];
+        return [{ uploadthing_key: null, media_asset_id: null }];
       }
       if (text.includes("DELETE FROM garments")) {
         return [{ id: gid }];
