@@ -71,7 +71,7 @@ describe("createWearerInvite", () => {
     if (!result.ok) return;
     expect(result.email).toBe("wearer@x.com");
     expect(result.token.length).toBeGreaterThan(20);
-    expect(sql).toHaveBeenCalled();
+    expect(sql).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -116,11 +116,25 @@ describe("acceptInviteToken", () => {
     const sql = vi
       .fn()
       .mockResolvedValueOnce([{ id: "inv-1", email_normalized: "a@b.com" }])
-      .mockResolvedValue(undefined);
+      .mockResolvedValueOnce([{ id: "inv-1" }]);
     requireSqlMock.mockReturnValue(sql as never);
     await expect(
       acceptInviteToken({ userId: "u1", email: "A@B.com", token: "tok" }),
     ).resolves.toEqual({ ok: true });
-    expect(sql).toHaveBeenCalledTimes(3);
+    expect(sql).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not consume the invite when membership already exists", async () => {
+    const sql = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: "inv-1", email_normalized: "a@b.com" }])
+      .mockResolvedValueOnce([]);
+    requireSqlMock.mockReturnValue(sql as never);
+    await expect(
+      acceptInviteToken({ userId: "u1", email: "a@b.com", token: "tok" }),
+    ).resolves.toEqual({
+      ok: false,
+      message: "This account already has a membership.",
+    });
   });
 });

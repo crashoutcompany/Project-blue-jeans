@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS wearer_invitations (
 CREATE UNIQUE INDEX IF NOT EXISTS wearer_invitations_open_email_uidx
   ON wearer_invitations (email_normalized)
   WHERE accepted_at IS NULL AND revoked_at IS NULL;
+-- Expired unused rows are deleted in createWearerInvite; now() cannot appear
+-- in a unique index predicate.
 CREATE INDEX IF NOT EXISTS wearer_invitations_invited_by_idx
   ON wearer_invitations (invited_by_user_id);
 
