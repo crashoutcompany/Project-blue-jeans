@@ -2,11 +2,13 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { GoogleAiStudioCard } from "@/components/settings/google-ai-studio-card";
+import { UploadThingCard } from "@/components/settings/uploadthing-card";
 import { WearerPhotoCard } from "@/components/settings/wearer-photo-card";
 import { auth } from "@/lib/auth/server";
 import { getWearerUserId } from "@/lib/auth/wearer";
 import { getMembershipPolicyForUser } from "@/lib/auth/admitted";
 import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
+import { getUploadThingSettings } from "@/lib/credentials/uploadthing";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 
 function SettingsHeader() {
@@ -46,10 +48,13 @@ async function SettingsContent() {
   const membership = data?.user
     ? await getMembershipPolicyForUser(data.user)
     : null;
-  const [photo, googleAiStudio] = await Promise.all([
+  const [photo, googleAiStudio, uploadthing] = await Promise.all([
     photoPromise,
     membership
       ? getGoogleAiStudioSettings(userId, membership)
+      : Promise.resolve(null),
+    membership
+      ? getUploadThingSettings(userId, membership)
       : Promise.resolve(null),
   ]);
 
@@ -61,6 +66,15 @@ async function SettingsContent() {
             Google AI Studio
           </h2>
           <GoogleAiStudioCard initial={googleAiStudio} />
+        </div>
+      ) : null}
+
+      {uploadthing ? (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            UploadThing
+          </h2>
+          <UploadThingCard initial={uploadthing} />
         </div>
       ) : null}
 

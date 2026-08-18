@@ -1,12 +1,15 @@
 # BYOK foundation
 
-This slice adds admission-aware Google AI Studio settings and switches
-Gemini call sites onto `resolveGeminiApiKey`. UploadThing is still
-platform-env only.
+This slice adds admission-aware provider settings and switches Gemini and
+UploadThing call sites onto per-Wearer credential resolution with media
+provenance.
 
-## Apply the database migration
+## Apply the database migrations
 
-Run `db/migrate-byok-foundation.sql` once in the Neon SQL editor.
+Run these once in the Neon SQL editor, in order:
+
+1. `db/migrate-byok-foundation.sql`
+2. `db/migrate-byok-uploadthing.sql`
 
 Seed the sole platform-funded owner with the stable Neon Auth user id:
 
@@ -52,14 +55,31 @@ value for a `user_byok` membership.
 
 ## Current boundary
 
-Admitted Wearers save a Google AI Studio key in Settings. The API validates
-the key against Google, then encrypts it. The owner account keeps using
-`GOOGLE_GENERATIVE_AI_API_KEY` and cannot paste a BYOK key.
+Admitted Wearers save Google AI Studio and UploadThing credentials in Settings.
+Each API validates the secret, then encrypts it. The owner account keeps using
+platform env vars and cannot paste BYOK secrets.
 
-Lookbook generation, closet describe/regenerate, and Plan my week resolve
-Gemini through `resolveGeminiApiKey`. UploadThing still uses
-`UPLOADTHING_TOKEN` until media provenance and per-Wearer routing exist.
+Gemini call sites resolve through `resolveGeminiApiKey`. UploadThing uploads,
+deletes, and browser reads resolve through `resolveUploadThingToken`.
 
-Settings currently sits behind the admin shell, so the Wearer save form is
-reachable from the UI only after admission opens. The
-`/api/settings/providers` routes already enforce membership.
+Closet and wearer photos are stored as `media_assets` rows bound to the
+UploadThing connection that uploaded them. The database stores `/api/media/{id}`
+display paths — not durable public CDN URLs. Browser reads redirect to
+UploadThing signed URLs (≤ 15 minutes). AI image inputs resolve from owned
+media records server-side.
+
+Existing public UploadThing files are sealed in place on the next settings or
+upload request: ACL moves to private where possible, keys bind to
+`media_assets`, and display paths switch to `/api/media/{id}`. Files that no
+longer exist in the owning app are left unreachable rather than grandfathered.
+
+Settings currently sits behind the admin shell, so the Wearer save forms are
+reachable from the UI only after admission opens. The `/api/settings/providers`
+routes already enforce membership.
+
+## UploadThing app requirements
+
+Each BYOK Wearer needs their own UploadThing app with **private ACL** enabled
+for the routes Blue Jeans uses (`closetImage`, `wearerPhoto`). The validator
+stores the app id (`external_account_id`) so the same UploadThing app cannot be
+linked to two Wearers.

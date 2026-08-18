@@ -24,3 +24,5 @@ export type GoogleAiStudioSettingsView = {
   secretHint: string | null;
   testedAt: string | null;
 };
+
+export type UploadThingSettingsView = GoogleAiStudioSettingsView;

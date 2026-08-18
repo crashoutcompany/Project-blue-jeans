@@ -29,6 +29,7 @@ export async function getAllGarmentRowsCached(
         id,
         image_url,
         uploadthing_key,
+        media_asset_id,
         category::text AS category,
         color,
         is_favorite,

@@ -16,6 +16,7 @@ import { ChevronDown, SendHorizontal, Sparkles } from "lucide-react";
 
 import type { ClothingCardData } from "@/lib/garments/types";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
+import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import type { GenerateLookbookResult } from "@/lib/lookbook/generate-lookbook";
 import { APPROVE_OUTFIT_MAX_IMAGE_URL_LEN } from "@/lib/outfits/approve-outfit-limits";
 import type { ApproveOutfitResult } from "@/lib/outfits/persist-generator-outfit";
@@ -74,6 +75,7 @@ function garmentThumb(g: ClothingCardData, sizes: string) {
         fill
         className="object-cover"
         sizes={sizes}
+        unoptimized={shouldBypassImageOptimizer(g.imageUrl!)}
       />
     );
   }

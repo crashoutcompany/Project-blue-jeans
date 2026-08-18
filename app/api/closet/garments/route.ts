@@ -1,9 +1,7 @@
 import { connection, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { isAdminUser } from "@/lib/auth/admin";
-import { platformOwnerMembership } from "@/lib/auth/membership";
-import { auth } from "@/lib/auth/server";
+import { assertAdmittedSession } from "@/lib/auth/admitted";
 import {
   revalidateAfterGarmentDelete,
   revalidateClosetGarmentSurfaces,
@@ -38,48 +36,25 @@ async function readJsonBody(
   }
 }
 
-async function requireAdminUserId(): Promise<
-  | { ok: true; userId: string }
+async function requireAdmittedUser(): Promise<
+  | { ok: true; userId: string; membership: import("@/lib/auth/membership").MembershipPolicy }
   | { ok: false; response: NextResponse }
 > {
-  const { data } = await auth.getSession();
-  if (!data?.user) {
+  const gate = await assertAdmittedSession();
+  if (!gate.ok) {
     return {
       ok: false,
       response: NextResponse.json(
-        { ok: false as const, message: "Sign in to continue." },
-        { status: 401 },
+        { ok: false as const, message: gate.message },
+        { status: gate.status },
       ),
     };
   }
-  if (!isAdminUser(data.user)) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        {
-          ok: false as const,
-          message: "Admin access is required.",
-        },
-        { status: 403 },
-      ),
-    };
-  }
-  const userId = typeof data.user.id === "string" ? data.user.id.trim() : "";
-  if (!userId) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { ok: false as const, message: "Session is missing a user id." },
-        { status: 401 },
-      ),
-    };
-  }
-  return { ok: true, userId };
+  return { ok: true, userId: gate.userId, membership: gate.membership };
 }
 
 const createItemSchema = z.object({
-  url: z.string().min(1),
-  key: z.string().min(1),
+  mediaAssetId: z.string().uuid(),
   name: z.string(),
   category: garmentCategorySchema,
   color: z.string().optional(),
@@ -113,7 +88,7 @@ const deleteBodySchema = z.object({
  */
 export async function POST(request: Request) {
   await connection();
-  const gate = await requireAdminUserId();
+  const gate = await requireAdmittedUser();
   if (!gate.ok) return gate.response;
 
   const body = await readJsonBody(request);
@@ -131,7 +106,7 @@ export async function POST(request: Request) {
   const result = await persistUploadedGarmentItems(
     gate.userId,
     items,
-    platformOwnerMembership(gate.userId),
+    gate.membership,
   );
   if (!result.ok) {
     return NextResponse.json(result, { status: 422 });
@@ -147,7 +122,7 @@ export async function POST(request: Request) {
  */
 export async function PATCH(request: Request) {
   await connection();
-  const gate = await requireAdminUserId();
+  const gate = await requireAdmittedUser();
   if (!gate.ok) return gate.response;
 
   const bodyRead = await readJsonBody(request);
@@ -174,7 +149,7 @@ export async function PATCH(request: Request) {
       regenerateNameWithAi: body.regenerateNameWithAi,
       regenerateDescriptionWithAi: body.regenerateDescriptionWithAi,
     },
-    platformOwnerMembership(gate.userId),
+    gate.membership,
   );
   if (!result.ok) {
     const status = result.message === "Garment not found." ? 404 : 422;
@@ -191,7 +166,7 @@ export async function PATCH(request: Request) {
  */
 export async function DELETE(request: Request) {
   await connection();
-  const gate = await requireAdminUserId();
+  const gate = await requireAdmittedUser();
   if (!gate.ok) return gate.response;
 
   const bodyRead = await readJsonBody(request);

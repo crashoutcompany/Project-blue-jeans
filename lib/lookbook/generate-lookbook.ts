@@ -10,6 +10,10 @@ import {
 } from "@/lib/garments/load-catalog";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 import type { OutfitLook } from "@/lib/outfits/types";
+import {
+  resolveGarmentImageSourcesForAi,
+  resolveOwnedImageFetchUrl,
+} from "@/lib/media/owned-image";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 
 const DEFAULT_CLIMATE = "Temperate";
@@ -130,6 +134,19 @@ export async function generateLookbook(
             );
             if (rows.length === 0) return undefined;
 
+            const garments = await resolveGarmentImageSourcesForAi(
+              input.userId,
+              rows,
+            );
+            if (garments.length === 0) return undefined;
+
+            const wearerPhotoUrl = wearer
+              ? await resolveOwnedImageFetchUrl(input.userId, {
+                  mediaAssetId: wearer.mediaAssetId,
+                  imageUrl: wearer.imageUrl,
+                })
+              : null;
+
             return await runHeroImageStep({
               apiKey: gemini.apiKey,
               title: look.title,
@@ -137,13 +154,8 @@ export async function generateLookbook(
               climate,
               context,
               narrative,
-              garments: rows.map((r) => ({
-                id: r.id,
-                category: r.category,
-                name: r.name,
-                imageUrl: r.image_url,
-              })),
-              wearerPhotoUrl: wearer?.imageUrl,
+              garments,
+              wearerPhotoUrl,
             });
           } catch {
             // Image is optional per look

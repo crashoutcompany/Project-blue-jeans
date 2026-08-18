@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/outfits";
 import type { ClosetSavedOutfit } from "@/lib/outfits/closet-saved-outfits";
 import type { ClothingCardData } from "@/lib/garments/types";
+import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import { formatProductWornOn } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -216,6 +217,7 @@ export function OutfitDetailSheet({
                                 fill
                                 className="object-cover"
                                 sizes="64px"
+                                unoptimized={shouldBypassImageOptimizer(g.imageUrl)}
                               />
                             ) : null}
                           </div>

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { resolveUploadThingToken } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 import type { DeleteGarmentResult } from "@/lib/garments/types";
@@ -80,7 +81,7 @@ export async function deleteGarment(
           AND g.user_id = ${userId}
       `,
       sql`
-        SELECT uploadthing_key
+        SELECT uploadthing_key, media_asset_id
         FROM garments
         WHERE id = ${id}::uuid
           AND user_id = ${userId}
@@ -190,7 +191,7 @@ export async function deleteGarment(
     ]);
 
     const found = results[SELECT_KEY_INDEX] as
-      | { uploadthing_key: string | null }[]
+      | { uploadthing_key: string | null; media_asset_id: string | null }[]
       | undefined;
     const deleted = results.at(-1) as { id: string }[] | undefined;
 
@@ -198,9 +199,21 @@ export async function deleteGarment(
       return { ok: false, message: "Garment not found." };
     }
     const uploadthingKey = found[0]?.uploadthing_key?.trim() || null;
+    const mediaAssetId = found[0]?.media_asset_id?.trim() || null;
 
     if (uploadthingKey) {
-      await deleteUploadThingFiles([uploadthingKey]);
+      const resolved = await resolveUploadThingToken(userId);
+      await deleteUploadThingFiles(
+        [uploadthingKey],
+        resolved.ok ? resolved.token : null,
+      );
+    }
+    if (mediaAssetId) {
+      await sql`
+        DELETE FROM media_assets
+        WHERE id = ${mediaAssetId}::uuid
+          AND user_id = ${userId}
+      `;
     }
 
     return { ok: true };

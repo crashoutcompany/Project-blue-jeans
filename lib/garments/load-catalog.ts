@@ -27,6 +27,7 @@ export type GarmentRowForImage = {
   category: string;
   name: string | null;
   image_url: string;
+  media_asset_id: string | null;
 };
 
 async function fetchGarmentsByIdsUncached(
@@ -35,7 +36,12 @@ async function fetchGarmentsByIdsUncached(
 ): Promise<GarmentRowForImage[]> {
   const sql = requireSql();
   const rows = await sql`
-    SELECT id, category::text AS category, name, image_url
+    SELECT
+      id,
+      category::text AS category,
+      name,
+      image_url,
+      media_asset_id
     FROM garments
     WHERE user_id = ${userId}
       AND id = ANY(${sortedUniqueIds})

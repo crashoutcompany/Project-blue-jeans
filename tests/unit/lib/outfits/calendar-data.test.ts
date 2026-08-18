@@ -44,7 +44,13 @@ describe("loadCalendarMonthData", () => {
         }
         if (text.includes("FROM garments")) {
           expect(text).toMatch(/::uuid\[\]/);
-          return [{ id: GARMENT_ID, image_url: "https://cdn.example.com/g1.jpg" }];
+          return [
+            {
+              id: GARMENT_ID,
+              image_url: "https://cdn.example.com/g1.jpg",
+              media_asset_id: null,
+            },
+          ];
         }
         return [];
       }) as never,

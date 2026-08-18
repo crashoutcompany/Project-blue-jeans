@@ -1,5 +1,6 @@
 import { getSql } from "@/lib/db";
 import { loadGarmentsByIds } from "@/lib/garments/load-catalog";
+import { mediaAssetDisplayPath } from "@/lib/media/display";
 import {
   loadFitsByDay,
   loadOutfitsByDay,
@@ -80,7 +81,9 @@ async function thumbsForIds(
       return {
         id: r.id,
         name: r.name,
-        imageUrl: r.image_url,
+        imageUrl: r.media_asset_id
+          ? mediaAssetDisplayPath(r.media_asset_id)
+          : r.image_url,
         category: r.category,
       };
     })

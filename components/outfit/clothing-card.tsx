@@ -3,6 +3,7 @@
 import Image from "next/image";
 
 import type { ClothingCardData } from "@/lib/garments/types";
+import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import { cn } from "@/lib/utils";
 
 export function ClothingCard({
@@ -44,6 +45,7 @@ export function ClothingCard({
           data-garment-image
           className="object-contain"
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 165px"
+          unoptimized={shouldBypassImageOptimizer(garment.imageUrl!)}
         />
       ) : (
         <div

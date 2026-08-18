@@ -1,60 +1,91 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 
-import { isAdminUser } from "@/lib/auth/admin";
-import { auth } from "@/lib/auth/server";
+import { assertAdmittedSession } from "@/lib/auth/admitted";
+import {
+  consumeUploadIntent,
+  createUploadIntent,
+  type MediaKind,
+  type UploadEndpoint,
+} from "@/lib/media/intents";
+import { resolveUploadSession } from "@/lib/media/resolve-upload-session";
+import { sealLegacyUploadThingMedia } from "@/lib/media/seal-legacy";
 
 const f = createUploadthing();
 
+const PRIVATE_IMAGE = {
+  image: { maxFileSize: "8MB" as const, maxFileCount: 24, acl: "private" as const },
+};
+
+async function uploadMiddleware(endpoint: UploadEndpoint) {
+  const gate = await assertAdmittedSession();
+  if (!gate.ok) {
+    throw new Error(gate.message);
+  }
+
+  const session = await resolveUploadSession(gate.userId, gate.membership);
+  if (!session.ok) {
+    throw new Error(session.message);
+  }
+
+  void sealLegacyUploadThingMedia(gate.userId).catch(() => undefined);
+
+  const { intentId } = await createUploadIntent({
+    userId: gate.userId,
+    connectionId: session.connectionId,
+    endpoint,
+  });
+
+  return {
+    userId: gate.userId,
+    intentId,
+    source: endpoint === "closetImage" ? ("closet" as const) : ("wearer" as const),
+  };
+}
+
+async function completeUpload(input: {
+  userId: string;
+  intentId: string;
+  fileKey: string;
+  kind: MediaKind;
+}): Promise<{ mediaAssetId: string }> {
+  const consumed = await consumeUploadIntent({
+    intentId: input.intentId,
+    userId: input.userId,
+    fileKey: input.fileKey,
+    kind: input.kind,
+  });
+  if (!consumed) {
+    throw new Error("That upload could not be recorded.");
+  }
+  return consumed;
+}
+
 export const ourFileRouter = {
-  closetImage: f(
-    {
-      image: { maxFileSize: "8MB", maxFileCount: 24 },
-    },
-    /** Don’t block the browser on `onUploadComplete` (avoids dev/callback timing stalls). */
-    { awaitServerData: false },
-  )
-    .middleware(async () => {
-      const { data } = await auth.getSession();
-      if (!data?.user) {
-        throw new Error("Unauthorized");
-      }
-      if (!isAdminUser(data.user)) {
-        throw new Error("Forbidden");
-      }
-      return { source: "closet" as const };
-    })
+  closetImage: f(PRIVATE_IMAGE, { awaitServerData: true })
+    .middleware(async () => uploadMiddleware("closetImage"))
     .onUploadComplete(async ({ metadata, file }) => {
-      console.info("[uploadthing] closet upload complete", {
-        key: file.key,
-        ufsUrl: file.ufsUrl,
-        source: metadata.source,
+      return completeUpload({
+        userId: metadata.userId,
+        intentId: metadata.intentId,
+        fileKey: file.key,
+        kind: "closet_image",
       });
-      return { source: metadata.source };
     }),
 
   wearerPhoto: f(
     {
-      image: { maxFileSize: "8MB", maxFileCount: 1 },
+      image: { maxFileSize: "8MB", maxFileCount: 1, acl: "private" },
     },
-    { awaitServerData: false },
+    { awaitServerData: true },
   )
-    .middleware(async () => {
-      const { data } = await auth.getSession();
-      if (!data?.user) {
-        throw new Error("Unauthorized");
-      }
-      if (!isAdminUser(data.user)) {
-        throw new Error("Forbidden");
-      }
-      return { source: "wearer" as const };
-    })
+    .middleware(async () => uploadMiddleware("wearerPhoto"))
     .onUploadComplete(async ({ metadata, file }) => {
-      console.info("[uploadthing] wearer photo upload complete", {
-        key: file.key,
-        ufsUrl: file.ufsUrl,
-        source: metadata.source,
+      return completeUpload({
+        userId: metadata.userId,
+        intentId: metadata.intentId,
+        fileKey: file.key,
+        kind: "wearer_photo",
       });
-      return { source: metadata.source };
     }),
 } satisfies FileRouter;
 
