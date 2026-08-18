@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
 
-import {
-  adminRequiredJsonResponse,
-  sessionAllowsAdminApi,
-} from "@/lib/auth/admin-api";
-import { auth } from "@/lib/auth/server";
-import { platformOwnerMembership } from "@/lib/auth/membership";
+import { assertAdmittedSession } from "@/lib/auth/admitted";
 import {
   generateLookbook,
   type GenerateLookbookInput,
@@ -20,15 +15,12 @@ function isStringArray(v: unknown): v is string[] {
 }
 
 export async function POST(request: Request) {
-  const { data } = await auth.getSession();
-  if (!data?.user) {
+  const gate = await assertAdmittedSession();
+  if (!gate.ok) {
     return NextResponse.json(
-      { ok: false as const, message: "Sign in to generate looks." },
-      { status: 401 },
+      { ok: false as const, message: gate.message },
+      { status: gate.status },
     );
-  }
-  if (!sessionAllowsAdminApi(data.user)) {
-    return adminRequiredJsonResponse();
   }
 
   let json: unknown;
@@ -56,17 +48,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const userId = typeof data.user.id === "string" ? data.user.id.trim() : "";
-  if (!userId) {
-    return NextResponse.json(
-      { ok: false as const, message: "Session is missing a user id." },
-      { status: 401 },
-    );
-  }
-
   const input: GenerateLookbookInput = {
-    userId,
-    membership: platformOwnerMembership(userId),
+    userId: gate.userId,
+    membership: gate.membership,
     narrative: body.narrative,
   };
 

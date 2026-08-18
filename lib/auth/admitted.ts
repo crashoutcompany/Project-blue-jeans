@@ -1,5 +1,9 @@
 import "server-only";
 
+import { unstable_noStore as noStore } from "next/cache";
+import { redirect } from "next/navigation";
+import { connection } from "next/server";
+
 import { isAdminUser } from "@/lib/auth/admin";
 import { auth } from "@/lib/auth/server";
 import {
@@ -56,4 +60,36 @@ export async function assertAdmittedSession(): Promise<AdmittedSession> {
     };
   }
   return { ok: true, userId: membership.userId, membership };
+}
+
+/**
+ * Server actions / JSON mutations: never call `redirect()` here.
+ */
+export async function assertAdmittedForServerAction(): Promise<
+  | { ok: true; userId: string; membership: MembershipPolicy }
+  | { ok: false; message: string }
+> {
+  const gate = await assertAdmittedSession();
+  if (!gate.ok) {
+    return { ok: false, message: gate.message };
+  }
+  return {
+    ok: true,
+    userId: gate.userId,
+    membership: gate.membership,
+  };
+}
+
+/**
+ * Server Components / layouts: require an active admitted session or redirect.
+ */
+export async function requireAdmittedAccess(): Promise<void> {
+  await connection();
+  noStore();
+  const gate = await assertAdmittedSession();
+  if (gate.ok) return;
+  if (gate.status === 401) {
+    redirect("/auth/sign-in");
+  }
+  redirect("/auth/accept-invite");
 }

@@ -6,6 +6,11 @@ vi.mock("@/lib/auth/server", () => ({
   },
 }));
 
+vi.mock("@/lib/db", () => ({
+  getSql: vi.fn(),
+  requireSql: vi.fn(),
+}));
+
 vi.mock("@/lib/outfits/persist-generator-outfit", async (orig) => {
   const actual =
     await orig<typeof import("@/lib/outfits/persist-generator-outfit")>();
@@ -21,10 +26,12 @@ vi.mock("next/cache", () => ({
 }));
 
 import { auth } from "@/lib/auth/server";
+import { getSql } from "@/lib/db";
 import { executeApproveGeneratorOutfit } from "@/lib/outfits/persist-generator-outfit";
 import { POST } from "@/app/api/outfits/approve-generator/route";
 
 const getSession = vi.mocked(auth.getSession);
+const getSqlMock = vi.mocked(getSql);
 const approveMock = vi.mocked(executeApproveGeneratorOutfit);
 
 describe("POST /api/outfits/approve-generator", () => {
@@ -34,6 +41,8 @@ describe("POST /api/outfits/approve-generator", () => {
   beforeEach(() => {
     getSession.mockReset();
     approveMock.mockReset();
+    getSqlMock.mockReset();
+    getSqlMock.mockReturnValue(undefined);
   });
 
   it("returns 401 when not signed in", async () => {
@@ -50,7 +59,7 @@ describe("POST /api/outfits/approve-generator", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when not admin", async () => {
+  it("returns 403 when not admitted", async () => {
     getSession.mockResolvedValue({
       data: { user: { email: "u@x.com", role: "user" } },
     });

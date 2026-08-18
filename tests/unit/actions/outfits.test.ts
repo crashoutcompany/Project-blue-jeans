@@ -8,6 +8,7 @@ vi.mock("@/lib/auth/server", () => ({
 
 vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
+  getSql: vi.fn(),
 }));
 
 vi.mock("@/lib/outfits/persist-generator-outfit", async (orig) => {
@@ -29,7 +30,7 @@ vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
 });
 
 import { auth } from "@/lib/auth/server";
-import { requireSql } from "@/lib/db";
+import { getSql, requireSql } from "@/lib/db";
 import { commitOutfitForDay } from "@/lib/outfits/persist-generator-outfit";
 import { approveWeeklyPlanLook } from "@/app/actions/outfits";
 
@@ -57,9 +58,10 @@ describe("approveWeeklyPlanLook", () => {
     getSession.mockReset();
     sqlMock.mockReset();
     commitMock.mockReset();
+    vi.mocked(getSql).mockReset();
   });
 
-  it("returns error when not admin", async () => {
+  it("returns error when not admitted", async () => {
     getSession.mockResolvedValue({
       data: {
         user: { id: "u1", email: "u@x.com", role: "user", name: "User" },

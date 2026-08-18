@@ -1,9 +1,6 @@
 import { connection, NextResponse } from "next/server";
 
-import {
-  adminRequiredJsonResponse,
-  sessionAllowsAdminApi,
-} from "@/lib/auth/admin-api";
+import { assertAdmittedSession } from "@/lib/auth/admitted";
 import { auth } from "@/lib/auth/server";
 import { getSql } from "@/lib/db";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
@@ -14,9 +11,8 @@ import { safeClientMessage } from "@/lib/server/safe-client-error";
  */
 export async function GET() {
   await connection();
-  let data: Awaited<ReturnType<typeof auth.getSession>>["data"];
   try {
-    ({ data } = await auth.getSession());
+    await auth.getSession();
   } catch (e) {
     console.error("[api/db/ping] getSession failed", e);
     return NextResponse.json(
@@ -24,14 +20,13 @@ export async function GET() {
       { status: 401 },
     );
   }
-  if (!data?.user) {
+
+  const gate = await assertAdmittedSession();
+  if (!gate.ok) {
     return NextResponse.json(
-      { ok: false, message: "Unauthorized" },
-      { status: 401 },
+      { ok: false, message: gate.message },
+      { status: gate.status },
     );
-  }
-  if (!sessionAllowsAdminApi(data.user)) {
-    return adminRequiredJsonResponse();
   }
 
   const sql = getSql();

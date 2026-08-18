@@ -1,9 +1,3 @@
-import { unstable_noStore as noStore } from "next/cache";
-import { redirect } from "next/navigation";
-import { connection } from "next/server";
-
-import { auth } from "@/lib/auth/server";
-
 function adminEmailAllowlist(): Set<string> {
   const raw = process.env.APP_ADMIN_EMAILS?.trim();
   if (!raw) return new Set();
@@ -16,9 +10,8 @@ function adminEmailAllowlist(): Set<string> {
 }
 
 /**
- * Admin if Better Auth / Neon `role === "admin"`, or email is listed in
- * `APP_ADMIN_EMAILS` (comma-separated, case-insensitive). Use the env var when
- * the session payload does not yet include `role` everywhere (e.g. some API routes).
+ * Used only to bootstrap the platform-funded owner before `APP_OWNER_USER_ID`
+ * / the owner membership row is seeded. Product access is admission, not admin.
  */
 export function isAdminUser(user: object | null | undefined): boolean {
   if (!user || typeof user !== "object") return false;
@@ -27,43 +20,4 @@ export function isAdminUser(user: object | null | undefined): boolean {
   const email = u.email?.trim().toLowerCase();
   if (email && adminEmailAllowlist().has(email)) return true;
   return false;
-}
-
-/**
- * Server Components / layouts: require signed-in **admin** or redirect.
- */
-export async function requireAdminAccess(): Promise<void> {
-  await connection();
-  noStore();
-  const { data } = await auth.getSession();
-  if (!data?.user) {
-    redirect("/auth/sign-in");
-  }
-  if (!isAdminUser(data.user)) {
-    redirect("/auth/not-admin");
-  }
-}
-
-/**
- * Server actions only: never call `redirect()` here — it breaks the action
- * response protocol and surfaces as “An unexpected response was received from the server.”
- */
-export async function assertAdminForServerAction(): Promise<
-  { ok: true; userId: string } | { ok: false; message: string }
-> {
-  const { data } = await auth.getSession();
-  if (!data?.user) {
-    return { ok: false, message: "Sign in to continue." };
-  }
-  if (!isAdminUser(data.user)) {
-    return {
-      ok: false,
-      message: "Admin access is required. Sign out and use an admin account.",
-    };
-  }
-  const userId = typeof data.user.id === "string" ? data.user.id.trim() : "";
-  if (!userId) {
-    return { ok: false, message: "Session is missing a user id." };
-  }
-  return { ok: true, userId };
 }

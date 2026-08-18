@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/admin", () => ({
-  assertAdminForServerAction: vi.fn(),
+vi.mock("@/lib/auth/admitted", () => ({
+  assertAdmittedForServerAction: vi.fn(),
 }));
 
 vi.mock("@/lib/outfits/persist-generator-outfit", () => ({
@@ -26,18 +26,28 @@ vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
   };
 });
 
-import { assertAdminForServerAction } from "@/lib/auth/admin";
+import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
 import { unwearDay } from "@/lib/outfits/persist-generator-outfit";
 import { unwearDayForUser } from "@/app/actions/today";
 
-const gate = vi.mocked(assertAdminForServerAction);
+const gate = vi.mocked(assertAdmittedForServerAction);
 const unwear = vi.mocked(unwearDay);
 
 describe("unwearDayForUser", () => {
   beforeEach(() => {
     gate.mockReset();
     unwear.mockReset();
-    gate.mockResolvedValue({ ok: true, userId: "u1" });
+    gate.mockResolvedValue({
+      ok: true,
+      userId: "u1",
+      membership: {
+        userId: "u1",
+        accessRole: "owner",
+        credentialSource: "platform_env",
+        status: "active",
+        persisted: false,
+      },
+    });
   });
 
   it("rejects past dates", async () => {
@@ -53,15 +63,15 @@ describe("unwearDayForUser", () => {
     expect(unwear).not.toHaveBeenCalled();
   });
 
-  it("returns the admin gate error without calling unwear", async () => {
+  it("returns the admission gate error without calling unwear", async () => {
     gate.mockResolvedValue({
       ok: false,
-      message: "Admin access is required. Sign out and use an admin account.",
+      message: "This account has not been admitted to Blue Jeans.",
     });
     const res = await unwearDayForUser("2026-08-10");
     expect(res.ok).toBe(false);
     if (!res.ok) {
-      expect(res.message).toContain("Admin access is required");
+      expect(res.message).toContain("admitted");
     }
     expect(unwear).not.toHaveBeenCalled();
   });

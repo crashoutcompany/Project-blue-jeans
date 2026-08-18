@@ -21,6 +21,7 @@ describe("GET /api/db/ping", () => {
   beforeEach(() => {
     getSession.mockReset();
     getSqlMock.mockReset();
+    getSqlMock.mockReturnValue(undefined);
   });
 
   it("returns 401 when not signed in", async () => {
@@ -29,7 +30,7 @@ describe("GET /api/db/ping", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when not admin", async () => {
+  it("returns 403 when not admitted", async () => {
     getSession.mockResolvedValue({
       data: { user: { email: "u@x.com", role: "user" } },
     });
@@ -39,7 +40,7 @@ describe("GET /api/db/ping", () => {
 
   it("returns 503 when DATABASE_URL missing", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
     getSqlMock.mockReturnValue(undefined);
     const res = await GET();
@@ -48,9 +49,12 @@ describe("GET /api/db/ping", () => {
 
   it("returns 200 when SELECT 1 succeeds", async () => {
     getSession.mockResolvedValue({
-      data: { user: { email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
-    const sql = vi.fn().mockResolvedValue([{ ok: 1 }]);
+    const sql = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([{ ok: 1 }]);
     getSqlMock.mockReturnValue(sql as never);
     const res = await GET();
     expect(res.status).toBe(200);

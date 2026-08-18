@@ -33,6 +33,14 @@ describe("proxy", () => {
     expect(neonMw).not.toHaveBeenCalled();
   });
 
+  it("bypasses auth middleware for invite links", async () => {
+    const { proxy } = await import("@/proxy");
+    const req = new NextRequest("https://example.com/invite/abc");
+    const res = await proxy(req);
+    expect(res.status).toBe(200);
+    expect(neonMw).not.toHaveBeenCalled();
+  });
+
   it("does not run Neon auth middleware for /api/* but merges cookies", async () => {
     const { proxy } = await import("@/proxy");
     const req = new NextRequest("https://example.com/api/foo");

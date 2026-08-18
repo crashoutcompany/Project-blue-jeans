@@ -100,17 +100,17 @@ test.describe("instant initial load", () => {
     });
   });
 
-  test.describe("non-admin session", () => {
+  test.describe("unsigned-in session without admission", () => {
     test.use({ storageState: "tests/e2e/.auth/non-admin.json" });
 
-    test("not-admin shell is served", async ({ page }) => {
-      const url = `${BASE}/auth/not-admin`;
+    test("not-admitted shell is served", async ({ page }) => {
+      const url = `${BASE}/auth/not-admitted`;
       await instant(
         page,
         async () => {
           await page.goto(url);
           await expect(
-            visibleTestId(page, "not-admin-shell-marker"),
+            visibleTestId(page, "not-admitted-shell-marker"),
           ).toBeVisible();
         },
         { baseURL: new URL(url).origin },

@@ -8,10 +8,11 @@ vi.mock("@/lib/auth/server", () => ({
 
 vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
+  getSql: vi.fn(),
 }));
 
 import { auth } from "@/lib/auth/server";
-import { requireSql } from "@/lib/db";
+import { getSql, requireSql } from "@/lib/db";
 import { toggleGarmentFavorite } from "@/app/actions/garments";
 
 const getSession = vi.mocked(auth.getSession);
@@ -21,9 +22,10 @@ describe("toggleGarmentFavorite", () => {
   beforeEach(() => {
     getSession.mockReset();
     requireSqlMock.mockReset();
+    vi.mocked(getSql).mockReset();
   });
 
-  it("returns error when not admin", async () => {
+  it("returns error when not admitted", async () => {
     getSession.mockResolvedValue({
       data: { user: { email: "u@x.com", role: "user" } },
     });

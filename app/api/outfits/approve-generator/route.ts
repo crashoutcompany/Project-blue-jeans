@@ -1,7 +1,6 @@
 import { connection, NextResponse } from "next/server";
 
-import { isAdminUser } from "@/lib/auth/admin";
-import { auth } from "@/lib/auth/server";
+import { assertAdmittedSession } from "@/lib/auth/admitted";
 import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces";
 import {
   approveGeneratorPayloadSchema,
@@ -14,24 +13,11 @@ import {
  */
 export async function POST(request: Request) {
   await connection();
-  const { data } = await auth.getSession();
-  if (!data?.user) {
+  const gate = await assertAdmittedSession();
+  if (!gate.ok) {
     return NextResponse.json(
-      { ok: false as const, message: "Sign in to continue." },
-      { status: 401 },
-    );
-  }
-  if (!isAdminUser(data.user)) {
-    return NextResponse.json(
-      { ok: false as const, message: "Admin access is required." },
-      { status: 403 },
-    );
-  }
-  const userId = typeof data.user.id === "string" ? data.user.id.trim() : "";
-  if (!userId) {
-    return NextResponse.json(
-      { ok: false as const, message: "Session is missing a user id." },
-      { status: 401 },
+      { ok: false as const, message: gate.message },
+      { status: gate.status },
     );
   }
 
@@ -55,7 +41,7 @@ export async function POST(request: Request) {
 
   let result;
   try {
-    result = await executeApproveGeneratorOutfit(userId, parsed.data);
+    result = await executeApproveGeneratorOutfit(gate.userId, parsed.data);
   } catch (e) {
     console.error("[api/outfits/approve-generator] save failed", e);
     return NextResponse.json(
@@ -68,7 +54,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    revalidateOutfitSurfaces(userId);
+    revalidateOutfitSurfaces(gate.userId);
   } catch (e) {
     console.error("[api/outfits/approve-generator] revalidate failed", e);
   }
