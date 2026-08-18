@@ -46,17 +46,30 @@ export async function consumeUploadIntent(input: {
 }): Promise<{ mediaAssetId: string } | null> {
   const sql = requireSql();
   const intents = (await sql`
-    SELECT id, connection_id
+    SELECT id, connection_id, endpoint
     FROM upload_intents
     WHERE id = ${input.intentId}::uuid
       AND user_id = ${input.userId}
-      AND consumed_at IS NULL
       AND expires_at > now()
+      AND (
+        endpoint = 'closetImage'
+        OR consumed_at IS NULL
+      )
     LIMIT 1
-  `) as Array<{ id: string; connection_id: string | null }>;
+  `) as Array<{
+    id: string;
+    connection_id: string | null;
+    endpoint: UploadEndpoint;
+  }>;
 
   const intent = intents[0];
   if (!intent) return null;
+  if (
+    (intent.endpoint === "closetImage") !==
+    (input.kind === "closet_image")
+  ) {
+    return null;
+  }
 
   const assets = (await sql`
     INSERT INTO media_assets (
@@ -79,14 +92,22 @@ export async function consumeUploadIntent(input: {
   const mediaAssetId = assets[0]?.id;
   if (!mediaAssetId) return null;
 
-  await sql`
-    UPDATE upload_intents
-    SET
-      consumed_at = now(),
-      media_asset_id = ${mediaAssetId}::uuid
-    WHERE id = ${intent.id}::uuid
-      AND consumed_at IS NULL
-  `;
+  if (intent.endpoint === "closetImage") {
+    await sql`
+      UPDATE upload_intents
+      SET media_asset_id = ${mediaAssetId}::uuid
+      WHERE id = ${intent.id}::uuid
+    `;
+  } else {
+    await sql`
+      UPDATE upload_intents
+      SET
+        consumed_at = now(),
+        media_asset_id = ${mediaAssetId}::uuid
+      WHERE id = ${intent.id}::uuid
+        AND consumed_at IS NULL
+    `;
+  }
 
   return { mediaAssetId };
 }

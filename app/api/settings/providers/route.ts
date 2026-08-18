@@ -1,9 +1,10 @@
-import { connection, NextResponse } from "next/server";
+import { after, connection, NextResponse } from "next/server";
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
 import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
 import { getUploadThingSettings } from "@/lib/credentials/uploadthing";
 import { sealLegacyUploadThingMedia } from "@/lib/media/seal-legacy";
+import { logServerError } from "@/lib/server/safe-client-error";
 
 export async function GET() {
   await connection();
@@ -20,7 +21,11 @@ export async function GET() {
     getUploadThingSettings(gate.userId, gate.membership),
   ]);
 
-  void sealLegacyUploadThingMedia(gate.userId).catch(() => undefined);
+  after(() =>
+    sealLegacyUploadThingMedia(gate.userId).catch((error) => {
+      logServerError("sealLegacyUploadThingMedia", error);
+    }),
+  );
 
   return NextResponse.json({
     ok: true as const,

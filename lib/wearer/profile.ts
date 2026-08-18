@@ -105,13 +105,13 @@ export async function saveWearerPhoto(input: {
         [previousKey],
         resolved.ok ? resolved.token : null,
       );
-      if (previousAssetId && previousAssetId !== asset.id) {
-        await sql`
-          DELETE FROM media_assets
-          WHERE id = ${previousAssetId}::uuid
-            AND user_id = ${input.userId}
-        `;
-      }
+    }
+    if (previousAssetId && previousAssetId !== asset.id) {
+      await sql`
+        DELETE FROM media_assets
+        WHERE id = ${previousAssetId}::uuid
+          AND user_id = ${input.userId}
+      `;
     }
     return { ok: true };
   } catch (e) {

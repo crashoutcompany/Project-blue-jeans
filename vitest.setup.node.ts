@@ -22,5 +22,8 @@ vi.mock("next/server", async (importOriginal) => {
   return {
     ...actual,
     connection: vi.fn().mockResolvedValue(undefined),
+    after: vi.fn((task: () => unknown) => {
+      void Promise.resolve(task());
+    }),
   };
 });

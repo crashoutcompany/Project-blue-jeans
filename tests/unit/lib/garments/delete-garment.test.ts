@@ -141,4 +141,21 @@ describe("deleteGarment", () => {
     expect(res.ok).toBe(false);
     expect(deleteFilesMock).not.toHaveBeenCalled();
   });
+
+  it("keeps the garment deleted if UploadThing cleanup fails", async () => {
+    const sql = mockSql((text) => {
+      if (text.includes("uploadthing_key")) {
+        return [{ uploadthing_key: "file-key", media_asset_id: mediaId }];
+      }
+      if (text.includes("DELETE FROM garments")) {
+        return [{ id: gid }];
+      }
+      return [];
+    });
+    requireSqlMock.mockReturnValue(sql as never);
+    deleteFilesMock.mockRejectedValue(new Error("ut down"));
+
+    const res = await deleteGarment("u1", gid);
+    expect(res.ok).toBe(true);
+  });
 });
