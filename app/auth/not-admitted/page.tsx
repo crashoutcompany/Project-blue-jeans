@@ -18,11 +18,11 @@ async function NotAdmittedGate() {
   await connection();
   noStore();
   const gate = await assertAdmittedSession();
-  if (gate.status === 401) {
-    redirect("/auth/sign-in");
-  }
   if (gate.ok) {
     redirect("/");
+  }
+  if (gate.status === 401) {
+    redirect("/auth/sign-in");
   }
   return null;
 }
