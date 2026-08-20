@@ -10,6 +10,7 @@ import {
   generateLookbook,
   type GenerateLookbookInput,
 } from "@/lib/lookbook/generate-lookbook";
+import { safeClientMessage } from "@/lib/server/safe-client-error";
 
 /** Plan + up to 3 parallel hero images. */
 export const maxDuration = 120;
@@ -89,6 +90,17 @@ export async function POST(request: Request) {
   if (body.weekly === true) input.weekly = true;
   if (body.skipHeroImage === true) input.skipHeroImage = true;
 
-  const result = await generateLookbook(input);
-  return NextResponse.json(result);
+  try {
+    const result = await generateLookbook(input);
+    return NextResponse.json(result);
+  } catch (error) {
+    return NextResponse.json({
+      ok: false as const,
+      message: safeClientMessage(
+        "POST /api/generate-lookbook",
+        error,
+        "We could not generate your lookbook. Try again in a moment.",
+      ),
+    });
+  }
 }
