@@ -17,13 +17,21 @@ type MembershipRow = {
   status: MembershipPolicy["status"];
 };
 
-function ownerBootstrapUserId(): string | null {
+export class MembershipStoreUnavailableError extends Error {
+  constructor(message = "Could not verify admission. Try again.") {
+    super(message);
+    this.name = "MembershipStoreUnavailableError";
+  }
+}
+
+export function ownerBootstrapUserId(): string | null {
   return process.env.APP_OWNER_USER_ID?.trim() || null;
 }
 
 /**
  * Database policy wins over the bootstrap env value so deletion cannot be
- * bypassed by a stale deployment configuration.
+ * bypassed by a stale deployment configuration. A configured database that
+ * fails to answer is not treated as a missing row.
  */
 export async function getMembershipPolicy(
   userIdInput: string,
@@ -52,6 +60,7 @@ export async function getMembershipPolicy(
       }
     } catch (error) {
       console.error("[membership] getMembershipPolicy failed", error);
+      throw new MembershipStoreUnavailableError();
     }
   }
 

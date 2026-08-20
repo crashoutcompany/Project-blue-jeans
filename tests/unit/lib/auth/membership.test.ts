@@ -5,7 +5,10 @@ vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
 
-import { getMembershipPolicy } from "@/lib/auth/membership";
+import {
+  getMembershipPolicy,
+  MembershipStoreUnavailableError,
+} from "@/lib/auth/membership";
 import { getSql } from "@/lib/db";
 
 const getSqlMock = vi.mocked(getSql);
@@ -74,5 +77,16 @@ describe("membership policy", () => {
     getSqlMock.mockReturnValue(undefined);
 
     await expect(getMembershipPolicy("wearer-1")).resolves.toBeNull();
+  });
+
+  it("fails closed when a configured database cannot be queried", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+    getSqlMock.mockReturnValue(
+      vi.fn().mockRejectedValueOnce(new Error("db down")) as never,
+    );
+
+    await expect(getMembershipPolicy("owner-1")).rejects.toBeInstanceOf(
+      MembershipStoreUnavailableError,
+    );
   });
 });

@@ -126,7 +126,10 @@ export async function acceptInviteToken(input: {
   userId: string;
   email: string;
   token: string;
-}): Promise<{ ok: true } | { ok: false; message: string }> {
+}): Promise<
+  | { ok: true }
+  | { ok: false; message: string; retryable?: boolean }
+> {
   const email = normalizeInviteEmail(input.email);
   const token = input.token.trim();
   if (!token) {
@@ -158,7 +161,23 @@ export async function acceptInviteToken(input: {
 
   try {
     const consumed = (await sql`
-      WITH inserted AS (
+      WITH claimed AS (
+        UPDATE wearer_invitations
+        SET accepted_at = now(), accepted_user_id = ${input.userId}
+        WHERE id = ${invite.id}::uuid
+          AND token_hash = ${tokenHash}
+          AND email_normalized = ${email}
+          AND accepted_at IS NULL
+          AND revoked_at IS NULL
+          AND expires_at > now()
+          AND NOT EXISTS (
+            SELECT 1
+            FROM wearer_memberships
+            WHERE user_id = ${input.userId}
+          )
+        RETURNING id, invited_by_user_id
+      ),
+      inserted AS (
         INSERT INTO wearer_memberships (
           user_id,
           access_role,
@@ -171,35 +190,42 @@ export async function acceptInviteToken(input: {
           'wearer',
           'user_byok',
           'active',
-          invited_by_user_id
-        FROM wearer_invitations
-        WHERE id = ${invite.id}::uuid
-          AND NOT EXISTS (
-            SELECT 1
-            FROM wearer_memberships
-            WHERE user_id = ${input.userId}
-          )
+          claimed.invited_by_user_id
+        FROM claimed
         RETURNING user_id
       )
-      UPDATE wearer_invitations w
-      SET accepted_at = now(), accepted_user_id = ${input.userId}
-      FROM inserted
-      WHERE w.id = ${invite.id}::uuid
-        AND w.accepted_at IS NULL
-      RETURNING w.id
+      SELECT claimed.id
+      FROM claimed
+      INNER JOIN inserted ON true
     `) as Array<{ id: string }>;
-    if (!consumed[0]) {
+    if (consumed[0]) {
+      return { ok: true };
+    }
+
+    const existing = (await sql`
+      SELECT user_id
+      FROM wearer_memberships
+      WHERE user_id = ${input.userId}
+      LIMIT 1
+    `) as Array<{ user_id: string }>;
+    if (existing[0]) {
       return {
         ok: false,
         message: "This account already has a membership.",
       };
     }
+    return {
+      ok: false,
+      message: "That invite has expired or already been used.",
+    };
   } catch (error) {
     logServerError("acceptInviteToken", error);
-    return { ok: false, message: "Could not accept that invite. Try again." };
+    return {
+      ok: false,
+      message: "Could not accept that invite. Try again.",
+      retryable: true,
+    };
   }
-
-  return { ok: true };
 }
 
 export async function readPendingInviteCookie(): Promise<string | null> {
@@ -220,7 +246,10 @@ function pendingInviteCookieOptions(maxAge: number) {
 
 /** Attach cookies to a Route Handler redirect — never cookies().set() then redirect(). */
 export function redirectTo(request: Request, path: string): NextResponse {
-  return NextResponse.redirect(new URL(path, request.url));
+  const response = NextResponse.redirect(new URL(path, request.url));
+  response.headers.set("Referrer-Policy", "no-referrer");
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
 
 export function redirectWithPendingInvite(

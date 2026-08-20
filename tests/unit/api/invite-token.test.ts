@@ -23,7 +23,7 @@ vi.mock("@/lib/auth/invites", async (importOriginal) => {
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
 import { auth } from "@/lib/auth/server";
-import { PENDING_INVITE_COOKIE } from "@/lib/auth/invites";
+import { acceptInviteToken, PENDING_INVITE_COOKIE } from "@/lib/auth/invites";
 import { GET } from "@/app/invite/[token]/route";
 
 const admitted = vi.mocked(assertAdmittedSession);
@@ -49,6 +49,34 @@ describe("GET /invite/[token]", () => {
 
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://jeans.test/auth/sign-in");
+    expect(res.cookies.get(PENDING_INVITE_COOKIE)?.value).toBe("tok-1");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("keeps the pending invite cookie when accept is retryable", async () => {
+    admitted.mockResolvedValue({
+      ok: false,
+      status: 403,
+      message: "This account has not been admitted to Blue Jeans.",
+    });
+    getSession.mockResolvedValue({
+      data: { user: { id: "u1", email: "a@b.com", role: "user" } },
+    });
+    vi.mocked(acceptInviteToken).mockResolvedValue({
+      ok: false,
+      message: "Could not accept that invite. Try again.",
+      retryable: true,
+    });
+
+    const res = await GET(new Request("https://jeans.test/invite/tok-1"), {
+      params: Promise.resolve({ token: "tok-1" }),
+    });
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe(
+      "https://jeans.test/auth/not-admitted",
+    );
     expect(res.cookies.get(PENDING_INVITE_COOKIE)?.value).toBe("tok-1");
   });
 });

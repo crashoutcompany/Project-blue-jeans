@@ -6,8 +6,11 @@ import { InvitesCard } from "@/components/settings/invites-card";
 import { UploadThingCard } from "@/components/settings/uploadthing-card";
 import { WearerPhotoCard } from "@/components/settings/wearer-photo-card";
 import { auth } from "@/lib/auth/server";
+import {
+  getMembershipPolicyForUser,
+  requireAdmittedAccess,
+} from "@/lib/auth/admitted";
 import { getWearerUserId } from "@/lib/auth/wearer";
-import { getMembershipPolicyForUser } from "@/lib/auth/admitted";
 import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
 import { getUploadThingSettings } from "@/lib/credentials/uploadthing";
 import { getWearerPhoto } from "@/lib/wearer/profile";
@@ -38,6 +41,7 @@ function WearerPhotoSection({ imageUrl }: { imageUrl: string | null }) {
 }
 
 async function SettingsContent() {
+  await requireAdmittedAccess();
   const userId = await getWearerUserId();
   if (!userId) {
     redirect("/auth/sign-in");
