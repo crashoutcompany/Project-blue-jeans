@@ -180,7 +180,11 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const result = await deleteGarment(gate.userId, parsed.data.id.trim());
+  const result = await deleteGarment(
+    gate.userId,
+    parsed.data.id.trim(),
+    gate.membership,
+  );
   if (!result.ok) {
     const status = result.message === "Garment not found." ? 404 : 422;
     return NextResponse.json(result, { status });

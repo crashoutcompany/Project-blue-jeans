@@ -75,4 +75,19 @@ describe("consumeUploadIntent", () => {
       }),
     ).resolves.toBeNull();
   });
+
+  it("consumes a wearer-photo intent in one statement", async () => {
+    const sql = vi.fn().mockResolvedValueOnce([{ id: "asset-1" }]);
+    requireSqlMock.mockReturnValue(sql as never);
+    await expect(
+      consumeUploadIntent({
+        intentId: "intent-1",
+        userId: "u1",
+        fileKey: "file-a",
+        kind: "wearer_photo",
+      }),
+    ).resolves.toEqual({ mediaAssetId: "asset-1" });
+    expect(sql).toHaveBeenCalledTimes(1);
+    expect(String(sql.mock.calls[0]?.[0] ?? "")).toContain("WITH claimed AS");
+  });
 });

@@ -8,7 +8,7 @@ import {
   isGarmentCategoryDb,
   type GarmentCategoryDb,
 } from "@/lib/garments/types";
-import { claimOwnedMediaAssets } from "@/lib/media/assets";
+import { claimOwnedMediaAssets, normalizeMediaAssetId } from "@/lib/media/assets";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 import { resolveOwnedImageFetchUrl } from "@/lib/media/owned-image";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
@@ -19,8 +19,7 @@ const MAX_NOTES_LEN = GARMENT_FIELD_LIMITS.notes;
 const MAX_DESCRIPTION_LEN = GARMENT_FIELD_LIMITS.description;
 /** Cap parallel Gemini describe calls so a 24-file batch stays within route time limits. */
 const AI_DESCRIBE_CONCURRENCY = 3;
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_GARMENT_BATCH = 24;
 
 function fallbackGarmentDescription(
   displayName: string,
@@ -52,6 +51,7 @@ async function resolveGarmentAiFields(input: {
   colorRaw: string;
   notes: string | null;
   apiKey: string | null;
+  membership?: MembershipPolicy | null;
 }): Promise<{ description: string; color: string | null }> {
   const hasDesc = input.descRaw.length > 0;
   const hasColor = input.colorRaw.length > 0;
@@ -72,9 +72,13 @@ async function resolveGarmentAiFields(input: {
     };
   }
 
-  const imageUrl = await resolveOwnedImageFetchUrl(input.userId, {
-    mediaAssetId: input.mediaAssetId,
-  });
+  const imageUrl = await resolveOwnedImageFetchUrl(
+    input.userId,
+    {
+      mediaAssetId: input.mediaAssetId,
+    },
+    input.membership,
+  );
   if (!imageUrl) {
     return {
       description: hasDesc
@@ -135,27 +139,46 @@ export async function persistUploadedGarmentItems(
     return { ok: false, message: "Missing user id." };
   }
   if (items.length === 0) return { ok: true };
+  if (items.length > MAX_GARMENT_BATCH) {
+    return {
+      ok: false,
+      message: "You can add up to 24 pieces at a time.",
+    };
+  }
 
+  const normalized: CreateGarmentItemInput[] = [];
+  const seen = new Set<string>();
   for (const item of items) {
-    if (!UUID_RE.test(item.mediaAssetId?.trim() ?? "")) {
+    const mediaAssetId = normalizeMediaAssetId(item.mediaAssetId);
+    if (!mediaAssetId) {
       return { ok: false, message: "Each item needs a media id." };
     }
+    if (seen.has(mediaAssetId)) {
+      return {
+        ok: false,
+        message: "Each upload can only be added once.",
+      };
+    }
+    seen.add(mediaAssetId);
     if (!isGarmentCategoryDb(item.category)) {
       return { ok: false, message: "Invalid category." };
     }
+    normalized.push({ ...item, mediaAssetId });
   }
 
   const claimed = await claimOwnedMediaAssets({
     userId,
-    mediaAssetIds: items.map((item) => item.mediaAssetId.trim()),
+    mediaAssetIds: normalized.map((item) => item.mediaAssetId),
     kind: "closet_image",
   });
   if (!claimed.ok) return claimed;
-  const assetById = new Map(claimed.assets.map((asset) => [asset.id, asset]));
+  const assetById = new Map(
+    claimed.assets.map((asset) => [asset.id.toLowerCase(), asset]),
+  );
 
   try {
     const sql = requireSql();
-    const needsAi = items.some((item) => {
+    const needsAi = normalized.some((item) => {
       const hasDesc = Boolean(
         item.description?.trim().slice(0, MAX_DESCRIPTION_LEN),
       );
@@ -168,7 +191,7 @@ export async function persistUploadedGarmentItems(
     const apiKey = gemini.ok ? gemini.apiKey : null;
 
     const rows = await mapWithConcurrency(
-      items,
+      normalized,
       AI_DESCRIBE_CONCURRENCY,
       async (item) => {
         const displayName =
@@ -180,15 +203,16 @@ export async function persistUploadedGarmentItems(
         const notes = notesRaw.length > 0 ? notesRaw : null;
         const { description, color } = await resolveGarmentAiFields({
           userId,
-          mediaAssetId: item.mediaAssetId.trim(),
+          mediaAssetId: item.mediaAssetId,
           category: item.category,
           displayName,
           descRaw,
           colorRaw,
           notes,
           apiKey,
+          membership,
         });
-        const asset = assetById.get(item.mediaAssetId.trim())!;
+        const asset = assetById.get(item.mediaAssetId)!;
 
         return {
           item,
@@ -237,6 +261,14 @@ export async function persistUploadedGarmentItems(
 
     return { ok: true };
   } catch (e) {
+    const code =
+      e && typeof e === "object" && "code" in e ? e.code : undefined;
+    if (code === "23505") {
+      return {
+        ok: false,
+        message: "That upload is already in your closet.",
+      };
+    }
     return {
       ok: false,
       message: safeClientMessage(

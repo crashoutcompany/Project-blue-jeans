@@ -6,6 +6,7 @@ import { uploadThingEnvToken } from "@/lib/credentials/resolve";
 import type { UploadThingSettingsView } from "@/lib/credentials/types";
 import { validateUploadThingToken } from "@/lib/credentials/validate-uploadthing";
 import {
+  CredentialVaultError,
   getByokConnectionPublic,
   revokeByokCredential,
   saveByokCredential,
@@ -83,6 +84,16 @@ export async function saveUploadThingByok(
       testedAt,
     });
   } catch (error) {
+    if (
+      error instanceof CredentialVaultError &&
+      error.code === "account_mismatch"
+    ) {
+      return {
+        ok: false,
+        message:
+          "Reconnect with a token from the same UploadThing app. A different app would make existing photos unreadable.",
+      };
+    }
     if (isUploadThingAppTaken(error)) {
       return {
         ok: false,

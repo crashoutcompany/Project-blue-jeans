@@ -13,6 +13,7 @@ import type {
   CalendarWeeklyLook,
 } from "@/lib/outfits/calendar-data";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import {
   formatProductMonthYear,
   productTodayIso,
@@ -75,7 +76,7 @@ function DayLookMedia({
         fill
         className="object-cover"
         sizes="(max-width: 640px) 28vw, (max-width: 1024px) 14vw, 12vw"
-        unoptimized={heroUrl.startsWith("data:") ? true : undefined}
+        unoptimized={shouldBypassImageOptimizer(heroUrl) ? true : undefined}
       />
     );
   }
@@ -96,7 +97,9 @@ function DayLookMedia({
             fill
             className="object-cover"
             sizes="(max-width: 640px) 14vw, 8vw"
-            unoptimized={thumb.imageUrl.startsWith("data:") ? true : undefined}
+            unoptimized={
+              shouldBypassImageOptimizer(thumb.imageUrl) ? true : undefined
+            }
           />
         </div>
       ))}

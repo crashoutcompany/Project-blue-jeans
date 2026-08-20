@@ -137,14 +137,19 @@ export async function generateLookbook(
             const garments = await resolveGarmentImageSourcesForAi(
               input.userId,
               rows,
+              input.membership,
             );
             if (garments.length === 0) return undefined;
 
             const wearerPhotoUrl = wearer
-              ? await resolveOwnedImageFetchUrl(input.userId, {
-                  mediaAssetId: wearer.mediaAssetId,
-                  imageUrl: wearer.imageUrl,
-                })
+              ? await resolveOwnedImageFetchUrl(
+                  input.userId,
+                  {
+                    mediaAssetId: wearer.mediaAssetId,
+                    imageUrl: wearer.imageUrl,
+                  },
+                  input.membership,
+                )
               : null;
 
             return await runHeroImageStep({

@@ -1,9 +1,10 @@
 import { getSql, requireSql } from "@/lib/db";
+import type { MembershipPolicy } from "@/lib/auth/membership";
 import { getOwnedMediaAsset } from "@/lib/media/assets";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 import { logServerError } from "@/lib/server/safe-client-error";
 import { deleteUploadThingFiles } from "@/lib/uploadthing-server";
-import { resolveUploadThingToken } from "@/lib/credentials/resolve";
+import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
 
 export type WearerPhoto = {
   imageUrl: string;
@@ -53,6 +54,7 @@ export async function getWearerPhoto(
 export async function saveWearerPhoto(input: {
   userId: string;
   mediaAssetId: string;
+  membership?: MembershipPolicy | null;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   if (!input.userId) {
     return { ok: false, message: "Missing user id." };
@@ -100,13 +102,26 @@ export async function saveWearerPhoto(input: {
     `;
 
     if (previousKey && previousKey !== asset.providerFileKey) {
-      const resolved = await resolveUploadThingToken(input.userId);
-      await deleteUploadThingFiles(
+      const previous = previousAssetId
+        ? await getOwnedMediaAsset(input.userId, previousAssetId)
+        : null;
+      const resolved = await resolveUploadThingTokenForConnection(
+        input.userId,
+        previous?.connectionId ?? asset.connectionId,
+        input.membership,
+      );
+      const deleted = await deleteUploadThingFiles(
         [previousKey],
         resolved.ok ? resolved.token : null,
       );
-    }
-    if (previousAssetId && previousAssetId !== asset.id) {
+      if (previousAssetId && previousAssetId !== asset.id && deleted) {
+        await sql`
+          DELETE FROM media_assets
+          WHERE id = ${previousAssetId}::uuid
+            AND user_id = ${input.userId}
+        `;
+      }
+    } else if (previousAssetId && previousAssetId !== asset.id) {
       await sql`
         DELETE FROM media_assets
         WHERE id = ${previousAssetId}::uuid
@@ -122,6 +137,7 @@ export async function saveWearerPhoto(input: {
 
 export async function clearWearerPhoto(
   userId: string,
+  membership?: MembershipPolicy | null,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   if (!userId) {
     return { ok: false, message: "Missing user id." };
@@ -139,13 +155,26 @@ export async function clearWearerPhoto(
     const previousKey = uploadthingKeyOf(deleted[0]);
     const previousAssetId = deleted[0]?.media_asset_id?.trim() || null;
     if (previousKey) {
-      const resolved = await resolveUploadThingToken(userId);
-      await deleteUploadThingFiles(
+      const previous = previousAssetId
+        ? await getOwnedMediaAsset(userId, previousAssetId)
+        : null;
+      const resolved = await resolveUploadThingTokenForConnection(
+        userId,
+        previous?.connectionId ?? null,
+        membership,
+      );
+      const deleted = await deleteUploadThingFiles(
         [previousKey],
         resolved.ok ? resolved.token : null,
       );
-    }
-    if (previousAssetId) {
+      if (previousAssetId && deleted) {
+        await sql`
+          DELETE FROM media_assets
+          WHERE id = ${previousAssetId}::uuid
+            AND user_id = ${userId}
+        `;
+      }
+    } else if (previousAssetId) {
       await sql`
         DELETE FROM media_assets
         WHERE id = ${previousAssetId}::uuid

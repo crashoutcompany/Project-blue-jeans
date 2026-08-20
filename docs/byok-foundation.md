@@ -82,4 +82,5 @@ routes already enforce membership.
 Each BYOK Wearer needs their own UploadThing app with **private ACL** enabled
 for the routes Blue Jeans uses (`closetImage`, `wearerPhoto`). The validator
 stores the app id (`external_account_id`) so the same UploadThing app cannot be
-linked to two Wearers.
+linked to two Wearers. Reconnecting must use a token from that same app; a
+different app is rejected so existing private photos stay readable.

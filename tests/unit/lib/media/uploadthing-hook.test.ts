@@ -1,10 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/credentials/resolve", () => ({
   resolveUploadThingToken: vi.fn(),
+  resolveUploadThingTokenForConnection: vi.fn(),
+  uploadThingEnvToken: vi.fn(),
 }));
 
-import { resolveUploadThingToken } from "@/lib/credentials/resolve";
+vi.mock("@/lib/media/intents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/media/intents")>();
+  return {
+    ...actual,
+    getUploadIntentById: vi.fn(),
+  };
+});
+
+import { resolveUploadThingToken, uploadThingEnvToken } from "@/lib/credentials/resolve";
+import { getUploadIntentById } from "@/lib/media/intents";
 import {
   isUploadThingServerHook,
   resolveUploadThingHookToken,
@@ -44,6 +55,12 @@ describe("isUploadThingServerHook", () => {
 });
 
 describe("resolveUploadThingHookToken", () => {
+  beforeEach(() => {
+    resolveToken.mockReset();
+    vi.mocked(uploadThingEnvToken).mockReset();
+    vi.mocked(getUploadIntentById).mockReset();
+  });
+
   it("resolves the Wearer token from callback metadata", async () => {
     resolveToken.mockResolvedValue({
       ok: true,
@@ -69,5 +86,56 @@ describe("resolveUploadThingHookToken", () => {
       token: "wearer-token",
     });
     expect(resolveToken).toHaveBeenCalledWith("u1");
+  });
+
+  it("uses the platform token for error hooks without metadata.userId", async () => {
+    vi.mocked(uploadThingEnvToken).mockReturnValue("platform-token");
+    const request = new Request("http://localhost/api/uploadthing", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "uploadthing-hook": "error",
+      },
+      body: JSON.stringify({ status: "failed", file: { key: "file-a" } }),
+    });
+
+    await expect(resolveUploadThingHookToken(request)).resolves.toEqual({
+      ok: true,
+      token: "platform-token",
+    });
+    expect(resolveToken).not.toHaveBeenCalled();
+  });
+
+  it("resolves an error hook from the signed intent id", async () => {
+    vi.mocked(getUploadIntentById).mockResolvedValue({
+      userId: "u1",
+      connectionId: "c1",
+    });
+    const { resolveUploadThingTokenForConnection } = await import(
+      "@/lib/credentials/resolve"
+    );
+    vi.mocked(resolveUploadThingTokenForConnection).mockResolvedValue({
+      ok: true,
+      token: "intent-token",
+      connectionId: "c1",
+      source: "user_byok",
+    });
+
+    const request = new Request("http://localhost/api/uploadthing", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "uploadthing-hook": "error",
+      },
+      body: JSON.stringify({
+        status: "failed",
+        metadata: { intentId: "intent-1" },
+      }),
+    });
+
+    await expect(resolveUploadThingHookToken(request)).resolves.toEqual({
+      ok: true,
+      token: "intent-token",
+    });
   });
 });

@@ -39,6 +39,7 @@ export async function PUT(request: Request) {
   const result = await saveWearerPhoto({
     userId: gate.userId,
     mediaAssetId: parsed.data.mediaAssetId,
+    membership: gate.membership,
   });
   if (!result.ok) {
     return NextResponse.json(result, { status: 500 });
@@ -58,7 +59,7 @@ export async function DELETE() {
     );
   }
 
-  const result = await clearWearerPhoto(gate.userId);
+  const result = await clearWearerPhoto(gate.userId, gate.membership);
   if (!result.ok) {
     return NextResponse.json(result, { status: 500 });
   }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { resolveUploadThingToken } from "@/lib/credentials/resolve";
+import type { MembershipPolicy } from "@/lib/auth/membership";
+import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { logServerError, safeClientMessage } from "@/lib/server/safe-client-error";
 import type { DeleteGarmentResult } from "@/lib/garments/types";
@@ -42,6 +43,7 @@ async function runSqlTransaction(
 export async function deleteGarment(
   userId: string,
   garmentId: string,
+  membership?: MembershipPolicy | null,
 ): Promise<DeleteGarmentResult> {
   if (!userId) {
     return { ok: false, message: "Missing user id." };
@@ -81,11 +83,15 @@ export async function deleteGarment(
           AND g.user_id = ${userId}
       `,
       sql`
-        SELECT uploadthing_key, media_asset_id
-        FROM garments
-        WHERE id = ${id}::uuid
-          AND user_id = ${userId}
-        FOR UPDATE
+        SELECT
+          g.uploadthing_key,
+          g.media_asset_id,
+          ma.connection_id
+        FROM garments g
+        LEFT JOIN media_assets ma ON ma.id = g.media_asset_id
+        WHERE g.id = ${id}::uuid
+          AND g.user_id = ${userId}
+        FOR UPDATE OF g
       `,
       sql`
         DELETE FROM outfit_garments og
@@ -191,7 +197,11 @@ export async function deleteGarment(
     ]);
 
     const found = results[SELECT_KEY_INDEX] as
-      | { uploadthing_key: string | null; media_asset_id: string | null }[]
+      | {
+          uploadthing_key: string | null;
+          media_asset_id: string | null;
+          connection_id: string | null;
+        }[]
       | undefined;
     const deleted = results.at(-1) as { id: string }[] | undefined;
 
@@ -200,16 +210,22 @@ export async function deleteGarment(
     }
     const uploadthingKey = found[0]?.uploadthing_key?.trim() || null;
     const mediaAssetId = found[0]?.media_asset_id?.trim() || null;
+    const connectionId = found[0]?.connection_id?.trim() || null;
 
     try {
+      let remoteDeleted = true;
       if (uploadthingKey) {
-        const resolved = await resolveUploadThingToken(userId);
-        await deleteUploadThingFiles(
+        const resolved = await resolveUploadThingTokenForConnection(
+          userId,
+          connectionId,
+          membership,
+        );
+        remoteDeleted = await deleteUploadThingFiles(
           [uploadthingKey],
           resolved.ok ? resolved.token : null,
         );
       }
-      if (mediaAssetId) {
+      if (mediaAssetId && remoteDeleted) {
         await sql`
           DELETE FROM media_assets
           WHERE id = ${mediaAssetId}::uuid

@@ -1,7 +1,8 @@
 import "server-only";
 
+import type { MembershipPolicy } from "@/lib/auth/membership";
 import { fetchUrlAsImagePart } from "@/lib/ai/fetch-image-part";
-import { resolveUploadThingToken } from "@/lib/credentials/resolve";
+import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
 import { getOwnedMediaAsset } from "@/lib/media/assets";
 import {
   parseMediaAssetIdFromPath,
@@ -21,13 +22,16 @@ export type OwnedImageRef = {
 export async function fetchOwnedImagePart(
   userId: string,
   ref: OwnedImageRef,
-  options?: { abortSignal?: AbortSignal },
+  options?: {
+    abortSignal?: AbortSignal;
+    membership?: MembershipPolicy | null;
+  },
 ): Promise<{
   type: "image";
   image: Uint8Array;
   mediaType?: string;
 }> {
-  const url = await resolveOwnedImageFetchUrl(userId, ref);
+  const url = await resolveOwnedImageFetchUrl(userId, ref, options?.membership);
   if (!url) {
     throw new Error("Could not load that photo.");
   }
@@ -37,6 +41,7 @@ export async function fetchOwnedImagePart(
 export async function resolveOwnedImageFetchUrl(
   userId: string,
   ref: OwnedImageRef,
+  membership?: MembershipPolicy | null,
 ): Promise<string | null> {
   const mediaAssetId =
     ref.mediaAssetId?.trim() ||
@@ -46,7 +51,11 @@ export async function resolveOwnedImageFetchUrl(
   if (mediaAssetId) {
     const asset = await getOwnedMediaAsset(userId, mediaAssetId);
     if (!asset) return null;
-    const resolved = await resolveUploadThingToken(userId);
+    const resolved = await resolveUploadThingTokenForConnection(
+      userId,
+      asset.connectionId,
+      membership,
+    );
     if (!resolved.ok) return null;
     return generatePrivateMediaUrl(resolved.token, asset.providerFileKey);
   }
@@ -67,6 +76,7 @@ export async function resolveGarmentImageSourcesForAi(
     image_url: string;
     media_asset_id: string | null;
   }>,
+  membership?: MembershipPolicy | null,
 ): Promise<
   Array<{
     id: string;
@@ -77,10 +87,14 @@ export async function resolveGarmentImageSourcesForAi(
 > {
   const resolved = await Promise.all(
     rows.map(async (row) => {
-      const imageUrl = await resolveOwnedImageFetchUrl(userId, {
-        mediaAssetId: row.media_asset_id,
-        imageUrl: row.image_url,
-      });
+      const imageUrl = await resolveOwnedImageFetchUrl(
+        userId,
+        {
+          mediaAssetId: row.media_asset_id,
+          imageUrl: row.image_url,
+        },
+        membership,
+      );
       if (!imageUrl) return null;
       return {
         id: row.id,

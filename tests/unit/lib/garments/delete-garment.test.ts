@@ -5,21 +5,21 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/credentials/resolve", () => ({
-  resolveUploadThingToken: vi.fn(),
+  resolveUploadThingTokenForConnection: vi.fn(),
 }));
 
 vi.mock("@/lib/uploadthing-server", () => ({
   deleteUploadThingFiles: vi.fn(),
 }));
 
-import { resolveUploadThingToken } from "@/lib/credentials/resolve";
+import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { deleteGarment } from "@/lib/garments/delete-garment";
 import { deleteUploadThingFiles } from "@/lib/uploadthing-server";
 
 const requireSqlMock = vi.mocked(requireSql);
 const deleteFilesMock = vi.mocked(deleteUploadThingFiles);
-const resolveUploadMock = vi.mocked(resolveUploadThingToken);
+const resolveUploadMock = vi.mocked(resolveUploadThingTokenForConnection);
 
 const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 const mediaId = "a47ac10b-58cc-4372-a567-0e02b2c3d479";
@@ -51,7 +51,7 @@ describe("deleteGarment", () => {
     requireSqlMock.mockReset();
     deleteFilesMock.mockReset();
     resolveUploadMock.mockReset();
-    deleteFilesMock.mockResolvedValue(undefined);
+    deleteFilesMock.mockResolvedValue(true);
     resolveUploadMock.mockResolvedValue({
       ok: true,
       token: "owner-token",
@@ -100,6 +100,7 @@ describe("deleteGarment", () => {
     });
     deleteFilesMock.mockImplementation(async () => {
       expect(transactionFinished).toBe(true);
+      return true;
     });
     requireSqlMock.mockReturnValue(sql as never);
 
@@ -153,9 +154,11 @@ describe("deleteGarment", () => {
       return [];
     });
     requireSqlMock.mockReturnValue(sql as never);
-    deleteFilesMock.mockRejectedValue(new Error("ut down"));
+    deleteFilesMock.mockResolvedValue(false);
 
     const res = await deleteGarment("u1", gid);
     expect(res.ok).toBe(true);
+    const sent = sql.mock.calls.map((call) => sqlText(call[0])).join("\n");
+    expect(sent).not.toMatch(/DELETE FROM media_assets/i);
   });
 });
