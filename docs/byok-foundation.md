@@ -39,8 +39,12 @@ Set these Vercel environment variables only in production:
   `openssl rand -base64 32`
 
 Keep older `PROVIDER_CREDENTIAL_KEY_V<n>` values during key rotation until all
-rows have been re-encrypted with the current version. Losing a key makes rows
-encrypted by that version unrecoverable.
+rows have been re-encrypted with the current version. Reads lazily rewrap
+ciphertext to `PROVIDER_CREDENTIAL_KEY_VERSION` after a successful decrypt.
+Losing a key makes rows encrypted by that version unrecoverable.
+
+`saveByokCredential` writes the connection row and ciphertext together, and
+will not replace a bound `external_account_id` with a different provider app.
 
 The existing `GOOGLE_GENERATIVE_AI_API_KEY` and `UPLOADTHING_TOKEN` remain the
 owner's platform-funded credentials. The resolver never falls back to either

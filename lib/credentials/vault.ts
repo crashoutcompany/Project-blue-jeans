@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import {
+  configuredCredentialKeyVersion,
   decryptCredential,
   encryptCredential,
 } from "@/lib/credentials/crypto";
@@ -35,7 +36,8 @@ export class CredentialVaultError extends Error {
       | "invalid_secret"
       | "membership_unavailable"
       | "credential_not_found"
-      | "invalid_stored_credential",
+      | "invalid_stored_credential"
+      | "account_mismatch",
   ) {
     super(message);
     this.name = "CredentialVaultError";
@@ -81,6 +83,60 @@ function serializeSecret<P extends ProviderKind>(
   return JSON.stringify(parsed.data);
 }
 
+async function runSqlTransaction(
+  sql: ReturnType<typeof requireSql>,
+  queries: unknown[],
+): Promise<unknown[]> {
+  if (typeof sql.transaction === "function") {
+    return sql.transaction(queries as never);
+  }
+  const results: unknown[] = [];
+  for (const query of queries) {
+    results.push(await query);
+  }
+  return results;
+}
+
+function storedPlaintext(plaintext: string): unknown {
+  try {
+    return JSON.parse(plaintext);
+  } catch {
+    throw new CredentialVaultError(
+      "Stored provider credential is not valid JSON.",
+      "invalid_stored_credential",
+    );
+  }
+}
+
+function decryptStoredSecret<P extends ProviderKind>(
+  row: StoredCredentialRow,
+  userId: string,
+  provider: P,
+): { plaintext: string; secret: ProviderSecretByKind[P] } {
+  let plaintext: string;
+  try {
+    plaintext = decryptCredential(
+      {
+        ciphertext: bytes(row.ciphertext, "ciphertext"),
+        iv: bytes(row.iv, "iv"),
+        authTag: bytes(row.auth_tag, "auth tag"),
+        keyVersion: row.encryption_key_version,
+      },
+      { userId, provider, connectionId: row.connection_id },
+    );
+  } catch (error) {
+    if (error instanceof CredentialVaultError) throw error;
+    throw new CredentialVaultError(
+      "Stored provider credential could not be read.",
+      "invalid_stored_credential",
+    );
+  }
+  return {
+    plaintext,
+    secret: parseSecret(provider, storedPlaintext(plaintext)),
+  };
+}
+
 function bytes(value: Uint8Array | string, field: string): Uint8Array {
   if (value instanceof Uint8Array) return value;
   if (/^\\x[0-9a-f]+$/i.test(value)) {
@@ -102,7 +158,10 @@ export async function saveByokCredential<P extends ProviderKind>(input: {
 }): Promise<{ connectionId: string }> {
   const userId = required(input.userId, "userId");
   const serialized = serializeSecret(input.provider, input.secret);
+  const externalAccountId = input.externalAccountId?.trim() || null;
+  const testedAt = input.testedAt.toISOString();
   const sql = requireSql();
+
   const connections = (await sql`
     INSERT INTO provider_connections (
       user_id,
@@ -110,78 +169,96 @@ export async function saveByokCredential<P extends ProviderKind>(input: {
       credential_source,
       status,
       external_account_id,
-      is_default,
-      last_validated_at
+      is_default
     )
     SELECT
       user_id,
       ${input.provider}::provider_kind,
       credential_source,
-      'active'::provider_connection_status,
-      ${input.externalAccountId?.trim() || null},
-      true,
-      ${input.testedAt.toISOString()}::timestamptz
+      'action_required'::provider_connection_status,
+      NULL,
+      true
     FROM wearer_memberships
     WHERE user_id = ${userId}
       AND credential_source = 'user_byok'
       AND status = 'active'
     ON CONFLICT (user_id, provider) WHERE is_default = true
-    DO UPDATE SET
-      status = 'active',
-      external_account_id = COALESCE(
-        EXCLUDED.external_account_id,
-        provider_connections.external_account_id
-      ),
-      last_validated_at = EXCLUDED.last_validated_at,
-      updated_at = now()
-    RETURNING id
-  `) as Array<{ id: string }>;
+    DO UPDATE SET updated_at = now()
+    RETURNING id, external_account_id
+  `) as Array<{ id: string; external_account_id: string | null }>;
 
-  const connectionId = connections[0]?.id;
-  if (!connectionId) {
+  const connection = connections[0];
+  if (!connection) {
     throw new CredentialVaultError(
       "An active BYOK membership is required before saving provider credentials.",
       "membership_unavailable",
     );
   }
 
+  const existingAccountId = connection.external_account_id?.trim() || null;
+  if (
+    existingAccountId &&
+    externalAccountId &&
+    existingAccountId !== externalAccountId
+  ) {
+    throw new CredentialVaultError(
+      "That provider account is already bound to a different app.",
+      "account_mismatch",
+    );
+  }
+
   const encrypted = encryptCredential(serialized, {
     userId,
     provider: input.provider,
-    connectionId,
+    connectionId: connection.id,
   });
 
-  await sql`
-    INSERT INTO provider_credentials (
-      connection_id,
-      ciphertext,
-      iv,
-      auth_tag,
-      encryption_key_version,
-      secret_hint,
-      tested_at
-    )
-    VALUES (
-      ${connectionId}::uuid,
-      ${encrypted.ciphertext},
-      ${encrypted.iv},
-      ${encrypted.authTag},
-      ${encrypted.keyVersion},
-      ${input.secretHint?.trim() || null},
-      ${input.testedAt.toISOString()}::timestamptz
-    )
-    ON CONFLICT (connection_id) WHERE revoked_at IS NULL
-    DO UPDATE SET
-      ciphertext = EXCLUDED.ciphertext,
-      iv = EXCLUDED.iv,
-      auth_tag = EXCLUDED.auth_tag,
-      encryption_key_version = EXCLUDED.encryption_key_version,
-      secret_hint = EXCLUDED.secret_hint,
-      tested_at = EXCLUDED.tested_at,
-      updated_at = now()
-  `;
+  await runSqlTransaction(sql, [
+    sql`
+      INSERT INTO provider_credentials (
+        connection_id,
+        ciphertext,
+        iv,
+        auth_tag,
+        encryption_key_version,
+        secret_hint,
+        tested_at
+      )
+      VALUES (
+        ${connection.id}::uuid,
+        ${encrypted.ciphertext},
+        ${encrypted.iv},
+        ${encrypted.authTag},
+        ${encrypted.keyVersion},
+        ${input.secretHint?.trim() || null},
+        ${testedAt}::timestamptz
+      )
+      ON CONFLICT (connection_id) WHERE revoked_at IS NULL
+      DO UPDATE SET
+        ciphertext = EXCLUDED.ciphertext,
+        iv = EXCLUDED.iv,
+        auth_tag = EXCLUDED.auth_tag,
+        encryption_key_version = EXCLUDED.encryption_key_version,
+        secret_hint = EXCLUDED.secret_hint,
+        tested_at = EXCLUDED.tested_at,
+        updated_at = now()
+    `,
+    sql`
+      UPDATE provider_connections
+      SET
+        status = 'active',
+        last_validated_at = ${testedAt}::timestamptz,
+        external_account_id = COALESCE(
+          provider_connections.external_account_id,
+          ${externalAccountId}
+        ),
+        updated_at = now()
+      WHERE id = ${connection.id}::uuid
+        AND credential_source = 'user_byok'
+    `,
+  ]);
 
-  return { connectionId };
+  return { connectionId: connection.id };
 }
 
 export async function getStoredProviderCredential<P extends ProviderKind>(
@@ -219,28 +296,37 @@ export async function getStoredProviderCredential<P extends ProviderKind>(
   const row = rows[0];
   if (!row) return null;
 
-  const plaintext = decryptCredential(
-    {
-      ciphertext: bytes(row.ciphertext, "ciphertext"),
-      iv: bytes(row.iv, "iv"),
-      authTag: bytes(row.auth_tag, "auth tag"),
-      keyVersion: row.encryption_key_version,
-    },
-    { userId, provider, connectionId: row.connection_id },
-  );
+  const { plaintext, secret } = decryptStoredSecret(row, userId, provider);
 
   try {
-    return {
-      connectionId: row.connection_id,
-      secret: parseSecret(provider, JSON.parse(plaintext)),
-    };
+    const currentVersion = configuredCredentialKeyVersion();
+    if (currentVersion !== row.encryption_key_version) {
+      const encrypted = encryptCredential(plaintext, {
+        userId,
+        provider,
+        connectionId: row.connection_id,
+      });
+      await sql`
+        UPDATE provider_credentials
+        SET
+          ciphertext = ${encrypted.ciphertext},
+          iv = ${encrypted.iv},
+          auth_tag = ${encrypted.authTag},
+          encryption_key_version = ${encrypted.keyVersion},
+          updated_at = now()
+        WHERE connection_id = ${row.connection_id}::uuid
+          AND revoked_at IS NULL
+          AND encryption_key_version = ${row.encryption_key_version}
+      `;
+    }
   } catch (error) {
-    if (error instanceof CredentialVaultError) throw error;
-    throw new CredentialVaultError(
-      "Stored provider credential is not valid JSON.",
-      "invalid_stored_credential",
-    );
+    console.error("[credentials] lazy rewrap failed", error);
   }
+
+  return {
+    connectionId: row.connection_id,
+    secret,
+  };
 }
 
 export async function revokeByokCredential(
@@ -258,6 +344,7 @@ export async function revokeByokCredential(
         AND connection.user_id = ${userId}
         AND connection.provider = ${provider}::provider_kind
         AND connection.credential_source = 'user_byok'
+    AND connection.is_default = true
         AND secret.revoked_at IS NULL
       RETURNING secret.id
     )
@@ -266,6 +353,7 @@ export async function revokeByokCredential(
     WHERE user_id = ${userId}
       AND provider = ${provider}::provider_kind
       AND credential_source = 'user_byok'
+      AND is_default = true
       AND EXISTS (SELECT 1 FROM revoked)
     RETURNING id
   `) as Array<{ id: string }>;

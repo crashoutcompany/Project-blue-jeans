@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  configuredCredentialKeyVersion,
   CredentialEncryptionError,
   decryptCredential,
   encryptCredential,
@@ -17,6 +18,7 @@ const context = {
 describe("provider credential encryption", () => {
   const originalVersion = process.env.PROVIDER_CREDENTIAL_KEY_VERSION;
   const originalKey = process.env.PROVIDER_CREDENTIAL_KEY_V1;
+  const originalKeyV2 = process.env.PROVIDER_CREDENTIAL_KEY_V2;
 
   beforeEach(() => {
     process.env.PROVIDER_CREDENTIAL_KEY_VERSION = "1";
@@ -33,6 +35,11 @@ describe("provider credential encryption", () => {
       delete process.env.PROVIDER_CREDENTIAL_KEY_V1;
     } else {
       process.env.PROVIDER_CREDENTIAL_KEY_V1 = originalKey;
+    }
+    if (originalKeyV2 === undefined) {
+      delete process.env.PROVIDER_CREDENTIAL_KEY_V2;
+    } else {
+      process.env.PROVIDER_CREDENTIAL_KEY_V2 = originalKeyV2;
     }
   });
 
@@ -81,5 +88,16 @@ describe("provider credential encryption", () => {
         code: "invalid_key",
       }),
     );
+  });
+
+  it("decrypts v1 ciphertext after the configured version advances to v2", () => {
+    const encrypted = encryptCredential("secret-value", context);
+    const v1 = process.env.PROVIDER_CREDENTIAL_KEY_V1!;
+    process.env.PROVIDER_CREDENTIAL_KEY_VERSION = "2";
+    process.env.PROVIDER_CREDENTIAL_KEY_V2 = randomBytes(32).toString("base64");
+    process.env.PROVIDER_CREDENTIAL_KEY_V1 = v1;
+
+    expect(configuredCredentialKeyVersion()).toBe(2);
+    expect(decryptCredential(encrypted, context)).toBe("secret-value");
   });
 });

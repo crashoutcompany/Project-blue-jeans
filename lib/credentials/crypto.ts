@@ -112,11 +112,15 @@ function masterKey(version: number): Buffer {
   return decoded;
 }
 
+export function configuredCredentialKeyVersion(): number {
+  return parseKeyVersion(process.env[KEY_VERSION_ENV]);
+}
+
 export function encryptCredential(
   plaintext: string,
   context: CredentialContext,
 ): CredentialCiphertext {
-  const keyVersion = parseKeyVersion(process.env[KEY_VERSION_ENV]);
+  const keyVersion = configuredCredentialKeyVersion();
   const key = masterKey(keyVersion);
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, key, iv);
