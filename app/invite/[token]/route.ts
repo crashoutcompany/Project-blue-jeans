@@ -25,6 +25,9 @@ export async function GET(
   if (gate.ok) {
     return redirectClearingPendingInvite(request, "/");
   }
+  if (gate.status === 503) {
+    return new Response(gate.message, { status: 503 });
+  }
 
   const { data } = await auth.getSession();
   if (!data?.user) {
@@ -45,6 +48,9 @@ export async function GET(
   });
   if (accepted.ok) {
     return redirectClearingPendingInvite(request, "/");
+  }
+  if (accepted.retryable) {
+    return redirectWithPendingInvite(request, "/auth/not-admitted", inviteToken);
   }
   return redirectClearingPendingInvite(request, "/auth/not-admitted");
 }

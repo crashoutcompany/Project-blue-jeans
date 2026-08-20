@@ -3,12 +3,14 @@ import { connection } from "next/server";
 import { redirect } from "next/navigation";
 
 import { ClosetView } from "@/components/outfit/closet-view";
+import { requireAdmittedAccess } from "@/lib/auth/admitted";
 import { getWearerUserId } from "@/lib/auth/wearer";
 import { getClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
 import { loadSavedOutfitsForCloset } from "@/lib/outfits/closet-saved-outfits";
 
 async function ClosetContent() {
   await connection();
+  await requireAdmittedAccess();
   const userId = await getWearerUserId();
   if (!userId) {
     redirect("/auth/sign-in");

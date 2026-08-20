@@ -10,8 +10,9 @@ function adminEmailAllowlist(): Set<string> {
 }
 
 /**
- * Used only to bootstrap the platform-funded owner before `APP_OWNER_USER_ID`
- * / the owner membership row is seeded. Product access is admission, not admin.
+ * Neon Auth `role=admin` / `APP_ADMIN_EMAILS` are not product admission.
+ * Production owner bootstrap is `APP_OWNER_USER_ID` only. This helper remains
+ * for admin-only APIs and the Playwright harness (`E2E_PLAYWRIGHT=1`).
  */
 export function isAdminUser(user: object | null | undefined): boolean {
   if (!user || typeof user !== "object") return false;

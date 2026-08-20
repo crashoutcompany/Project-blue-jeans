@@ -37,7 +37,10 @@ accept an owner invite from Settings.
 
 Set these Vercel environment variables only in production:
 
-- `APP_OWNER_USER_ID`: the same stable Neon Auth id as the owner membership
+- `APP_OWNER_USER_ID`: the same stable Neon Auth id as the owner membership.
+  Production owner bootstrap uses this exact id only. Neon Auth `role=admin`
+  and `APP_ADMIN_EMAILS` do not grant product admission. The Playwright
+  harness (`E2E_PLAYWRIGHT=1`) may still bootstrap its admin cookie.
 - `PROVIDER_CREDENTIAL_KEY_VERSION=1`
 - `PROVIDER_CREDENTIAL_KEY_V1`: a base64-encoded 32-byte key generated with
   `openssl rand -base64 32`

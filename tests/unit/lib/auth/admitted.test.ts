@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({
   getSql: vi.fn(),
@@ -16,25 +16,74 @@ import {
   getMembershipPolicyForUser,
   requireAdmittedAccess,
 } from "@/lib/auth/admitted";
+import { MembershipStoreUnavailableError } from "@/lib/auth/membership";
 import { auth } from "@/lib/auth/server";
 import { getSql } from "@/lib/db";
 
 const getSqlMock = vi.mocked(getSql);
 const getSession = vi.mocked(auth.getSession);
 
+function emptySql() {
+  return vi.fn().mockResolvedValue([]) as never;
+}
+
 describe("getMembershipPolicyForUser", () => {
+  const originalOwnerId = process.env.APP_OWNER_USER_ID;
+  const originalE2e = process.env.E2E_PLAYWRIGHT;
+
   beforeEach(() => {
     getSqlMock.mockReset();
     delete process.env.APP_OWNER_USER_ID;
+    delete process.env.E2E_PLAYWRIGHT;
   });
 
-  it("treats a signed-in admin without a row as the platform-funded owner", async () => {
-    getSqlMock.mockReturnValue(vi.fn().mockResolvedValueOnce([]) as never);
+  afterEach(() => {
+    if (originalOwnerId === undefined) {
+      delete process.env.APP_OWNER_USER_ID;
+    } else {
+      process.env.APP_OWNER_USER_ID = originalOwnerId;
+    }
+    if (originalE2e === undefined) {
+      delete process.env.E2E_PLAYWRIGHT;
+    } else {
+      process.env.E2E_PLAYWRIGHT = originalE2e;
+    }
+  });
+
+  it("does not treat a signed-in admin as owner without APP_OWNER_USER_ID", async () => {
+    getSqlMock.mockReturnValue(emptySql());
 
     await expect(
       getMembershipPolicyForUser({ id: "admin-1", role: "admin" }),
+    ).resolves.toBeNull();
+  });
+
+  it("bootstraps only the configured APP_OWNER_USER_ID", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+    getSqlMock.mockReturnValue(emptySql());
+
+    await expect(
+      getMembershipPolicyForUser({ id: "owner-1", role: "user" }),
     ).resolves.toEqual({
-      userId: "admin-1",
+      userId: "owner-1",
+      accessRole: "owner",
+      credentialSource: "platform_env",
+      status: "active",
+      persisted: false,
+    });
+    await expect(
+      getMembershipPolicyForUser({ id: "admin-1", role: "admin" }),
+    ).resolves.toBeNull();
+  });
+
+  it("lets the Playwright admin cookie bootstrap while E2E_PLAYWRIGHT=1", async () => {
+    process.env.E2E_PLAYWRIGHT = "1";
+    getSqlMock.mockReturnValue(emptySql());
+
+    await expect(
+      getMembershipPolicyForUser({ id: "e2e-admin", role: "admin" }),
+    ).resolves.toEqual({
+      userId: "e2e-admin",
       accessRole: "owner",
       credentialSource: "platform_env",
       status: "active",
@@ -43,7 +92,7 @@ describe("getMembershipPolicyForUser", () => {
   });
 
   it("does not admit a non-admin without a membership row", async () => {
-    getSqlMock.mockReturnValue(vi.fn().mockResolvedValueOnce([]) as never);
+    getSqlMock.mockReturnValue(emptySql());
 
     await expect(
       getMembershipPolicyForUser({ id: "wearer-1", role: "user" }),
@@ -89,10 +138,28 @@ describe("getMembershipPolicyForUser", () => {
 });
 
 describe("assertAdmittedForServerAction", () => {
+  const originalOwnerId = process.env.APP_OWNER_USER_ID;
+  const originalE2e = process.env.E2E_PLAYWRIGHT;
+
   beforeEach(() => {
     getSession.mockReset();
     getSqlMock.mockReset();
     getSqlMock.mockReturnValue(undefined);
+    delete process.env.APP_OWNER_USER_ID;
+    delete process.env.E2E_PLAYWRIGHT;
+  });
+
+  afterEach(() => {
+    if (originalOwnerId === undefined) {
+      delete process.env.APP_OWNER_USER_ID;
+    } else {
+      process.env.APP_OWNER_USER_ID = originalOwnerId;
+    }
+    if (originalE2e === undefined) {
+      delete process.env.E2E_PLAYWRIGHT;
+    } else {
+      process.env.E2E_PLAYWRIGHT = originalE2e;
+    }
   });
 
   it("returns sign-in message when no user", async () => {
@@ -113,9 +180,10 @@ describe("assertAdmittedForServerAction", () => {
     });
   });
 
-  it("returns ok when admin bootstrap applies", async () => {
+  it("returns ok when APP_OWNER_USER_ID bootstrap applies", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
-      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
+      data: { user: { id: "u1", email: "a@x.com", role: "user" } },
     });
     await expect(assertAdmittedForServerAction()).resolves.toEqual({
       ok: true,
@@ -129,14 +197,45 @@ describe("assertAdmittedForServerAction", () => {
       },
     });
   });
+
+  it("returns 503 when the membership store cannot be queried", async () => {
+    getSqlMock.mockReturnValue(
+      vi.fn().mockRejectedValueOnce(new Error("db down")) as never,
+    );
+    getSession.mockResolvedValue({
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
+    });
+    await expect(assertAdmittedForServerAction()).resolves.toEqual({
+      ok: false,
+      message: "Could not verify admission. Try again.",
+    });
+  });
 });
 
 describe("requireAdmittedAccess", () => {
+  const originalOwnerId = process.env.APP_OWNER_USER_ID;
+  const originalE2e = process.env.E2E_PLAYWRIGHT;
+
   beforeEach(() => {
     getSession.mockReset();
     getSqlMock.mockReset();
     getSqlMock.mockReturnValue(undefined);
     vi.mocked(redirect).mockClear();
+    delete process.env.APP_OWNER_USER_ID;
+    delete process.env.E2E_PLAYWRIGHT;
+  });
+
+  afterEach(() => {
+    if (originalOwnerId === undefined) {
+      delete process.env.APP_OWNER_USER_ID;
+    } else {
+      process.env.APP_OWNER_USER_ID = originalOwnerId;
+    }
+    if (originalE2e === undefined) {
+      delete process.env.E2E_PLAYWRIGHT;
+    } else {
+      process.env.E2E_PLAYWRIGHT = originalE2e;
+    }
   });
 
   it("redirects to sign-in when no user", async () => {
@@ -155,10 +254,32 @@ describe("requireAdmittedAccess", () => {
     );
   });
 
-  it("resolves when admin bootstrap applies", async () => {
+  it("does not admit a Neon admin without APP_OWNER_USER_ID", async () => {
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
+    await expect(requireAdmittedAccess()).rejects.toThrowError(
+      /REDIRECT:\/auth\/accept-invite/,
+    );
+  });
+
+  it("resolves when APP_OWNER_USER_ID bootstrap applies", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
+    getSession.mockResolvedValue({
+      data: { user: { id: "u1", email: "a@x.com", role: "user" } },
+    });
     await expect(requireAdmittedAccess()).resolves.toBeUndefined();
+  });
+
+  it("throws when the membership store is unavailable", async () => {
+    getSqlMock.mockReturnValue(
+      vi.fn().mockRejectedValueOnce(new Error("db down")) as never,
+    );
+    getSession.mockResolvedValue({
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
+    });
+    await expect(requireAdmittedAccess()).rejects.toBeInstanceOf(
+      MembershipStoreUnavailableError,
+    );
   });
 });

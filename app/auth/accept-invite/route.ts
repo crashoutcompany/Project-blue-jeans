@@ -23,6 +23,9 @@ export async function GET(request: Request) {
   if (gate.status === 401) {
     return redirectTo(request, "/auth/sign-in");
   }
+  if (gate.status === 503) {
+    return new Response(gate.message, { status: 503 });
+  }
 
   const { data } = await auth.getSession();
   const user = data?.user;
@@ -35,6 +38,9 @@ export async function GET(request: Request) {
     const accepted = await acceptInviteToken({ userId, email, token });
     if (accepted.ok) {
       return redirectClearingPendingInvite(request, "/");
+    }
+    if (accepted.retryable) {
+      return redirectTo(request, "/auth/not-admitted");
     }
   }
 

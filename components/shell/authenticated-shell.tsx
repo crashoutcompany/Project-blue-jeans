@@ -5,10 +5,15 @@ import { MainChrome } from "@/components/shell/main-chrome";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { requireAdmittedAccess } from "@/lib/auth/admitted";
 
-/** Request-time admission gate; suspends during prerender so the shell can build. */
-async function AdmittedAccessGate() {
+/**
+ * Request-time admission gate. Children (Closet / Calendar / Settings loaders)
+ * must not start until this resolves, or unadmitted sessions would still query
+ * protected data. Sidebar chrome stays outside so the static/PPR shell can
+ * prerender.
+ */
+async function AdmittedMain({ children }: { children: React.ReactNode }) {
   await requireAdmittedAccess();
-  return null;
+  return children;
 }
 
 /**
@@ -29,10 +34,11 @@ export function AuthenticatedShell({
         className="min-h-svh overflow-x-hidden"
         data-testid="main-shell-marker"
       >
-        <Suspense fallback={null}>
-            <AdmittedAccessGate />
-        </Suspense>
-        <MainChrome>{children}</MainChrome>
+        <MainChrome>
+          <Suspense fallback={null}>
+            <AdmittedMain>{children}</AdmittedMain>
+          </Suspense>
+        </MainChrome>
       </SidebarInset>
     </SidebarProvider>
   );

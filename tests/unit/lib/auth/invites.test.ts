@@ -132,13 +132,47 @@ describe("acceptInviteToken", () => {
     const sql = vi
       .fn()
       .mockResolvedValueOnce([{ id: "inv-1", email_normalized: "a@b.com" }])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ user_id: "u1" }]);
     requireSqlMock.mockReturnValue(sql as never);
     await expect(
       acceptInviteToken({ userId: "u1", email: "a@b.com", token: "tok" }),
     ).resolves.toEqual({
       ok: false,
       message: "This account already has a membership.",
+    });
+    const claimSql = String(sql.mock.calls[1]?.[0] ?? "");
+    expect(claimSql).toContain("WITH claimed AS");
+    expect(claimSql).toContain("INSERT INTO wearer_memberships");
+  });
+
+  it("keeps the invite when a later identity loses the claim race", async () => {
+    const sql = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: "inv-1", email_normalized: "a@b.com" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    requireSqlMock.mockReturnValue(sql as never);
+    await expect(
+      acceptInviteToken({ userId: "u2", email: "a@b.com", token: "tok" }),
+    ).resolves.toEqual({
+      ok: false,
+      message: "That invite has expired or already been used.",
+    });
+  });
+
+  it("marks transient database failures as retryable", async () => {
+    const sql = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: "inv-1", email_normalized: "a@b.com" }])
+      .mockRejectedValueOnce(new Error("db down"));
+    requireSqlMock.mockReturnValue(sql as never);
+    await expect(
+      acceptInviteToken({ userId: "u1", email: "a@b.com", token: "tok" }),
+    ).resolves.toEqual({
+      ok: false,
+      message: "Could not accept that invite. Try again.",
+      retryable: true,
     });
   });
 });
@@ -160,6 +194,8 @@ describe("pending invite redirect cookies", () => {
     expect(response.cookies.get(PENDING_INVITE_COOKIE)?.maxAge).toBe(
       Math.floor(INVITE_TTL_MS / 1000),
     );
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
   it("expires the pending invite on the redirect response", () => {

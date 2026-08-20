@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { OutfitCalendar } from "@/components/outfit/outfit-calendar";
+import { requireAdmittedAccess } from "@/lib/auth/admitted";
 import { getWearerUserId } from "@/lib/auth/wearer";
 import { loadCalendarMonthData } from "@/lib/outfits/calendar-data";
 
@@ -31,6 +32,7 @@ async function CalendarContent({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireAdmittedAccess();
   const userId = await getWearerUserId();
   if (!userId) {
     redirect("/auth/sign-in");

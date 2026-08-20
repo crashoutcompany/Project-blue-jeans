@@ -6,6 +6,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
+import { MembershipStoreUnavailableError } from "@/lib/auth/membership";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,9 @@ async function NotAdmittedGate() {
   }
   if (gate.status === 401) {
     redirect("/auth/sign-in");
+  }
+  if (gate.status === 503) {
+    throw new MembershipStoreUnavailableError(gate.message);
   }
   return null;
 }
