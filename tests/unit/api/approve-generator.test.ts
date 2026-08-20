@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server", () => ({
   auth: {
@@ -37,12 +37,22 @@ const approveMock = vi.mocked(executeApproveGeneratorOutfit);
 describe("POST /api/outfits/approve-generator", () => {
   /** Valid RFC-4122-style UUID accepted by Zod `uuid()` */
   const uuid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+  const originalOwnerId = process.env.APP_OWNER_USER_ID;
 
   beforeEach(() => {
     getSession.mockReset();
     approveMock.mockReset();
     getSqlMock.mockReset();
     getSqlMock.mockReturnValue(undefined);
+    delete process.env.APP_OWNER_USER_ID;
+  });
+
+  afterEach(() => {
+    if (originalOwnerId === undefined) {
+      delete process.env.APP_OWNER_USER_ID;
+    } else {
+      process.env.APP_OWNER_USER_ID = originalOwnerId;
+    }
   });
 
   it("returns 401 when not signed in", async () => {
@@ -76,6 +86,7 @@ describe("POST /api/outfits/approve-generator", () => {
   });
 
   it("returns 400 when payload invalid", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
@@ -89,6 +100,7 @@ describe("POST /api/outfits/approve-generator", () => {
   });
 
   it("returns 200 when approve succeeds", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
@@ -111,6 +123,7 @@ describe("POST /api/outfits/approve-generator", () => {
   });
 
   it("returns 422 when approve returns failure", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });

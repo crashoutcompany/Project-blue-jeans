@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server", () => ({
   auth: {
@@ -18,10 +18,21 @@ const getSession = vi.mocked(auth.getSession);
 const getSqlMock = vi.mocked(getSql);
 
 describe("GET /api/db/ping", () => {
+  const originalOwnerId = process.env.APP_OWNER_USER_ID;
+
   beforeEach(() => {
     getSession.mockReset();
     getSqlMock.mockReset();
     getSqlMock.mockReturnValue(undefined);
+    delete process.env.APP_OWNER_USER_ID;
+  });
+
+  afterEach(() => {
+    if (originalOwnerId === undefined) {
+      delete process.env.APP_OWNER_USER_ID;
+    } else {
+      process.env.APP_OWNER_USER_ID = originalOwnerId;
+    }
   });
 
   it("returns 401 when not signed in", async () => {
@@ -39,6 +50,7 @@ describe("GET /api/db/ping", () => {
   });
 
   it("returns 503 when DATABASE_URL missing", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
@@ -48,6 +60,7 @@ describe("GET /api/db/ping", () => {
   });
 
   it("returns 200 when SELECT 1 succeeds", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });

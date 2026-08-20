@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server", () => ({
   auth: {
@@ -39,6 +39,7 @@ const sqlMock = vi.mocked(requireSql);
 const commitMock = vi.mocked(commitOutfitForDay);
 
 function adminSession() {
+  process.env.APP_OWNER_USER_ID = "u1";
   return {
     data: {
       user: {
@@ -53,12 +54,23 @@ function adminSession() {
 
 describe("approveWeeklyPlanLook", () => {
   const planLookId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+  const originalOwnerId = process.env.APP_OWNER_USER_ID;
 
   beforeEach(() => {
     getSession.mockReset();
     sqlMock.mockReset();
     commitMock.mockReset();
     vi.mocked(getSql).mockReset();
+    vi.mocked(getSql).mockReturnValue(undefined);
+    delete process.env.APP_OWNER_USER_ID;
+  });
+
+  afterEach(() => {
+    if (originalOwnerId === undefined) {
+      delete process.env.APP_OWNER_USER_ID;
+    } else {
+      process.env.APP_OWNER_USER_ID = originalOwnerId;
+    }
   });
 
   it("returns error when not admitted", async () => {

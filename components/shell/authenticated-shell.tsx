@@ -6,14 +6,13 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { requireAdmittedAccess } from "@/lib/auth/admitted";
 
 /**
- * Request-time admission gate. Children (Closet / Calendar / Settings loaders)
- * must not start until this resolves, or unadmitted sessions would still query
- * protected data. Sidebar chrome stays outside so the static/PPR shell can
- * prerender.
+ * Request-time admission gate. Kept as a sibling of page children so closet /
+ * calendar layouts can still prerender their static shells. Page content
+ * awaits `requireAdmittedAccess` before loading protected data.
  */
-async function AdmittedMain({ children }: { children: React.ReactNode }) {
+async function AdmittedAccessGate() {
   await requireAdmittedAccess();
-  return children;
+  return null;
 }
 
 /**
@@ -34,11 +33,10 @@ export function AuthenticatedShell({
         className="min-h-svh overflow-x-hidden"
         data-testid="main-shell-marker"
       >
-        <MainChrome>
-          <Suspense fallback={null}>
-            <AdmittedMain>{children}</AdmittedMain>
-          </Suspense>
-        </MainChrome>
+        <Suspense fallback={null}>
+          <AdmittedAccessGate />
+        </Suspense>
+        <MainChrome>{children}</MainChrome>
       </SidebarInset>
     </SidebarProvider>
   );

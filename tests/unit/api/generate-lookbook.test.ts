@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server", () => ({
   auth: {
@@ -25,11 +25,22 @@ const getSqlMock = vi.mocked(getSql);
 const generateLookbookMock = vi.mocked(generateLookbook);
 
 describe("POST /api/generate-lookbook", () => {
+  const originalOwnerId = process.env.APP_OWNER_USER_ID;
+
   beforeEach(() => {
     getSession.mockReset();
     generateLookbookMock.mockReset();
     getSqlMock.mockReset();
     getSqlMock.mockReturnValue(undefined);
+    delete process.env.APP_OWNER_USER_ID;
+  });
+
+  afterEach(() => {
+    if (originalOwnerId === undefined) {
+      delete process.env.APP_OWNER_USER_ID;
+    } else {
+      process.env.APP_OWNER_USER_ID = originalOwnerId;
+    }
   });
 
   it("returns 401 when not signed in", async () => {
@@ -57,6 +68,7 @@ describe("POST /api/generate-lookbook", () => {
   });
 
   it("returns 400 for invalid JSON", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
@@ -70,6 +82,7 @@ describe("POST /api/generate-lookbook", () => {
   });
 
   it("returns 400 when narrative missing", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
@@ -83,6 +96,7 @@ describe("POST /api/generate-lookbook", () => {
   });
 
   it("calls generateLookbook for an admitted session", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
@@ -104,6 +118,7 @@ describe("POST /api/generate-lookbook", () => {
   });
 
   it("returns a structured error when generateLookbook throws", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
     });
