@@ -192,6 +192,9 @@ CREATE INDEX IF NOT EXISTS garments_color_idx ON garments (color);
 CREATE INDEX IF NOT EXISTS garments_is_favorite_idx ON garments (is_favorite) WHERE is_favorite = true;
 CREATE INDEX IF NOT EXISTS garments_user_id_idx ON garments (user_id);
 CREATE INDEX IF NOT EXISTS garments_media_asset_id_idx ON garments (media_asset_id);
+CREATE UNIQUE INDEX IF NOT EXISTS garments_user_media_asset_uidx
+  ON garments (user_id, media_asset_id)
+  WHERE media_asset_id IS NOT NULL;
 
 -- Wearer photo per account for try-on heroes.
 CREATE TABLE IF NOT EXISTS wearer_profile (

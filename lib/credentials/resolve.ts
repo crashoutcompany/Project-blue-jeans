@@ -10,7 +10,10 @@ import type {
   ProviderSecretByKind,
   ResolvedProviderCredential,
 } from "@/lib/credentials/types";
-import { getStoredProviderCredential } from "@/lib/credentials/vault";
+import {
+  getStoredProviderCredential,
+  getStoredProviderCredentialByConnectionId,
+} from "@/lib/credentials/vault";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
 export class ProviderCredentialUnavailableError extends Error {
@@ -187,6 +190,69 @@ export async function resolveUploadThingToken(
       token: resolved.secret.token,
       connectionId: resolved.connectionId,
       source: resolved.source,
+    };
+  } catch (error) {
+    if (error instanceof ProviderCredentialUnavailableError) {
+      return { ok: false, message: uploadThingCredentialMessage(error) };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Resolve the token that owns a stored media connection. Platform-funded
+ * accounts always use the env token. BYOK reads use the recorded connection
+ * instead of whatever is currently default.
+ */
+export async function resolveUploadThingTokenForConnection(
+  userId: string,
+  connectionId: string | null | undefined,
+  fallbackMembership?: MembershipPolicy | null,
+): Promise<
+  | {
+      ok: true;
+      token: string;
+      connectionId: string | null;
+      source: "platform_env" | "user_byok";
+    }
+  | { ok: false; message: string }
+> {
+  const fromDb = await getMembershipPolicy(userId);
+  const membership = fromDb ?? fallbackMembership ?? null;
+  const recordedConnectionId = connectionId?.trim() || null;
+  if (!recordedConnectionId || membership?.credentialSource === "platform_env") {
+    return resolveUploadThingToken(userId, membership);
+  }
+
+  try {
+    if (!membership) {
+      throw new ProviderCredentialUnavailableError(
+        "This account has not been admitted to Blue Jeans.",
+        "not_admitted",
+      );
+    }
+    if (membership.status !== "active") {
+      throw new ProviderCredentialUnavailableError(
+        "This account is not active.",
+        "membership_inactive",
+      );
+    }
+    const stored = await getStoredProviderCredentialByConnectionId(
+      userId,
+      recordedConnectionId,
+      "uploadthing",
+    );
+    if (!stored) {
+      throw new ProviderCredentialUnavailableError(
+        "Connect uploadthing in Settings before using this feature.",
+        "byok_credential_missing",
+      );
+    }
+    return {
+      ok: true,
+      token: stored.secret.token,
+      connectionId: stored.connectionId,
+      source: "user_byok",
     };
   } catch (error) {
     if (error instanceof ProviderCredentialUnavailableError) {

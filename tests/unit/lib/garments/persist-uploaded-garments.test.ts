@@ -8,9 +8,13 @@ vi.mock("@/lib/ai/garments/describe-from-image", () => ({
   analyzeGarmentFromImageUrl: vi.fn(),
 }));
 
-vi.mock("@/lib/media/assets", () => ({
-  claimOwnedMediaAssets: vi.fn(),
-}));
+vi.mock("@/lib/media/assets", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/media/assets")>();
+  return {
+    ...actual,
+    claimOwnedMediaAssets: vi.fn(),
+  };
+});
 
 vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
@@ -91,5 +95,26 @@ describe("persistUploadedGarmentItems", () => {
     ]);
     expect(res.ok).toBe(true);
     expect(sql).toHaveBeenCalled();
+  });
+
+  it("rejects duplicate media ids in one request", async () => {
+    const res = await persistUploadedGarmentItems("u1", [
+      { mediaAssetId: mediaId, name: "a", category: "tops" },
+      { mediaAssetId: mediaId.toUpperCase(), name: "b", category: "tops" },
+    ]);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.message).toContain("only be added once");
+    expect(claimMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects batches larger than 24", async () => {
+    const items = Array.from({ length: 25 }, (_, i) => ({
+      mediaAssetId: `f47ac10b-58cc-4372-a567-0e02b2c3d4${String(i).padStart(2, "0")}`,
+      name: "n",
+      category: "tops" as const,
+    }));
+    const res = await persistUploadedGarmentItems("u1", items);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.message).toContain("24");
   });
 });

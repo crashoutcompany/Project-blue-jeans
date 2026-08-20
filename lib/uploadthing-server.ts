@@ -9,21 +9,23 @@ import { logServerError } from "@/lib/server/safe-client-error";
 export async function deleteUploadThingFiles(
   keys: string[],
   token: string | null | undefined,
-): Promise<void> {
+): Promise<boolean> {
   const fileKeys = keys.map((k) => k.trim()).filter(Boolean);
-  if (fileKeys.length === 0) return;
+  if (fileKeys.length === 0) return true;
   if (!token?.trim()) {
     logServerError(
       "deleteUploadThingFiles",
       "UploadThing token is not set; skipped file delete.",
     );
-    return;
+    return false;
   }
 
   try {
     const utapi = new UTApi({ token: token.trim() });
     await utapi.deleteFiles(fileKeys);
+    return true;
   } catch (e) {
     logServerError("deleteUploadThingFiles", e);
+    return false;
   }
 }

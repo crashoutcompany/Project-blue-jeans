@@ -43,6 +43,9 @@ ALTER TABLE garments
     REFERENCES media_assets (id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS garments_media_asset_id_idx ON garments (media_asset_id);
+CREATE UNIQUE INDEX IF NOT EXISTS garments_user_media_asset_uidx
+  ON garments (user_id, media_asset_id)
+  WHERE media_asset_id IS NOT NULL;
 
 ALTER TABLE wearer_profile
   ADD COLUMN IF NOT EXISTS media_asset_id uuid

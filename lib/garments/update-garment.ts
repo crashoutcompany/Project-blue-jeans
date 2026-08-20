@@ -105,10 +105,14 @@ export async function updateGarmentFields(
 
       const abortSignal = AbortSignal.timeout(AI_UPDATE_TIMEOUT_MS);
       try {
-        const imageUrl = await resolveOwnedImageFetchUrl(userId, {
-          mediaAssetId: row.media_asset_id,
-          imageUrl: row.image_url,
-        });
+        const imageUrl = await resolveOwnedImageFetchUrl(
+          userId,
+          {
+            mediaAssetId: row.media_asset_id,
+            imageUrl: row.image_url,
+          },
+          membership,
+        );
         if (!imageUrl) {
           return { ok: false, message: "Could not load that photo." };
         }

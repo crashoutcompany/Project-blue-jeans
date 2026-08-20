@@ -3,7 +3,7 @@ import { connection, NextResponse } from "next/server";
 import { assertAdmittedSession } from "@/lib/auth/admitted";
 import { getOwnedMediaAsset } from "@/lib/media/assets";
 import { MEDIA_SIGNED_URL_MAX_SECONDS } from "@/lib/media/display";
-import { resolveUploadThingToken } from "@/lib/credentials/resolve";
+import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
 import { generatePrivateMediaUrl } from "@/lib/media/uploadthing-api";
 
 const UUID_RE =
@@ -38,8 +38,9 @@ export async function GET(
     );
   }
 
-  const resolved = await resolveUploadThingToken(
+  const resolved = await resolveUploadThingTokenForConnection(
     gate.userId,
+    asset.connectionId,
     gate.membership,
   );
   if (!resolved.ok) {

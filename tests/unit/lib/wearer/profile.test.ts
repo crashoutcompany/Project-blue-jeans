@@ -6,7 +6,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/credentials/resolve", () => ({
-  resolveUploadThingToken: vi.fn(),
+  resolveUploadThingTokenForConnection: vi.fn(),
 }));
 
 vi.mock("@/lib/uploadthing-server", () => ({
@@ -17,7 +17,7 @@ vi.mock("@/lib/media/assets", () => ({
   getOwnedMediaAsset: vi.fn(),
 }));
 
-import { resolveUploadThingToken } from "@/lib/credentials/resolve";
+import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { getOwnedMediaAsset } from "@/lib/media/assets";
 import { deleteUploadThingFiles } from "@/lib/uploadthing-server";
@@ -25,7 +25,7 @@ import { clearWearerPhoto, saveWearerPhoto } from "@/lib/wearer/profile";
 
 const requireSqlMock = vi.mocked(requireSql);
 const deleteFilesMock = vi.mocked(deleteUploadThingFiles);
-const resolveUploadMock = vi.mocked(resolveUploadThingToken);
+const resolveUploadMock = vi.mocked(resolveUploadThingTokenForConnection);
 const getAssetMock = vi.mocked(getOwnedMediaAsset);
 
 const mediaId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
@@ -36,7 +36,7 @@ describe("wearer photo UploadThing cleanup", () => {
     deleteFilesMock.mockReset();
     resolveUploadMock.mockReset();
     getAssetMock.mockReset();
-    deleteFilesMock.mockResolvedValue(undefined);
+    deleteFilesMock.mockResolvedValue(true);
     resolveUploadMock.mockResolvedValue({
       ok: true,
       token: "owner-token",

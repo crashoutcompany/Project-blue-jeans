@@ -367,19 +367,24 @@ export async function runWeeklyOutfitsJob(
           const garments = await resolveGarmentImageSourcesForAi(
             input.userId,
             rows,
+            input.membership,
           );
           if (garments.length === 0) {
             return {
               sortOrder: look.sortOrder,
               url: null as string | null,
-              missingGarments: true as const,
+              missingGarments: false as const,
             };
           }
           const wearerPhotoUrl = wearer
-            ? await resolveOwnedImageFetchUrl(input.userId, {
-                mediaAssetId: wearer.mediaAssetId,
-                imageUrl: wearer.imageUrl,
-              })
+            ? await resolveOwnedImageFetchUrl(
+                input.userId,
+                {
+                  mediaAssetId: wearer.mediaAssetId,
+                  imageUrl: wearer.imageUrl,
+                },
+                input.membership,
+              )
             : null;
           const heroImage = await runHeroImageStep({
             apiKey: gemini.apiKey,

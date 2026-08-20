@@ -144,6 +144,10 @@ describe("DELETE /api/closet/garments", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(deleteMock).toHaveBeenCalledWith("owner-1", gid);
+    expect(deleteMock).toHaveBeenCalledWith(
+      "owner-1",
+      gid,
+      expect.objectContaining({ userId: "owner-1" }),
+    );
   });
 });

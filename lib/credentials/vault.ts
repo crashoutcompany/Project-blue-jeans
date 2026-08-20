@@ -295,7 +295,6 @@ export async function getStoredProviderCredential<P extends ProviderKind>(
 
   const row = rows[0];
   if (!row) return null;
-
   const { plaintext, secret } = decryptStoredSecret(row, userId, provider);
 
   try {
@@ -323,6 +322,50 @@ export async function getStoredProviderCredential<P extends ProviderKind>(
     console.error("[credentials] lazy rewrap failed", error);
   }
 
+  return {
+    connectionId: row.connection_id,
+    secret,
+  };
+}
+
+export async function getStoredProviderCredentialByConnectionId<
+  P extends ProviderKind,
+>(
+  userIdInput: string,
+  connectionIdInput: string,
+  provider: P,
+): Promise<{
+  connectionId: string;
+  secret: ProviderSecretByKind[P];
+} | null> {
+  const userId = required(userIdInput, "userId");
+  const connectionId = required(connectionIdInput, "connectionId");
+  const sql = requireSql();
+  const rows = (await sql`
+    SELECT
+      pc.id AS connection_id,
+      secret.ciphertext,
+      secret.iv,
+      secret.auth_tag,
+      secret.encryption_key_version
+    FROM provider_connections pc
+    JOIN wearer_memberships membership
+      ON membership.user_id = pc.user_id
+    JOIN provider_credentials secret
+      ON secret.connection_id = pc.id
+      AND secret.revoked_at IS NULL
+    WHERE pc.id = ${connectionId}::uuid
+      AND pc.user_id = ${userId}
+      AND pc.provider = ${provider}::provider_kind
+      AND pc.credential_source = 'user_byok'
+      AND membership.status = 'active'
+      AND membership.credential_source = 'user_byok'
+    LIMIT 1
+  `) as StoredCredentialRow[];
+
+  const row = rows[0];
+  if (!row) return null;
+  const { secret } = decryptStoredSecret(row, userId, provider);
   return {
     connectionId: row.connection_id,
     secret,

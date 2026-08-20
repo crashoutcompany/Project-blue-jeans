@@ -4,6 +4,7 @@ import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { assertAdmittedSession } from "@/lib/auth/admitted";
 import {
   consumeUploadIntent,
+  cleanupExpiredUnclaimedUploads,
   createUploadIntent,
   type MediaKind,
   type UploadEndpoint,
@@ -30,9 +31,16 @@ async function uploadMiddleware(endpoint: UploadEndpoint) {
   }
 
   after(() =>
-    sealLegacyUploadThingMedia(gate.userId).catch((error) => {
-      logServerError("sealLegacyUploadThingMedia", error);
-    }),
+    Promise.all([
+      sealLegacyUploadThingMedia(gate.userId).catch((error) => {
+        logServerError("sealLegacyUploadThingMedia", error);
+      }),
+      cleanupExpiredUnclaimedUploads(
+        new Map([[gate.userId, gate.membership]]),
+      ).catch((error) => {
+        logServerError("cleanupExpiredUnclaimedUploads", error);
+      }),
+    ]),
   );
 
   const { intentId } = await createUploadIntent({
@@ -44,6 +52,7 @@ async function uploadMiddleware(endpoint: UploadEndpoint) {
   return {
     userId: gate.userId,
     intentId,
+    connectionId: session.connectionId,
     source: endpoint === "closetImage" ? ("closet" as const) : ("wearer" as const),
   };
 }
