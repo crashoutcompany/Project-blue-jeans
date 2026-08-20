@@ -165,4 +165,23 @@ describe("provider credential resolution", () => {
         "Connect Google AI Studio in Settings before using this feature.",
     });
   });
+
+  it("returns a safe client message when stored credentials cannot be decrypted", async () => {
+    membershipMock.mockResolvedValue({
+      userId: "wearer-1",
+      accessRole: "wearer",
+      credentialSource: "user_byok",
+      status: "active",
+      persisted: true,
+    });
+    storedCredentialMock.mockRejectedValue(
+      new Error("PROVIDER_CREDENTIAL_KEY_V1 is not configured."),
+    );
+
+    await expect(resolveGeminiApiKey("wearer-1")).resolves.toEqual({
+      ok: false,
+      message:
+        "Google AI Studio credentials could not be read. Try again in a moment.",
+    });
+  });
 });

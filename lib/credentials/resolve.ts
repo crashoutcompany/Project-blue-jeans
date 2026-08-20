@@ -11,6 +11,7 @@ import type {
   ResolvedProviderCredential,
 } from "@/lib/credentials/types";
 import { getStoredProviderCredential } from "@/lib/credentials/vault";
+import { safeClientMessage } from "@/lib/server/safe-client-error";
 
 export class ProviderCredentialUnavailableError extends Error {
   constructor(
@@ -116,9 +117,9 @@ export async function resolveGeminiApiKey(
   userId: string,
   fallbackMembership?: MembershipPolicy | null,
 ): Promise<{ ok: true; apiKey: string } | { ok: false; message: string }> {
-  const fromDb = await getMembershipPolicy(userId);
-  const membership = fromDb ?? fallbackMembership ?? null;
   try {
+    const fromDb = await getMembershipPolicy(userId);
+    const membership = fromDb ?? fallbackMembership ?? null;
     const resolved = await resolveProviderCredential(
       userId,
       "google_ai_studio",
@@ -129,6 +130,13 @@ export async function resolveGeminiApiKey(
     if (error instanceof ProviderCredentialUnavailableError) {
       return { ok: false, message: geminiCredentialMessage(error) };
     }
-    throw error;
+    return {
+      ok: false,
+      message: safeClientMessage(
+        "resolveGeminiApiKey",
+        error,
+        "Google AI Studio credentials could not be read. Try again in a moment.",
+      ),
+    };
   }
 }

@@ -93,4 +93,24 @@ describe("POST /api/generate-lookbook", () => {
       expect.objectContaining({ userId: "u1", narrative: "Summer brunch" }),
     );
   });
+
+  it("returns a structured error when generateLookbook throws", async () => {
+    getSession.mockResolvedValue({
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
+    });
+    generateLookbookMock.mockRejectedValue(
+      new Error("PROVIDER_CREDENTIAL_KEY_V2 is not configured."),
+    );
+    const res = await POST(
+      new Request("http://localhost/api/generate-lookbook", {
+        method: "POST",
+        body: JSON.stringify({ narrative: "Summer brunch" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      ok: false,
+      message: "We could not generate your lookbook. Try again in a moment.",
+    });
+  });
 });
