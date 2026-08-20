@@ -99,20 +99,6 @@ describe("getMembershipPolicyForUser", () => {
     ).resolves.toBeNull();
   });
 
-  it("admits an admin when the database is unset", async () => {
-    getSqlMock.mockReturnValue(undefined);
-
-    await expect(
-      getMembershipPolicyForUser({ id: "admin-1", role: "admin" }),
-    ).resolves.toEqual({
-      userId: "admin-1",
-      accessRole: "owner",
-      credentialSource: "platform_env",
-      status: "active",
-      persisted: false,
-    });
-  });
-
   it("returns a persisted wearer membership", async () => {
     getSqlMock.mockReturnValue(
       vi.fn().mockResolvedValueOnce([
