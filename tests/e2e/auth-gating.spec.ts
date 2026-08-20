@@ -41,7 +41,7 @@ test.describe("admin session", () => {
   });
 });
 
-test.describe("unsigned-in session without admission", () => {
+test.describe("signed-in session without admission", () => {
   test.use({ storageState: "tests/e2e/.auth/non-admin.json" });
 
   test("redirects /closet to not-admitted", async ({ page }) => {

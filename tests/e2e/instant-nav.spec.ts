@@ -100,7 +100,7 @@ test.describe("instant initial load", () => {
     });
   });
 
-  test.describe("unsigned-in session without admission", () => {
+  test.describe("signed-in session without admission", () => {
     test.use({ storageState: "tests/e2e/.auth/non-admin.json" });
 
     test("not-admitted shell is served", async ({ page }) => {

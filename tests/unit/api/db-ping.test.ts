@@ -35,6 +35,12 @@ describe("GET /api/db/ping", () => {
     }
   });
 
+  it("returns 401 when getSession throws", async () => {
+    getSession.mockRejectedValue(new Error("auth down"));
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
+
   it("returns 401 when not signed in", async () => {
     getSession.mockResolvedValue({ data: null });
     const res = await GET();

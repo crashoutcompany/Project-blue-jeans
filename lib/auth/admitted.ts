@@ -56,7 +56,13 @@ function isActiveMembership(
  * Use inside route handlers — do not call `redirect()` here.
  */
 export async function assertAdmittedSession(): Promise<AdmittedSession> {
-  const { data } = await auth.getSession();
+  let session: Awaited<ReturnType<typeof auth.getSession>>;
+  try {
+    session = await auth.getSession();
+  } catch {
+    return { ok: false, status: 401, message: "Sign in to continue." };
+  }
+  const data = session.data;
   if (!data?.user) {
     return { ok: false, status: 401, message: "Sign in to continue." };
   }

@@ -5,6 +5,7 @@ import { GoogleAiStudioCard } from "@/components/settings/google-ai-studio-card"
 import { InvitesCard } from "@/components/settings/invites-card";
 import { UploadThingCard } from "@/components/settings/uploadthing-card";
 import { WearerPhotoCard } from "@/components/settings/wearer-photo-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { auth } from "@/lib/auth/server";
 import {
   getMembershipPolicyForUser,
@@ -29,13 +30,31 @@ function SettingsHeader() {
   );
 }
 
+function WearerPhotoHeading() {
+  return (
+    <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+      Wearer photo
+    </h2>
+  );
+}
+
 function WearerPhotoSection({ imageUrl }: { imageUrl: string | null }) {
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-        Wearer photo
-      </h2>
+      <WearerPhotoHeading />
       <WearerPhotoCard initialImageUrl={imageUrl} />
+    </div>
+  );
+}
+
+function WearerPhotoFallback() {
+  return (
+    <div className="flex flex-col gap-3">
+      <WearerPhotoHeading />
+      <div className="flex flex-col gap-5">
+        <Skeleton className="mx-auto aspect-[3/4] w-full max-w-xs rounded-none" />
+        <Skeleton className="h-10 w-40" />
+      </div>
     </div>
   );
 }
@@ -101,7 +120,7 @@ export default function SettingsPage() {
   return (
     <>
       <SettingsHeader />
-      <Suspense fallback={<WearerPhotoSection imageUrl={null} />}>
+      <Suspense fallback={<WearerPhotoFallback />}>
         <SettingsContent />
       </Suspense>
     </>
