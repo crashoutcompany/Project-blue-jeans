@@ -1,6 +1,6 @@
 import "server-only";
 
-import { requireSql } from "@/lib/db";
+import { getSql } from "@/lib/db";
 
 export type MembershipPolicy = {
   userId: string;
@@ -31,22 +31,28 @@ export async function getMembershipPolicy(
   const userId = userIdInput.trim();
   if (!userId) return null;
 
-  const sql = requireSql();
-  const rows = (await sql`
-    SELECT user_id, access_role, credential_source, status
-    FROM wearer_memberships
-    WHERE user_id = ${userId}
-    LIMIT 1
-  `) as MembershipRow[];
-  const row = rows[0];
-  if (row) {
-    return {
-      userId: row.user_id,
-      accessRole: row.access_role,
-      credentialSource: row.credential_source,
-      status: row.status,
-      persisted: true,
-    };
+  const sql = getSql();
+  if (sql) {
+    try {
+      const rows = (await sql`
+        SELECT user_id, access_role, credential_source, status
+        FROM wearer_memberships
+        WHERE user_id = ${userId}
+        LIMIT 1
+      `) as MembershipRow[];
+      const row = rows[0];
+      if (row) {
+        return {
+          userId: row.user_id,
+          accessRole: row.access_role,
+          credentialSource: row.credential_source,
+          status: row.status,
+          persisted: true,
+        };
+      }
+    } catch (error) {
+      console.error("[membership] getMembershipPolicy failed", error);
+    }
   }
 
   if (ownerBootstrapUserId() === userId) {

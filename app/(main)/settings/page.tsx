@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { GoogleAiStudioCard } from "@/components/settings/google-ai-studio-card";
@@ -8,7 +9,32 @@ import { getMembershipPolicyForUser } from "@/lib/auth/admitted";
 import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 
-export default async function SettingsPage() {
+function SettingsHeader() {
+  return (
+    <header className="flex flex-col gap-2">
+      <h1 className="font-serif text-2xl tracking-tight text-foreground sm:text-3xl">
+        Settings
+      </h1>
+      <p className="text-sm text-muted-foreground">
+        Account preferences for how looks are shown on Today, and the keys
+        used to generate them.
+      </p>
+    </header>
+  );
+}
+
+function WearerPhotoSection({ imageUrl }: { imageUrl: string | null }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        Wearer photo
+      </h2>
+      <WearerPhotoCard initialImageUrl={imageUrl} />
+    </div>
+  );
+}
+
+async function SettingsContent() {
   const userId = await getWearerUserId();
   if (!userId) {
     redirect("/auth/sign-in");
@@ -28,17 +54,7 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="page-canvas mx-auto flex max-w-lg flex-col gap-8 px-4 pb-16 pt-4 sm:px-6">
-      <header className="flex flex-col gap-2">
-        <h1 className="font-serif text-2xl tracking-tight text-foreground sm:text-3xl">
-          Settings
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Account preferences for how looks are shown on Today, and the keys
-          used to generate them.
-        </p>
-      </header>
-
+    <>
       {googleAiStudio ? (
         <div className="flex flex-col gap-3">
           <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -48,12 +64,18 @@ export default async function SettingsPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3">
-        <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-          Wearer photo
-        </h2>
-        <WearerPhotoCard initialImageUrl={photo?.imageUrl ?? null} />
-      </div>
-    </div>
+      <WearerPhotoSection imageUrl={photo?.imageUrl ?? null} />
+    </>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <>
+      <SettingsHeader />
+      <Suspense fallback={<WearerPhotoSection imageUrl={null} />}>
+        <SettingsContent />
+      </Suspense>
+    </>
   );
 }
