@@ -136,30 +136,30 @@ export async function acceptInviteToken(input: {
     return { ok: false, message: "That invite link is invalid." };
   }
 
-  const sql = requireSql();
-  const tokenHash = hashInviteToken(token);
-  const rows = (await sql`
-    SELECT id::text AS id, email_normalized
-    FROM wearer_invitations
-    WHERE token_hash = ${tokenHash}
-      AND accepted_at IS NULL
-      AND revoked_at IS NULL
-      AND expires_at > now()
-    LIMIT 1
-  `) as Array<{ id: string; email_normalized: string }>;
-
-  const invite = rows[0];
-  if (!invite) {
-    return { ok: false, message: "That invite has expired or already been used." };
-  }
-  if (invite.email_normalized !== email) {
-    return {
-      ok: false,
-      message: "Sign in with the email this invite was sent to.",
-    };
-  }
-
   try {
+    const sql = requireSql();
+    const tokenHash = hashInviteToken(token);
+    const rows = (await sql`
+      SELECT id::text AS id, email_normalized
+      FROM wearer_invitations
+      WHERE token_hash = ${tokenHash}
+        AND accepted_at IS NULL
+        AND revoked_at IS NULL
+        AND expires_at > now()
+      LIMIT 1
+    `) as Array<{ id: string; email_normalized: string }>;
+
+    const invite = rows[0];
+    if (!invite) {
+      return { ok: false, message: "That invite has expired or already been used." };
+    }
+    if (invite.email_normalized !== email) {
+      return {
+        ok: false,
+        message: "Sign in with the email this invite was sent to.",
+      };
+    }
+
     const consumed = (await sql`
       WITH claimed AS (
         UPDATE wearer_invitations

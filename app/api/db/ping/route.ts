@@ -1,7 +1,6 @@
 import { connection, NextResponse } from "next/server";
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
-import { auth } from "@/lib/auth/server";
 import { getSql } from "@/lib/db";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
@@ -11,16 +10,6 @@ import { safeClientMessage } from "@/lib/server/safe-client-error";
  */
 export async function GET() {
   await connection();
-  try {
-    await auth.getSession();
-  } catch (e) {
-    console.error("[api/db/ping] getSession failed", e);
-    return NextResponse.json(
-      { ok: false, message: "Unauthorized" },
-      { status: 401 },
-    );
-  }
-
   const gate = await assertAdmittedSession();
   if (!gate.ok) {
     return NextResponse.json(

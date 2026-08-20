@@ -162,6 +162,14 @@ describe("assertAdmittedForServerAction", () => {
     }
   });
 
+  it("returns 401 when getSession throws", async () => {
+    getSession.mockRejectedValue(new Error("auth down"));
+    await expect(assertAdmittedForServerAction()).resolves.toEqual({
+      ok: false,
+      message: "Sign in to continue.",
+    });
+  });
+
   it("returns sign-in message when no user", async () => {
     getSession.mockResolvedValue({ data: null });
     await expect(assertAdmittedForServerAction()).resolves.toEqual({

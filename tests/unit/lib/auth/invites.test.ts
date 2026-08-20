@@ -161,6 +161,19 @@ describe("acceptInviteToken", () => {
     });
   });
 
+  it("marks a missing database as retryable", async () => {
+    requireSqlMock.mockImplementation(() => {
+      throw new Error("DATABASE_URL is not set");
+    });
+    await expect(
+      acceptInviteToken({ userId: "u1", email: "a@b.com", token: "tok" }),
+    ).resolves.toEqual({
+      ok: false,
+      message: "Could not accept that invite. Try again.",
+      retryable: true,
+    });
+  });
+
   it("marks transient database failures as retryable", async () => {
     const sql = vi
       .fn()

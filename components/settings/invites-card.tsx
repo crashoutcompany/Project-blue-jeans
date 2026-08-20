@@ -63,9 +63,18 @@ export function InvitesCard() {
               type="button"
               variant="outline"
               onClick={() => {
-                void navigator.clipboard.writeText(inviteUrl).then(() => {
-                  setCopied(true);
-                });
+                void (async () => {
+                  try {
+                    await navigator.clipboard.writeText(inviteUrl);
+                    setError(null);
+                    setCopied(true);
+                  } catch {
+                    setCopied(false);
+                    setError(
+                      "Could not copy automatically. Copy the invite URL above.",
+                    );
+                  }
+                })();
               }}
             >
               {copied ? "Copied" : "Copy link"}

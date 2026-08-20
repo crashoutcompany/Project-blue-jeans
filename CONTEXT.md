@@ -338,7 +338,7 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 ## Flagged ambiguities
 
 - Generator UI is still a chat lookbook — hybrid **Include**/**Avoid** chips ahead of code; **sheet over Today**, today-scoped approve → **Outfit**, and discard-confirm are shipped.
-- Admission is invite-gated membership (`wearer_memberships` / `wearer_invitations`); Neon admin / `APP_ADMIN_EMAILS` only bootstraps the owner before that row is seeded. Closet / Today / Calendar / Generator / Wearer photo data are scoped by Neon Auth `user.id` (cache tags per account). Existing DBs need `db/migrate-per-account.sql` (+ optional claim `UPDATE` for pre-isolation rows), plus `db/migrate-admission-invites.sql` for invitations.
+- Admission is invite-gated membership (`wearer_memberships` / `wearer_invitations`); production owner bootstrap uses `APP_OWNER_USER_ID` only. Closet / Today / Calendar / Generator / Wearer photo data are scoped by Neon Auth `user.id` (cache tags per account). Existing DBs need `db/migrate-per-account.sql` (+ optional claim `UPDATE` for pre-isolation rows), plus `db/migrate-admission-invites.sql` for invitations.
 - Closet **Pieces | Outfits** mode tabs, garment-set uniqueness (`outfit_wears` + `garment_set_key`), detail **Wear today** (+ replace confirm), and user rename are shipped. Existing DBs need `db/migrate-outfit-wears.sql`.
 - **Wearer photo** + try-on hero path shipped (Settings + Today soft CTA; Generator / Weekly Fits use try-on when a photo exists, editorial fallback otherwise). Existing DBs need `db/migrate-wearer-profile.sql`. Soft-delete garment archive still ahead.
 - Slice E shipped: per **Wearer account** isolation (`user_id` on garments / outfits / wears / weekly plans; `wearer_profile` keyed by user).
