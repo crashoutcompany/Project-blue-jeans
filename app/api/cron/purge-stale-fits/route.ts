@@ -8,8 +8,11 @@ import { purgeStaleWeeklyFits } from "@/lib/outfits/purge-stale-weekly-fits";
 /**
  * Monday Vercel Cron: delete Weekly Fits from previous Sunday-start weeks.
  * Committed Outfits are kept.
+ *
+ * Do not set `dynamic = "force-dynamic"` — Cache Components forbids that
+ * route segment config. Reading the request (cron Bearer) already opts the
+ * handler out of prerender.
  */
-export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
