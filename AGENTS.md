@@ -11,6 +11,7 @@ There is one local process — the **Next.js dev server**. Everything else is a 
 - **Neon Postgres** (`DATABASE_URL`) — persists garments / outfits. Serverless HTTP driver; no local Postgres.
 - **UploadThing** (`UPLOADTHING_TOKEN`) — image hosting for closet uploads.
 - **Google AI Studio / Gemini Developer API** (`GOOGLE_GENERATIVE_AI_API_KEY`) — powers outfit generation, hero images, and auto garment descriptions. See `docs/gemini-ai-studio-env.md`.
+- **Vercel Cron** (`CRON_SECRET`) — Bearer token for `GET /api/cron/purge-stale-fits` (Mondays 08:00 UTC). Deletes leftover Weekly Fits from previous Sunday-start weeks; committed Outfits are kept. Store the value raw.
 
 ### Commands (already defined in `package.json`)
 
