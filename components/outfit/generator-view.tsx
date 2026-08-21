@@ -649,6 +649,7 @@ export function GeneratorView({
                   onRemix={handleRemix}
                   disabled={pending}
                   busyLookId={approveSavingLookId}
+                  closetGarments={closetGarments}
                 />
                 {msg.note.trim().length > 0 ? (
                   <p className="max-w-prose pl-1 text-xs leading-relaxed text-muted-foreground">
