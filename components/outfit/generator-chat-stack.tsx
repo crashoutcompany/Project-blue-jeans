@@ -192,7 +192,6 @@ export function GeneratorChatStack({
       drag.armed = true;
       stageRef.current?.setPointerCapture?.(e.pointerId);
       stageRef.current?.setAttribute("data-dragging", "");
-      stageRef.current?.classList.add("select-none");
     }
     writeDragTransforms(dx);
   }
@@ -204,7 +203,6 @@ export function GeneratorChatStack({
     const dx = e.clientX - drag.startX;
     if (drag.armed) {
       stageRef.current?.removeAttribute("data-dragging");
-      stageRef.current?.classList.remove("select-none");
       const advance = shouldAdvanceLook(dx, drag.vx);
       if (advance) go(advance === "next" ? 1 : -1);
       else writeRestTransforms();
@@ -233,14 +231,6 @@ export function GeneratorChatStack({
 
   return (
     <div className="relative mx-auto w-full max-w-lg">
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-0 -z-10 rounded-[2rem]",
-          "bg-[radial-gradient(120%_80%_at_10%_0%,color-mix(in_srgb,var(--tertiary)_14%,transparent),transparent_55%),radial-gradient(90%_70%_at_100%_10%,color-mix(in_srgb,var(--primary)_12%,transparent),transparent_50%)]",
-        )}
-        aria-hidden
-      />
-
       {multi ? (
         <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <LayoutGrid className="size-3.5" aria-hidden />
@@ -262,8 +252,9 @@ export function GeneratorChatStack({
         onPointerCancel={onPointerUp}
         onKeyDown={onStageKeyDown}
         className={cn(
-          "look-stack-stage relative overflow-hidden touch-pan-y outline-none",
+          "group/stack relative overflow-hidden touch-pan-y outline-none",
           "focus-visible:ring-3 focus-visible:ring-ring/50",
+          "data-[dragging]:select-none",
         )}
         style={{ paddingRight: peekReserve }}
       >
@@ -356,7 +347,11 @@ function LookStackCard({
       data-look-card={look.id}
       data-skip-transition={skipTransition ? "" : undefined}
       className={cn(
-        "look-stack-card relative col-start-1 row-start-1 flex flex-col overflow-hidden rounded-[1.75rem] bg-card text-card-foreground",
+        "relative col-start-1 row-start-1 flex flex-col overflow-hidden rounded-[1.75rem] bg-card text-card-foreground",
+        "origin-left transition-[transform,opacity] duration-[280ms] ease-[cubic-bezier(0.23,1,0.32,1)]",
+        "motion-reduce:transition-none",
+        "group-data-[dragging]/stack:transition-none group-data-[dragging]/stack:will-change-[transform]",
+        "data-[skip-transition]:transition-none",
         "ring-1 ring-foreground/10",
         isFront || isDeparting
           ? "shadow-[0_16px_44px_rgba(26,28,27,0.12)]"
