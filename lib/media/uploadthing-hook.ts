@@ -33,8 +33,9 @@ function hookMetadata(json: unknown): Record<string, unknown> | null {
 
 /**
  * UploadThing signs callbacks with the app token that issued the upload.
- * Read identity from signed metadata, then the intent row, then the platform
- * env token for legacy owner error hooks that omit metadata.userId.
+ * Read identity from signed metadata, then the intent row. Do not fall back
+ * to the platform env token once a Wearer is identified. Legacy owner error
+ * hooks that omit metadata may still use the env token to verify the signature.
  */
 export async function resolveUploadThingHookToken(
   request: Request,
@@ -73,12 +74,15 @@ export async function resolveUploadThingHookToken(
         if (resolved.ok) {
           return { ok: true, token: resolved.token };
         }
+        return { ok: false, message: resolved.message };
       }
     } catch {
-      // Fall through to the platform token for error hooks.
+      return { ok: false, message: "UploadThing callback is missing a Wearer." };
     }
   }
 
+  // Legacy owner error hooks omit metadata. Never use the platform token
+  // once a Wearer identity is known — that would bill the default app.
   if (hook === "error") {
     const platformToken = uploadThingEnvToken();
     if (platformToken) {

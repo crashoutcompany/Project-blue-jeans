@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
+import { isPlatformFundedOwner } from "@/lib/auth/membership";
 import {
   revokeUploadThingByok,
   saveUploadThingByok,
@@ -48,7 +49,7 @@ export async function PUT(request: Request) {
     );
     if (!result.ok) {
       const status =
-        gate.membership.credentialSource === "platform_env" ? 409 : 422;
+        isPlatformFundedOwner(gate.membership) ? 409 : 422;
       return NextResponse.json(result, { status });
     }
 
@@ -82,7 +83,7 @@ export async function DELETE() {
     );
     if (!result.ok) {
       const status =
-        gate.membership.credentialSource === "platform_env" ? 409 : 422;
+        isPlatformFundedOwner(gate.membership) ? 409 : 422;
       return NextResponse.json(result, { status });
     }
 

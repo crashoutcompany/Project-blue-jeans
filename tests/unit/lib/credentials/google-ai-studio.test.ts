@@ -15,12 +15,14 @@ vi.mock("@/lib/credentials/resolve", () => ({
 }));
 
 import {
+  getGoogleAiStudioSettings,
   revokeGoogleAiStudioByok,
   saveGoogleAiStudioByok,
 } from "@/lib/credentials/google-ai-studio";
 import { googleAiStudioEnvApiKey } from "@/lib/credentials/resolve";
 import { validateGoogleAiStudioApiKey } from "@/lib/credentials/validate-google-ai";
 import {
+  getByokConnectionPublic,
   revokeByokCredential,
   saveByokCredential,
 } from "@/lib/credentials/vault";
@@ -105,5 +107,34 @@ describe("Google AI Studio BYOK mutations", () => {
         "Platform-funded accounts use the environment Google AI Studio key.",
     });
     expect(revokeMock).not.toHaveBeenCalled();
+  });
+
+  it("still treats a Wearer as BYOK if credentialSource is mislabeled", async () => {
+    const mislabeled = {
+      ...wearer,
+      credentialSource: "platform_env" as const,
+    };
+    vi.mocked(getByokConnectionPublic).mockResolvedValue(null);
+
+    await expect(
+      getGoogleAiStudioSettings("wearer-1", mislabeled),
+    ).resolves.toEqual({
+      funding: "byok",
+      canEdit: true,
+      connected: false,
+      secretHint: null,
+      testedAt: null,
+    });
+
+    validateMock.mockResolvedValueOnce({
+      ok: true,
+      apiKey: "AIza-wearer-key-9999",
+    });
+    saveMock.mockResolvedValue({ connectionId: "c1" });
+
+    await expect(
+      saveGoogleAiStudioByok("wearer-1", mislabeled, "AIza-wearer-key-9999"),
+    ).resolves.toEqual({ ok: true, secretHint: "…9999" });
+    expect(saveMock).toHaveBeenCalled();
   });
 });
