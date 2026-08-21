@@ -21,6 +21,15 @@ vi.mock("@/lib/wearer/profile", () => ({
   getWearerPhoto: vi.fn(),
 }));
 
+vi.mock("@/lib/outfits/existing-outfit-heroes", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/outfits/existing-outfit-heroes")>();
+  return {
+    ...actual,
+    findExistingOutfitHeroUrls: vi.fn(),
+  };
+});
+
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import {
   loadGarmentCatalog,
@@ -29,6 +38,8 @@ import {
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { getWearerPhoto } from "@/lib/wearer/profile";
+import { findExistingOutfitHeroUrls } from "@/lib/outfits/existing-outfit-heroes";
+import { garmentSetKey } from "@/lib/outfits/garment-set-key";
 import { generateLookbook } from "@/lib/lookbook/generate-lookbook";
 
 const resolveGemini = vi.mocked(resolveGeminiApiKey);
@@ -37,6 +48,7 @@ const loadByIds = vi.mocked(loadGarmentsByIds);
 const step1 = vi.mocked(runStep1PlanWithRetry);
 const hero = vi.mocked(runHeroImageStep);
 const wearerPhoto = vi.mocked(getWearerPhoto);
+const existingHeroes = vi.mocked(findExistingOutfitHeroUrls);
 
 const GID_A = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 const GID_B = "b47ac10b-58cc-4372-a567-0e02b2c3d479";
@@ -49,6 +61,8 @@ describe("generateLookbook", () => {
     step1.mockReset();
     hero.mockReset();
     wearerPhoto.mockReset();
+    existingHeroes.mockReset();
+    existingHeroes.mockResolvedValue(new Map());
   });
 
   it("returns error when Gemini credentials missing", async () => {
@@ -164,5 +178,74 @@ describe("generateLookbook", () => {
     expect(res.looks).toHaveLength(2);
     expect(res.looks[0]?.imageDataUrl).toBeUndefined();
     expect(res.looks[1]?.imageDataUrl).toBe("data:image/png;base64,ok");
+  });
+
+  it("reuses a stored Outfit hero instead of generating a new image", async () => {
+    const savedUrl = "https://cdn.example.com/saved-outfit.jpg";
+    resolveGemini.mockResolvedValue({ ok: true, apiKey: "gemini-key" });
+    loadCatalog.mockResolvedValue([
+      {
+        id: GID_A,
+        name: "Tee",
+        category: "tops",
+        color: null,
+        notes: null,
+        description: "A tee",
+      },
+      {
+        id: GID_B,
+        name: "Jeans",
+        category: "bottoms",
+        color: null,
+        notes: null,
+        description: "Jeans",
+      },
+    ]);
+    step1.mockResolvedValue({
+      looks: [
+        {
+          title: "Known look",
+          description: "a",
+          tags: ["daytime"],
+          garmentIds: [GID_A],
+        },
+        {
+          title: "New look",
+          description: "b",
+          tags: ["evening"],
+          garmentIds: [GID_B],
+        },
+      ],
+      curatorNote: "note",
+    });
+    existingHeroes.mockResolvedValue(
+      new Map([[garmentSetKey([GID_A]), savedUrl]]),
+    );
+    wearerPhoto.mockResolvedValue(null);
+    loadByIds.mockImplementation(async (_userId, ids) =>
+      ids.map((id) => ({
+        id,
+        name: id === GID_A ? "Tee" : "Jeans",
+        category: id === GID_A ? "tops" : "bottoms",
+        color: null,
+        notes: null,
+        description: null,
+        image_url: `https://example.com/${id}.jpg`,
+      })),
+    );
+    hero.mockResolvedValue("data:image/png;base64,new");
+
+    const res = await generateLookbook({
+      userId: "u1",
+      narrative: "Reuse when possible",
+    });
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.looks[0]?.imageDataUrl).toBe(savedUrl);
+    expect(res.looks[1]?.imageDataUrl).toBe("data:image/png;base64,new");
+    expect(hero).toHaveBeenCalledTimes(1);
+    expect(loadByIds).toHaveBeenCalledTimes(1);
+    expect(loadByIds.mock.calls[0]?.[1]).toEqual([GID_B]);
   });
 });
