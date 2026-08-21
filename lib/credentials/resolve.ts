@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   getMembershipPolicy,
+  membershipAllowsPlatformCredentials,
   type MembershipPolicy,
 } from "@/lib/auth/membership";
 import { normalizePastedSecret } from "@/lib/credentials/paste";
@@ -69,6 +70,16 @@ function platformSecret<P extends ProviderKind>(
   return (token ? { token } : null) as ProviderSecretByKind[P] | null;
 }
 
+function membershipForResolution(
+  userId: string,
+  fromDb: MembershipPolicy | null,
+  fallback?: MembershipPolicy | null,
+): MembershipPolicy | null {
+  if (fromDb) return fromDb;
+  if (fallback && fallback.userId === userId) return fallback;
+  return null;
+}
+
 export async function resolveProviderCredential<P extends ProviderKind>(
   userId: string,
   provider: P,
@@ -78,7 +89,7 @@ export async function resolveProviderCredential<P extends ProviderKind>(
     membershipInput === undefined
       ? await getMembershipPolicy(userId)
       : membershipInput;
-  if (!membership) {
+  if (!membership || membership.userId !== userId) {
     throw new ProviderCredentialUnavailableError(
       "This account has not been admitted to Blue Jeans.",
       "not_admitted",
@@ -91,7 +102,7 @@ export async function resolveProviderCredential<P extends ProviderKind>(
     );
   }
 
-  if (membership.credentialSource === "platform_env") {
+  if (membershipAllowsPlatformCredentials(membership, userId)) {
     const secret = platformSecret(provider);
     if (!secret) {
       throw new ProviderCredentialUnavailableError(
@@ -128,7 +139,11 @@ export async function resolveGeminiApiKey(
 ): Promise<{ ok: true; apiKey: string } | { ok: false; message: string }> {
   try {
     const fromDb = await getMembershipPolicy(userId);
-    const membership = fromDb ?? fallbackMembership ?? null;
+    const membership = membershipForResolution(
+      userId,
+      fromDb,
+      fallbackMembership,
+    );
     const resolved = await resolveProviderCredential(
       userId,
       "google_ai_studio",
@@ -178,7 +193,11 @@ export async function resolveUploadThingToken(
   | { ok: false; message: string }
 > {
   const fromDb = await getMembershipPolicy(userId);
-  const membership = fromDb ?? fallbackMembership ?? null;
+  const membership = membershipForResolution(
+    userId,
+    fromDb,
+    fallbackMembership,
+  );
   try {
     const resolved = await resolveProviderCredential(
       userId,
@@ -218,9 +237,16 @@ export async function resolveUploadThingTokenForConnection(
   | { ok: false; message: string }
 > {
   const fromDb = await getMembershipPolicy(userId);
-  const membership = fromDb ?? fallbackMembership ?? null;
+  const membership = membershipForResolution(
+    userId,
+    fromDb,
+    fallbackMembership,
+  );
   const recordedConnectionId = connectionId?.trim() || null;
-  if (!recordedConnectionId || membership?.credentialSource === "platform_env") {
+  if (
+    !recordedConnectionId ||
+    membershipAllowsPlatformCredentials(membership, userId)
+  ) {
     return resolveUploadThingToken(userId, membership);
   }
 

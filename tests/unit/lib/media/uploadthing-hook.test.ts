@@ -138,4 +138,54 @@ describe("resolveUploadThingHookToken", () => {
       token: "intent-token",
     });
   });
+
+  it("does not fall back to the platform token when a Wearer intent cannot resolve", async () => {
+    vi.mocked(getUploadIntentById).mockResolvedValue({
+      userId: "u1",
+      connectionId: "c1",
+    });
+    const { resolveUploadThingTokenForConnection } = await import(
+      "@/lib/credentials/resolve"
+    );
+    vi.mocked(resolveUploadThingTokenForConnection).mockResolvedValue({
+      ok: false,
+      message: "Connect UploadThing in Settings before uploading photos.",
+    });
+    vi.mocked(uploadThingEnvToken).mockReturnValue("platform-token");
+
+    const request = new Request("http://localhost/api/uploadthing", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "uploadthing-hook": "error",
+      },
+      body: JSON.stringify({
+        status: "failed",
+        metadata: { intentId: "intent-1" },
+      }),
+    });
+
+    await expect(resolveUploadThingHookToken(request)).resolves.toEqual({
+      ok: false,
+      message: "Connect UploadThing in Settings before uploading photos.",
+    });
+    expect(uploadThingEnvToken).not.toHaveBeenCalled();
+  });
+
+  it("does not use the platform token for callback hooks without a Wearer", async () => {
+    vi.mocked(uploadThingEnvToken).mockReturnValue("platform-token");
+    const request = new Request("http://localhost/api/uploadthing", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "uploadthing-hook": "callback",
+      },
+      body: JSON.stringify({ status: "uploaded", file: { key: "file-a" } }),
+    });
+
+    await expect(resolveUploadThingHookToken(request)).resolves.toEqual({
+      ok: false,
+      message: "UploadThing callback is missing a Wearer.",
+    });
+  });
 });

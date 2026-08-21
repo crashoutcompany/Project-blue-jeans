@@ -15,12 +15,14 @@ vi.mock("@/lib/credentials/resolve", () => ({
 }));
 
 import {
+  getUploadThingSettings,
   revokeUploadThingByok,
   saveUploadThingByok,
 } from "@/lib/credentials/uploadthing";
 import { uploadThingEnvToken } from "@/lib/credentials/resolve";
 import { validateUploadThingToken } from "@/lib/credentials/validate-uploadthing";
 import {
+  getByokConnectionPublic,
   revokeByokCredential,
   saveByokCredential,
 } from "@/lib/credentials/vault";
@@ -92,5 +94,33 @@ describe("UploadThing BYOK mutations", () => {
       message: "Platform-funded accounts use the environment UploadThing token.",
     });
     expect(revokeMock).not.toHaveBeenCalled();
+  });
+
+  it("still treats a Wearer as BYOK if credentialSource is mislabeled", async () => {
+    const mislabeled = {
+      ...wearer,
+      credentialSource: "platform_env" as const,
+    };
+    vi.mocked(getByokConnectionPublic).mockResolvedValue(null);
+
+    await expect(getUploadThingSettings("wearer-1", mislabeled)).resolves.toEqual({
+      funding: "byok",
+      canEdit: true,
+      connected: false,
+      secretHint: null,
+      testedAt: null,
+    });
+
+    validateMock.mockResolvedValueOnce({
+      ok: true,
+      token: "wearer-token-9999",
+      appId: "app-wearer",
+    });
+    saveMock.mockResolvedValue({ connectionId: "c1" });
+
+    await expect(
+      saveUploadThingByok("wearer-1", mislabeled, "wearer-token-9999"),
+    ).resolves.toEqual({ ok: true, secretHint: "…9999" });
+    expect(saveMock).toHaveBeenCalled();
   });
 });

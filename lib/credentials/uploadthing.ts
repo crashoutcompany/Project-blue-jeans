@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { MembershipPolicy } from "@/lib/auth/membership";
+import { isPlatformFundedOwner, type MembershipPolicy } from "@/lib/auth/membership";
 import { secretHint } from "@/lib/credentials/paste";
 import { uploadThingEnvToken } from "@/lib/credentials/resolve";
 import type { UploadThingSettingsView } from "@/lib/credentials/types";
@@ -34,7 +34,7 @@ export async function getUploadThingSettings(
   userId: string,
   membership: MembershipPolicy,
 ): Promise<UploadThingSettingsView> {
-  if (membership.credentialSource === "platform_env") {
+  if (isPlatformFundedOwner(membership)) {
     return {
       funding: "platform",
       canEdit: false,
@@ -62,7 +62,7 @@ export async function saveUploadThingByok(
   membership: MembershipPolicy,
   rawToken: string,
 ): Promise<ProviderMutationResult> {
-  if (membership.credentialSource !== "user_byok") {
+  if (isPlatformFundedOwner(membership)) {
     return {
       ok: false,
       message: "Platform-funded accounts use the environment UploadThing token.",
@@ -111,7 +111,7 @@ export async function revokeUploadThingByok(
   userId: string,
   membership: MembershipPolicy,
 ): Promise<ProviderMutationResult> {
-  if (membership.credentialSource !== "user_byok") {
+  if (isPlatformFundedOwner(membership)) {
     return {
       ok: false,
       message: "Platform-funded accounts use the environment UploadThing token.",

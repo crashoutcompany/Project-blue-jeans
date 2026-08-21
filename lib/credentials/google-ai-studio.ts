@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { MembershipPolicy } from "@/lib/auth/membership";
+import { isPlatformFundedOwner, type MembershipPolicy } from "@/lib/auth/membership";
 import { secretHint } from "@/lib/credentials/paste";
 import { googleAiStudioEnvApiKey } from "@/lib/credentials/resolve";
 import type { GoogleAiStudioSettingsView } from "@/lib/credentials/types";
@@ -21,7 +21,7 @@ export async function getGoogleAiStudioSettings(
   userId: string,
   membership: MembershipPolicy,
 ): Promise<GoogleAiStudioSettingsView> {
-  if (membership.credentialSource === "platform_env") {
+  if (isPlatformFundedOwner(membership)) {
     return {
       funding: "platform",
       canEdit: false,
@@ -49,7 +49,7 @@ export async function saveGoogleAiStudioByok(
   membership: MembershipPolicy,
   rawKey: string,
 ): Promise<ProviderMutationResult> {
-  if (membership.credentialSource !== "user_byok") {
+  if (isPlatformFundedOwner(membership)) {
     return {
       ok: false,
       message: "Platform-funded accounts use the environment Google AI Studio key.",
@@ -76,7 +76,7 @@ export async function revokeGoogleAiStudioByok(
   userId: string,
   membership: MembershipPolicy,
 ): Promise<ProviderMutationResult> {
-  if (membership.credentialSource !== "user_byok") {
+  if (isPlatformFundedOwner(membership)) {
     return {
       ok: false,
       message: "Platform-funded accounts use the environment Google AI Studio key.",
