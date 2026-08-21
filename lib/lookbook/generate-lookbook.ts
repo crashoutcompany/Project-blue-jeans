@@ -9,6 +9,10 @@ import {
   loadGarmentsByIds,
 } from "@/lib/garments/load-catalog";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
+import {
+  existingHeroForGarments,
+  findExistingOutfitHeroUrls,
+} from "@/lib/outfits/existing-outfit-heroes";
 import type { OutfitLook } from "@/lib/outfits/types";
 import {
   resolveGarmentImageSourcesForAi,
@@ -54,6 +58,7 @@ function buildOutfitLooks(
 
 /**
  * Catalog → structured plan → optional hero images (one per look, in parallel).
+ * Reuses a stored Outfit hero when the same garment set already exists.
  * Used by the generator API and any server workflows.
  */
 export async function generateLookbook(
@@ -117,10 +122,26 @@ export async function generateLookbook(
     const looks = buildOutfitLooks(plan, baseId);
 
     if (!input.skipHeroImage) {
-      const wearer = await getWearerPhoto(input.userId).catch(() => null);
+      const [existingHeroes, wearerPhoto] = await Promise.all([
+        findExistingOutfitHeroUrls(
+          input.userId,
+          looks.map((look) => look.garmentIds ?? []),
+        ),
+        getWearerPhoto(input.userId).catch(() => null),
+      ]);
+      const needsGeneratedHero = looks.some(
+        (look) => !existingHeroForGarments(existingHeroes, look.garmentIds),
+      );
+      const wearer = needsGeneratedHero ? wearerPhoto : null;
 
       const heroImages = await Promise.all(
         looks.map(async (look) => {
+          const reused = existingHeroForGarments(
+            existingHeroes,
+            look.garmentIds,
+          );
+          if (reused) return reused;
+
           try {
             const rows = await loadGarmentsByIds(
               input.userId,

@@ -16,6 +16,10 @@ import {
 } from "@/lib/garments/load-catalog";
 import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
 import {
+  existingHeroForGarments,
+  findExistingOutfitHeroUrls,
+} from "@/lib/outfits/existing-outfit-heroes";
+import {
   availableGarments,
   closetCategories,
   exhaustedCategoriesAfterLook,
@@ -93,7 +97,8 @@ function garmentNamesForIds(
 
 /**
  * Plan my week: sequential step-1 (shrinking catalog, Outfit locks, per-category
- * reuse when exhausted), then parallel hero-image calls.
+ * reuse when exhausted), then parallel hero-image calls. Looks whose garment
+ * set already has a stored Outfit hero reuse that image instead of generating.
  */
 export async function runWeeklyOutfitsJob(
   input: WeeklyOutfitsInput,
@@ -347,7 +352,19 @@ export async function runWeeklyOutfitsJob(
       `;
     }
 
-    const wearer = await getWearerPhoto(input.userId);
+    const [existingHeroes, wearerPhoto] = await Promise.all([
+      findExistingOutfitHeroUrls(
+        input.userId,
+        looksForDb.map((look) => look.garmentIds),
+      ),
+      getWearerPhoto(input.userId),
+    ]);
+    const needsGeneratedHero = looksForDb.some(
+      (look) =>
+        look.garmentIds.length > 0 &&
+        !existingHeroForGarments(existingHeroes, look.garmentIds),
+    );
+    const wearer = needsGeneratedHero ? wearerPhoto : null;
     const heroOutcomes = await Promise.all(
       looksForDb.map(async (look) => {
         const ids = look.garmentIds;
@@ -356,6 +373,14 @@ export async function runWeeklyOutfitsJob(
             sortOrder: look.sortOrder,
             url: null as string | null,
             missingGarments: true as const,
+          };
+        }
+        const reused = existingHeroForGarments(existingHeroes, ids);
+        if (reused) {
+          return {
+            sortOrder: look.sortOrder,
+            url: reused,
+            missingGarments: false as const,
           };
         }
         const rows = await loadGarmentsByIds(input.userId, ids);

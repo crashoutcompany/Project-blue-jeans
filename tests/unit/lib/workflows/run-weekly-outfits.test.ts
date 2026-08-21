@@ -33,6 +33,15 @@ vi.mock("@/lib/server/safe-client-error", () => ({
   logServerError: vi.fn(),
 }));
 
+vi.mock("@/lib/outfits/existing-outfit-heroes", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/outfits/existing-outfit-heroes")>();
+  return {
+    ...actual,
+    findExistingOutfitHeroUrls: vi.fn(),
+  };
+});
+
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
@@ -42,6 +51,8 @@ import {
   loadGarmentsByIds,
 } from "@/lib/garments/load-catalog";
 import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
+import { findExistingOutfitHeroUrls } from "@/lib/outfits/existing-outfit-heroes";
+import { garmentSetKey } from "@/lib/outfits/garment-set-key";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
 
@@ -53,6 +64,7 @@ const hero = vi.mocked(runHeroImageStep);
 const wearerPhoto = vi.mocked(getWearerPhoto);
 const requireSqlMock = vi.mocked(requireSql);
 const loadOutfits = vi.mocked(loadOutfitsInRange);
+const existingHeroes = vi.mocked(findExistingOutfitHeroUrls);
 
 const TOP_A = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 const TOP_B = "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22";
@@ -157,6 +169,8 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     wearerPhoto.mockReset();
     requireSqlMock.mockReset();
     loadOutfits.mockReset();
+    existingHeroes.mockReset();
+    existingHeroes.mockResolvedValue(new Map());
     resolveGemini.mockResolvedValue({ ok: true, apiKey: "gemini-key" });
     loadCatalog.mockResolvedValue(closet);
     loadOutfits.mockResolvedValue([]);
@@ -377,5 +391,52 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     );
     expect(first.validIds.has(TOP_A)).toBe(false);
     expect(first.validIds.has(BOTTOM_A)).toBe(false);
+  });
+
+  it("reuses a stored Outfit hero instead of generating an image", async () => {
+    const savedUrl = "https://cdn.example.com/saved-friday.jpg";
+    const calls: SqlCall[] = [];
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    existingHeroes.mockResolvedValue(
+      new Map([
+        [garmentSetKey([TOP_A, BOTTOM_A, SHOE_A]), savedUrl],
+      ]),
+    );
+    step1
+      .mockResolvedValueOnce({
+        looks: [
+          {
+            title: "Friday commute",
+            description: "d",
+            tags: ["day"],
+            garmentIds: [TOP_A, BOTTOM_A, SHOE_A],
+          },
+        ],
+        curatorNote: "",
+      })
+      .mockResolvedValueOnce({
+        looks: [
+          {
+            title: "Saturday errands",
+            description: "d",
+            tags: ["day"],
+            garmentIds: [TOP_B, BOTTOM_B, SHOE_A],
+          },
+        ],
+        curatorNote: "",
+      });
+
+    const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
+
+    expect(res.ok).toBe(true);
+    expect(hero).toHaveBeenCalledTimes(1);
+    expect(hero.mock.calls[0]?.[0].title).toBe("Saturday errands");
+    const heroUpdates = calls.filter((c) =>
+      c.text.includes("UPDATE weekly_plan_looks") &&
+      c.text.includes("hero_image_url"),
+    );
+    const urls = heroUpdates.map((c) => c.values[0]);
+    expect(urls).toContain(savedUrl);
+    expect(urls).toContain("https://cdn.example.com/hero.jpg");
   });
 });
