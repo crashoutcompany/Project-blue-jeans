@@ -262,7 +262,7 @@ export function GeneratorChatStack({
         onPointerCancel={onPointerUp}
         onKeyDown={onStageKeyDown}
         className={cn(
-          "look-stack-stage relative touch-pan-y outline-none",
+          "look-stack-stage relative overflow-hidden touch-pan-y outline-none",
           "focus-visible:ring-3 focus-visible:ring-ring/50",
         )}
         style={{ paddingRight: peekReserve }}
@@ -362,7 +362,11 @@ function LookStackCard({
           ? "shadow-[0_16px_44px_rgba(26,28,27,0.12)]"
           : "shadow-[0_8px_24px_rgba(26,28,27,0.06)]",
       )}
-      style={{ transform, zIndex }}
+      style={{
+        transform,
+        zIndex,
+        opacity: isDeparting ? 0 : 1,
+      }}
     >
       <div aria-hidden={!isFront}>
         <LookCardFace
@@ -379,7 +383,7 @@ function LookStackCard({
       {!isFront && !isDeparting ? (
         <button
           type="button"
-          className="absolute inset-0"
+          className="absolute inset-y-0 right-0 w-5"
           disabled={disabled}
           aria-label={`Show look ${itemIndex + 1}: ${look.title}`}
           onClick={onShow}

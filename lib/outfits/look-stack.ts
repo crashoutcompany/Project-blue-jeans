@@ -1,6 +1,6 @@
-const STACK_PEEK_PX = 12;
+const STACK_PEEK_PX = 20;
 const STACK_LIFT_PX = 2;
-const STACK_SCALE_STEP = 0.03;
+const STACK_SCALE_STEP = 0.015;
 const STACK_MAX_DEPTH = 4;
 
 export const LOOK_STACK_MS = 280;
@@ -46,7 +46,7 @@ export function lookStackRestTransform(order: number): string {
 
 export function lookStackDepartTransform(direction: "next" | "prev"): string {
   const sign = direction === "next" ? -1 : 1;
-  return `translate3d(${sign * 112}%, ${sign * 8}%, 0) rotate(${sign * -9}deg) scale(0.96)`;
+  return `translate3d(${sign * 18}%, ${sign * 3}%, 0) rotate(${sign * -8}deg) scale(0.94)`;
 }
 
 /**

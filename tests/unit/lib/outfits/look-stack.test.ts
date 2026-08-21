@@ -34,13 +34,13 @@ describe("look stack math", () => {
 
   it("offsets resting cards to the right", () => {
     expect(lookStackRestTransform(0)).toBe("translate3d(0px, 0px, 0) scale(1)");
-    expect(lookStackRestTransform(1)).toContain("translate3d(12px, 2px, 0)");
-    expect(lookStackRestTransform(1)).toContain("scale(0.97)");
+    expect(lookStackRestTransform(1)).toContain("translate3d(20px, 2px, 0)");
+    expect(lookStackRestTransform(1)).toContain("scale(0.985)");
   });
 
   it("flies the departing card off-axis", () => {
-    expect(lookStackDepartTransform("next")).toContain("translate3d(-112%");
-    expect(lookStackDepartTransform("prev")).toContain("translate3d(112%");
+    expect(lookStackDepartTransform("next")).toContain("translate3d(-18%");
+    expect(lookStackDepartTransform("prev")).toContain("translate3d(18%");
   });
 
   it("lets the front card follow the pointer", () => {
@@ -63,6 +63,6 @@ describe("look stack math", () => {
 
   it("reserves peek width for the deck", () => {
     expect(lookStackPeekReservePx(1)).toBe(0);
-    expect(lookStackPeekReservePx(3)).toBe(24);
+    expect(lookStackPeekReservePx(3)).toBe(40);
   });
 });
