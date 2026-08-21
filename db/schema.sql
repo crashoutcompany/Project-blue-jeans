@@ -327,5 +327,5 @@ COMMENT ON COLUMN outfits.garment_set_key IS 'Sorted unique garment UUIDs; Close
 COMMENT ON COLUMN outfits.worn_on IS 'Denormalized last-worn date (max outfit_wears.worn_on).';
 COMMENT ON TABLE outfit_garments IS 'Links outfits to every garment in the look (required usage: insert one row per piece).';
 COMMENT ON TABLE outfit_wears IS 'Day assignment of a shared Outfit (one wear per calendar day).';
-COMMENT ON TABLE weekly_outfit_plans IS 'One row per calendar week (week_start = Monday); AI weekly outfit pipeline.';
+COMMENT ON TABLE weekly_outfit_plans IS 'One row per calendar week (week_start = Sunday); AI weekly outfit pipeline. Monday cron deletes plans older than the current week.';
 COMMENT ON TABLE weekly_plan_looks IS 'Seven rows per plan (sort_order 0–6 = Mon–Sun); garment_ids from step 1; hero_image_url from inline image step.';
