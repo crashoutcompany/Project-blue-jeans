@@ -35,9 +35,10 @@ async function uploadMiddleware(endpoint: UploadEndpoint) {
       sealLegacyUploadThingMedia(gate.userId).catch((error) => {
         logServerError("sealLegacyUploadThingMedia", error);
       }),
-      cleanupExpiredUnclaimedUploads(
-        new Map([[gate.userId, gate.membership]]),
-      ).catch((error) => {
+      cleanupExpiredUnclaimedUploads({
+        userId: gate.userId,
+        membership: gate.membership,
+      }).catch((error) => {
         logServerError("cleanupExpiredUnclaimedUploads", error);
       }),
     ]),
