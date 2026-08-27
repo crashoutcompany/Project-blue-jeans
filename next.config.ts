@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  // Icons are imported from the lucide-react barrel throughout the app, which
+  // pulls the whole re-export map into dev and cold starts without this.
   experimental: {
+    optimizePackageImports: ["lucide-react"],
     // Instant-nav e2e only. Never set EXPOSE_TESTING_API in real production.
     exposeTestingApiInProductionBuild: process.env.EXPOSE_TESTING_API === "1",
   },

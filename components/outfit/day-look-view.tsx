@@ -50,6 +50,13 @@ export function DayLookView({
   const [selectedWornOn, setSelectedWornOn] = useState(() =>
     initialSelectedDay(data, dayFromUrl),
   );
+  const [seenDayParam, setSeenDayParam] = useState(dayFromUrl);
+  // The initializer only runs on mount, so a ?day= change from client
+  // navigation (including back/forward) left the previous day selected.
+  if (dayFromUrl !== seenDayParam) {
+    setSeenDayParam(dayFromUrl);
+    setSelectedWornOn(initialSelectedDay(data, dayFromUrl));
+  }
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [manualChangeLookOpen, setManualChangeLookOpen] = useState(false);
