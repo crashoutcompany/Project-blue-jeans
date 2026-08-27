@@ -65,6 +65,8 @@ describe("weekly sequential step-1 prompt", () => {
     expect(prompt).toContain("**Friday**");
     expect(prompt).toContain("one day");
     expect(prompt).toContain("Thursday — Office polo (Polo, Grey trousers)");
+    expect(prompt).toContain("Bottoms and shoes may repeat");
+    expect(prompt).toContain("tops must not repeat");
     expect(prompt).not.toContain("Monday (index 0)");
   });
 });

@@ -17,8 +17,6 @@ import {
 import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
 import {
   availableGarments,
-  closetCategories,
-  exhaustedCategoriesAfterLook,
   lockLookGarments,
   todaySortOrder,
   weeklyDaysToPlan,
@@ -92,8 +90,8 @@ function garmentNamesForIds(
 }
 
 /**
- * Plan my week: sequential step-1 (shrinking catalog, Outfit locks, per-category
- * reuse when exhausted), then parallel hero-image calls.
+ * Plan my week: sequential step-1 (tops stay unique; bottoms and shoes may
+ * repeat), then parallel hero-image calls.
  */
 export async function runWeeklyOutfitsJob(
   input: WeeklyOutfitsInput,
@@ -171,9 +169,7 @@ export async function runWeeklyOutfitsJob(
   }
 
   const garmentsById = new Map(garments.map((g) => [g.id, g]));
-  const closetHas = closetCategories(garments);
   const uniqueLockedIds = new Set<string>();
-  let exhausted = new Set<string>();
   const alreadyPlanned: AlreadyPlannedLook[] = [];
   const plans: LookbookPlan[] = [];
   const looksForDb: {
@@ -210,12 +206,6 @@ export async function runWeeklyOutfitsJob(
       });
       lockLookGarments(ids, outfitLockedIds, uniqueLockedIds);
     }
-    exhausted = exhaustedCategoriesAfterLook(
-      garments,
-      outfitLockedIds,
-      uniqueLockedIds,
-      closetHas,
-    );
   }
 
   try {
@@ -224,7 +214,6 @@ export async function runWeeklyOutfitsJob(
         garments,
         outfitLockedIds,
         uniqueLockedIds,
-        exhausted,
       );
       if (available.length === 0) {
         return {
@@ -271,12 +260,6 @@ export async function runWeeklyOutfitsJob(
         garmentNames: garmentNamesForIds(look.garmentIds ?? [], garmentsById),
       });
       lockLookGarments(look.garmentIds ?? [], outfitLockedIds, uniqueLockedIds);
-      exhausted = exhaustedCategoriesAfterLook(
-        garments,
-        outfitLockedIds,
-        uniqueLockedIds,
-        closetHas,
-      );
     }
   } catch (e) {
     logServerError("runWeeklyOutfitsJob step1", e);

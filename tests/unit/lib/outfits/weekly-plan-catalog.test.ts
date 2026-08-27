@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { CatalogGarment } from "@/lib/ai/lookbook/catalog";
 import {
   availableGarments,
-  closetCategories,
-  exhaustedCategoriesAfterLook,
   lockLookGarments,
   todaySortOrder,
   weeklyDaysToPlan,
@@ -53,40 +51,41 @@ describe("weeklyDaysToPlan", () => {
 });
 
 describe("availableGarments", () => {
-  it("never returns Outfit-locked garments even when a category is exhausted", () => {
-    const unique = new Set([TOP_B]);
-    const exhausted = exhaustedCategoriesAfterLook(
-      closet,
-      new Set([TOP_A]),
-      unique,
-      closetCategories(closet),
-    );
-    expect(exhausted.has("tops")).toBe(true);
+  it("keeps used bottoms and shoes available", () => {
     const available = availableGarments(
       closet,
-      new Set([TOP_A]),
-      unique,
-      exhausted,
+      new Set([BOTTOM_A]),
+      new Set([BOTTOM_B, SHOE_A]),
     );
-    expect(available.map((g) => g.id)).not.toContain(TOP_A);
-    expect(available.map((g) => g.id)).toContain(TOP_B);
+
+    expect(available.map((g) => g.id)).toEqual([
+      TOP_A,
+      TOP_B,
+      BOTTOM_A,
+      BOTTOM_B,
+      SHOE_A,
+    ]);
   });
 
-  it("reuses only the exhausted category", () => {
+  it("never reuses a top", () => {
     const unique = new Set<string>();
     lockLookGarments([TOP_A, BOTTOM_A, SHOE_A], new Set(), unique);
-    const exhausted = exhaustedCategoriesAfterLook(
-      closet,
-      new Set(),
-      unique,
-      closetCategories(closet),
-    );
-    expect(exhausted.has("shoes")).toBe(true);
-    expect(exhausted.has("tops")).toBe(false);
 
-    const available = availableGarments(closet, new Set(), unique, exhausted);
+    const available = availableGarments(closet, new Set(), unique);
     expect(available.map((g) => g.id).sort()).toEqual(
-      [TOP_B, BOTTOM_B, SHOE_A].sort(),
+      [TOP_B, BOTTOM_A, BOTTOM_B, SHOE_A].sort(),
+    );
+  });
+
+  it("keeps bottoms and shoes available when a committed Outfit used them", () => {
+    const available = availableGarments(
+      closet,
+      new Set([TOP_A, BOTTOM_A, SHOE_A]),
+      new Set(),
+    );
+
+    expect(available.map((g) => g.id).sort()).toEqual(
+      [TOP_B, BOTTOM_A, BOTTOM_B, SHOE_A].sort(),
     );
   });
 });
