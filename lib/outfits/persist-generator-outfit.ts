@@ -158,19 +158,16 @@ export async function commitOutfitForDay(input: {
   const imageUrl = normalizeCommitImageUrl(input.imageUrl);
   const occasion = input.occasion ?? "casual";
 
-  const existingRaw = await sql`
-    SELECT id FROM outfits
-    WHERE user_id = ${input.userId}
-      AND garment_set_key = ${setKey}
-    LIMIT 1
-  `;
-  const existingParsed = z.array(idRowSchema).safeParse(existingRaw);
-  let outfitId = existingParsed.success
-    ? (existingParsed.data[0]?.id ?? null)
-    : null;
-
-  if (!outfitId) {
-    const inserted = await sql`
+  /**
+   * One statement so the outfit and its garment links commit together. A
+   * SELECT-then-INSERT here raced `outfits_user_garment_set_key_uidx`, and
+   * linking pieces in a follow-up loop could leave an outfit whose
+   * `garment_set_key` claims pieces that `outfit_garments` never got. The
+   * link insert also runs on the reuse path, so any set left partial by an
+   * earlier failure is repaired on the next commit.
+   */
+  const committed = await sql`
+    WITH upserted AS (
       INSERT INTO outfits (worn_on, occasion, name, image_url, garment_set_key, user_id)
       VALUES (
         ${input.wornOn}::date,
@@ -180,30 +177,28 @@ export async function commitOutfitForDay(input: {
         ${setKey},
         ${input.userId}
       )
+      ON CONFLICT (user_id, garment_set_key)
+        WHERE garment_set_key IS NOT NULL AND garment_set_key <> ''
+      DO UPDATE SET
+        image_url = COALESCE(EXCLUDED.image_url, outfits.image_url),
+        updated_at = now()
       RETURNING id
-    `;
-    const insertedParsed = z.array(idRowSchema).parse(inserted);
-    outfitId = insertedParsed[0]?.id ?? null;
-    if (!outfitId) {
-      throw new Error("Insert outfit returned no id");
-    }
-
-    for (let i = 0; i < uniqueIds.length; i++) {
-      const gid = uniqueIds[i];
-      if (!gid) continue;
-      await sql`
-        INSERT INTO outfit_garments (outfit_id, garment_id, sort_order)
-        VALUES (${outfitId}::uuid, ${gid}::uuid, ${i})
-        ON CONFLICT (outfit_id, garment_id) DO NOTHING
-      `;
-    }
-  } else if (imageUrl) {
-    await sql`
-      UPDATE outfits
-      SET image_url = ${imageUrl}, updated_at = now()
-      WHERE id = ${outfitId}::uuid
-        AND user_id = ${input.userId}
-    `;
+    ),
+    linked AS (
+      INSERT INTO outfit_garments (outfit_id, garment_id, sort_order)
+      SELECT upserted.id, piece.garment_id, (piece.ord - 1)::int
+      FROM upserted
+      CROSS JOIN unnest(${uniqueIds}::uuid[])
+        WITH ORDINALITY AS piece(garment_id, ord)
+      ON CONFLICT (outfit_id, garment_id) DO NOTHING
+      RETURNING 1
+    )
+    SELECT id FROM upserted
+  `;
+  const committedParsed = z.array(idRowSchema).parse(committed);
+  const outfitId = committedParsed[0]?.id ?? null;
+  if (!outfitId) {
+    throw new Error("Commit outfit returned no id");
   }
 
   const priorOutfitId = await replaceWearForDay(
