@@ -133,6 +133,7 @@ export function OutfitDetailSheet({
                     className="object-cover"
                     sizes="(max-width: 640px) 100vw, 44vw"
                     priority
+                    unoptimized={shouldBypassImageOptimizer(hero)}
                   />
                 ) : (
                   <div className="flex min-h-[42svh] items-center justify-center text-sm text-muted-foreground">
