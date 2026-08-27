@@ -1,4 +1,5 @@
 import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
+import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
@@ -32,6 +33,13 @@ import {
 import type { WeeklyOutfitsInput } from "@/lib/workflows/types";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import { z } from "zod";
+
+/**
+ * A full week is 7 looks, and each hero is a multimodal generation plus up to
+ * 15 image fetches. Firing all of them at once spikes provider rate limits and
+ * memory; the generator path is effectively capped at 3 for the same reason.
+ */
+const HERO_IMAGE_CONCURRENCY = 3;
 
 const WEEKLY_JOB_FAILED_PUBLIC =
   "Weekly outfits job failed. Check server logs for details.";
@@ -348,8 +356,10 @@ export async function runWeeklyOutfitsJob(
     }
 
     const wearer = await getWearerPhoto(input.userId);
-    const heroOutcomes = await Promise.all(
-      looksForDb.map(async (look) => {
+    const heroOutcomes = await mapWithConcurrency(
+      looksForDb,
+      HERO_IMAGE_CONCURRENCY,
+      async (look) => {
         const ids = look.garmentIds;
         if (ids.length === 0) {
           return {
@@ -408,7 +418,7 @@ export async function runWeeklyOutfitsJob(
             missingGarments: false as const,
           };
         }
-      }),
+      },
     );
 
     const missing = heroOutcomes.find((o) => o.missingGarments);
