@@ -157,55 +157,86 @@ export async function consumeUploadIntent(input: {
   return { mediaAssetId };
 }
 
+/** Grace period before an unattached upload is treated as abandoned. */
+const CLEANUP_GRACE_SECONDS = INTENT_TTL_MS / 1000;
+
+/** Delete at most this many abandoned files per upload, to bound the sweep. */
+const CLEANUP_BATCH = 50;
+
 /**
- * Delete successful uploads that expired without being claimed by a garment
- * or wearer profile. Called from upload middleware so abandoned files do not
- * linger indefinitely.
+ * Delete successful uploads that were never attached to a garment or wearer
+ * profile. Called from upload middleware so abandoned files do not linger.
+ *
+ * Assets are matched on their own age rather than through
+ * `upload_intents.media_asset_id`: that column holds a single id, so a closet
+ * intent covering several files only ever pointed at the last one and the rest
+ * were unreachable forever. `provider_file_key` is checked alongside the asset
+ * id so a legacy row that still references the file by key is never swept.
  */
-export async function cleanupExpiredUnclaimedUploads(
-  membershipByUser = new Map<string, MembershipPolicy | null>(),
-): Promise<void> {
+export async function cleanupExpiredUnclaimedUploads(input: {
+  userId: string;
+  membership?: MembershipPolicy | null;
+}): Promise<void> {
   const sql = requireSql();
   const rows = (await sql`
     SELECT
       ma.id,
-      ma.user_id,
       ma.connection_id,
       ma.provider_file_key
     FROM media_assets ma
-    JOIN upload_intents ui
-      ON ui.media_asset_id = ma.id
-    WHERE ui.expires_at < now()
+    WHERE ma.user_id = ${input.userId}
+      AND ma.created_at
+          < now() - make_interval(secs => ${CLEANUP_GRACE_SECONDS}::double precision)
       AND NOT EXISTS (
-        SELECT 1 FROM garments g WHERE g.media_asset_id = ma.id
+        SELECT 1 FROM garments g
+        WHERE g.user_id = ma.user_id
+          AND (
+            g.media_asset_id = ma.id
+            OR g.uploadthing_key = ma.provider_file_key
+          )
       )
       AND NOT EXISTS (
-        SELECT 1 FROM wearer_profile p WHERE p.media_asset_id = ma.id
+        SELECT 1 FROM wearer_profile p
+        WHERE p.user_id = ma.user_id
+          AND (
+            p.media_asset_id = ma.id
+            OR p.uploadthing_key = ma.provider_file_key
+          )
       )
-    LIMIT 50
+    ORDER BY ma.created_at
+    LIMIT ${CLEANUP_BATCH}
   `) as Array<{
     id: string;
-    user_id: string;
     connection_id: string | null;
     provider_file_key: string;
   }>;
 
+  if (rows.length === 0) return;
+
+  // Group by connection so each provider token is resolved once, not per file.
+  const byConnection = new Map<string | null, typeof rows>();
   for (const row of rows) {
-    const membership = membershipByUser.get(row.user_id);
+    const existing = byConnection.get(row.connection_id);
+    if (existing) existing.push(row);
+    else byConnection.set(row.connection_id, [row]);
+  }
+
+  for (const [connectionId, group] of byConnection) {
     const resolved = await resolveUploadThingTokenForConnection(
-      row.user_id,
-      row.connection_id,
-      membership,
+      input.userId,
+      connectionId,
+      input.membership,
     );
+    if (!resolved.ok) continue;
     const deleted = await deleteUploadThingFiles(
-      [row.provider_file_key],
-      resolved.ok ? resolved.token : null,
+      group.map((row) => row.provider_file_key),
+      resolved.token,
     );
     if (!deleted) continue;
     await sql`
       DELETE FROM media_assets
-      WHERE id = ${row.id}::uuid
-        AND user_id = ${row.user_id}
+      WHERE user_id = ${input.userId}
+        AND id = ANY(${group.map((row) => row.id)}::uuid[])
     `;
   }
 }
