@@ -1,15 +1,27 @@
-import { NextResponse } from "next/server";
+import { connection, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
-import { clearWearerPhoto, saveWearerPhoto } from "@/lib/wearer/profile";
+import {
+  clearWearerPhoto,
+  saveWearerPhoto,
+  type WearerPhotoResult,
+} from "@/lib/wearer/profile";
 
 const putSchema = z.object({
   mediaAssetId: z.string().uuid(),
 });
 
+function failureResponse(result: Extract<WearerPhotoResult, { ok: false }>) {
+  return NextResponse.json(
+    { ok: false as const, message: result.message },
+    { status: result.reason === "not_found" ? 404 : 500 },
+  );
+}
+
 export async function PUT(request: Request) {
+  await connection();
   const gate = await assertAdmittedSession();
   if (!gate.ok) {
     return NextResponse.json(
@@ -42,7 +54,7 @@ export async function PUT(request: Request) {
     membership: gate.membership,
   });
   if (!result.ok) {
-    return NextResponse.json(result, { status: 500 });
+    return failureResponse(result);
   }
 
   revalidatePath("/");
@@ -51,6 +63,7 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE() {
+  await connection();
   const gate = await assertAdmittedSession();
   if (!gate.ok) {
     return NextResponse.json(
@@ -61,7 +74,7 @@ export async function DELETE() {
 
   const result = await clearWearerPhoto(gate.userId, gate.membership);
   if (!result.ok) {
-    return NextResponse.json(result, { status: 500 });
+    return failureResponse(result);
   }
 
   revalidatePath("/");

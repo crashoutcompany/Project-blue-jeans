@@ -51,17 +51,29 @@ export async function getWearerPhoto(
   }
 }
 
+/**
+ * `reason` lets route handlers pick a status code: a caller referencing an
+ * upload that is not theirs is a client error, not a server failure.
+ */
+export type WearerPhotoResult =
+  | { ok: true }
+  | { ok: false; message: string; reason: "not_found" | "failed" };
+
 export async function saveWearerPhoto(input: {
   userId: string;
   mediaAssetId: string;
   membership?: MembershipPolicy | null;
-}): Promise<{ ok: true } | { ok: false; message: string }> {
+}): Promise<WearerPhotoResult> {
   if (!input.userId) {
-    return { ok: false, message: "Missing user id." };
+    return { ok: false, message: "Missing user id.", reason: "failed" };
   }
   const asset = await getOwnedMediaAsset(input.userId, input.mediaAssetId);
   if (!asset || asset.kind !== "wearer_photo") {
-    return { ok: false, message: "That upload could not be found." };
+    return {
+      ok: false,
+      message: "That upload could not be found.",
+      reason: "not_found",
+    };
   }
 
   try {
@@ -131,16 +143,20 @@ export async function saveWearerPhoto(input: {
     return { ok: true };
   } catch (e) {
     logServerError("saveWearerPhoto", e);
-    return { ok: false, message: "Could not save your photo. Try again." };
+    return {
+      ok: false,
+      message: "Could not save your photo. Try again.",
+      reason: "failed",
+    };
   }
 }
 
 export async function clearWearerPhoto(
   userId: string,
   membership?: MembershipPolicy | null,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<WearerPhotoResult> {
   if (!userId) {
-    return { ok: false, message: "Missing user id." };
+    return { ok: false, message: "Missing user id.", reason: "failed" };
   }
   try {
     const sql = requireSql();
@@ -184,6 +200,10 @@ export async function clearWearerPhoto(
     return { ok: true };
   } catch (e) {
     logServerError("clearWearerPhoto", e);
-    return { ok: false, message: "Could not remove your photo. Try again." };
+    return {
+      ok: false,
+      message: "Could not remove your photo. Try again.",
+      reason: "failed",
+    };
   }
 }
