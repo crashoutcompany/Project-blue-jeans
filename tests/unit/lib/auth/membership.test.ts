@@ -113,7 +113,13 @@ describe("membership policy", () => {
     });
   });
 
-  it("returns null for a row with an unknown access role", async () => {
+  /**
+   * A row this build cannot read is not the same as a missing row. Reporting
+   * it as missing let the caller fall through to the APP_OWNER_USER_ID
+   * bootstrap, handing out a platform owner membership over a stored row that
+   * never said "owner" — the bypass "database policy wins" exists to prevent.
+   */
+  it("refuses to evaluate a row with an unknown access role", async () => {
     getSqlMock.mockReturnValue(
       vi.fn().mockResolvedValueOnce([
         {
@@ -125,7 +131,44 @@ describe("membership policy", () => {
       ]) as never,
     );
 
-    await expect(getMembershipPolicy("wearer-1")).resolves.toBeNull();
+    await expect(getMembershipPolicy("wearer-1")).rejects.toBeInstanceOf(
+      MembershipStoreUnavailableError,
+    );
+  });
+
+  it("refuses to evaluate a row with an unknown status", async () => {
+    getSqlMock.mockReturnValue(
+      vi.fn().mockResolvedValueOnce([
+        {
+          user_id: "owner-1",
+          access_role: "owner",
+          credential_source: "platform_env",
+          status: "suspended",
+        },
+      ]) as never,
+    );
+
+    await expect(getMembershipPolicy("owner-1")).rejects.toBeInstanceOf(
+      MembershipStoreUnavailableError,
+    );
+  });
+
+  it("does not bootstrap the configured owner past an unreadable row", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+    getSqlMock.mockReturnValue(
+      vi.fn().mockResolvedValueOnce([
+        {
+          user_id: "owner-1",
+          access_role: "admin",
+          credential_source: "platform_env",
+          status: "active",
+        },
+      ]) as never,
+    );
+
+    await expect(getMembershipPolicy("owner-1")).rejects.toBeInstanceOf(
+      MembershipStoreUnavailableError,
+    );
   });
 });
 

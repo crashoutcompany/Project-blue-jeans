@@ -5,20 +5,22 @@ import { OutfitCalendar } from "@/components/outfit/outfit-calendar";
 import { requireAdmittedAccess } from "@/lib/auth/admitted";
 import { getWearerUserId } from "@/lib/auth/wearer";
 import { loadCalendarMonthData } from "@/lib/outfits/calendar-data";
+import { productTodayIso } from "@/lib/time/product-timezone";
 
 type Search = { year?: string; month?: string };
 
 function clampMonthYear(sp: Search) {
-  const now = new Date();
+  // The grid highlights "today" from productTodayIso(), so the default month
+  // has to come from the same clock. Using the host Date() opened the wrong
+  // month for anyone loading /calendar across a product-timezone boundary.
+  const [todayYear, todayMonth] = productTodayIso().split("-").map(Number);
   const yRaw = parseInt(sp.year ?? "", 10);
   const mRaw = parseInt(sp.month ?? "", 10);
   const year = Number.isFinite(yRaw)
     ? Math.min(2100, Math.max(1970, yRaw))
-    : now.getFullYear();
+    : todayYear!;
   const month =
-    Number.isFinite(mRaw) && mRaw >= 1 && mRaw <= 12
-      ? mRaw
-      : now.getMonth() + 1;
+    Number.isFinite(mRaw) && mRaw >= 1 && mRaw <= 12 ? mRaw : todayMonth!;
   return { year, month };
 }
 

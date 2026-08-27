@@ -107,6 +107,7 @@ export async function getMembershipPolicy(
 
   const sql = getSql();
   if (sql) {
+    let row: MembershipRow | undefined;
     try {
       const rows = (await sql`
         SELECT user_id, access_role, credential_source, status
@@ -114,12 +115,25 @@ export async function getMembershipPolicy(
         WHERE user_id = ${userId}
         LIMIT 1
       `) as MembershipRow[];
-      const row = rows[0];
-      if (row) {
-        return membershipFromRow(row);
-      }
+      row = rows[0];
     } catch (error) {
       console.error("[membership] getMembershipPolicy failed", error);
+      throw new MembershipStoreUnavailableError();
+    }
+
+    if (row) {
+      const policy = membershipFromRow(row);
+      if (policy) return policy;
+      /**
+       * A row exists but its role or status is not one this build knows, so it
+       * cannot be evaluated. Falling through would hand the configured owner a
+       * full platform membership and defeat "database policy wins" — exactly
+       * the bypass that rule exists to prevent.
+       */
+      console.error(
+        "[membership] unreadable membership row",
+        `access_role=${row.access_role} status=${row.status}`,
+      );
       throw new MembershipStoreUnavailableError();
     }
   }
