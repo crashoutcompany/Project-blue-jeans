@@ -69,4 +69,24 @@ describe("GeneratorView", () => {
     );
     expect(body.narrative).toMatch(/gallery opening/i);
   });
+
+  /**
+   * `disabled` only takes effect on the next render, so two clicks dispatched
+   * before React re-renders would both spend the account's Gemini quota.
+   */
+  it("generates once when a starter is double-clicked in the same frame", async () => {
+    const fetchMock = vi.mocked(fetch);
+    render(<GeneratorView closetGarments={garments} />);
+    const starter = screen.getByRole("button", { name: /gallery opening/i });
+
+    starter.click();
+    starter.click();
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(
+      fetchMock.mock.calls.filter(
+        (call) => call[0] === "/api/generate-lookbook",
+      ),
+    ).toHaveLength(1);
+  });
 });
