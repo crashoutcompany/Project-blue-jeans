@@ -13,7 +13,10 @@ vi.mock("@/lib/credentials/vault", () => ({
   getStoredProviderCredentialByConnectionId: vi.fn(),
 }));
 
-import { getMembershipPolicy } from "@/lib/auth/membership";
+import {
+  getMembershipPolicy,
+  MembershipStoreUnavailableError,
+} from "@/lib/auth/membership";
 import {
   ProviderCredentialUnavailableError,
   resolveGeminiApiKey,
@@ -260,6 +263,47 @@ describe("provider credential resolution", () => {
       message:
         "Connect Google AI Studio in Settings before using this feature.",
     });
+  });
+
+  /**
+   * Callers branch on `ok`; throwing past them turned a transient Neon blip
+   * into an unhandled 500 instead of the route's graceful failure path.
+   */
+  it("reports an unreachable membership store as a failed resolution", async () => {
+    membershipMock.mockRejectedValue(new MembershipStoreUnavailableError());
+
+    await expect(resolveUploadThingToken("wearer-1")).resolves.toEqual({
+      ok: false,
+      message: "Could not verify admission. Try again.",
+    });
+    await expect(
+      resolveUploadThingTokenForConnection("wearer-1", "connection-1"),
+    ).resolves.toEqual({
+      ok: false,
+      message: "Could not verify admission. Try again.",
+    });
+  });
+
+  it("still throws genuinely unexpected errors", async () => {
+    membershipMock.mockRejectedValue(new Error("boom"));
+
+    await expect(resolveUploadThingToken("wearer-1")).rejects.toThrow("boom");
+  });
+
+  it("reads the membership once when falling back to the default connection", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+    process.env.UPLOADTHING_TOKEN = "platform-token";
+    membershipMock.mockResolvedValue(ownerPlatform);
+
+    await expect(
+      resolveUploadThingTokenForConnection("owner-1", null),
+    ).resolves.toEqual({
+      ok: true,
+      token: "platform-token",
+      connectionId: null,
+      source: "platform_env",
+    });
+    expect(membershipMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns a safe client message when stored credentials cannot be decrypted", async () => {

@@ -29,14 +29,19 @@ vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
   };
 });
 
+import { revalidateTag } from "next/cache";
+
 import { auth } from "@/lib/auth/server";
 import { getSql, requireSql } from "@/lib/db";
+import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
+import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
 import { commitOutfitForDay } from "@/lib/outfits/persist-generator-outfit";
-import { approveWeeklyPlanLook } from "@/app/actions/outfits";
+import { approveWeeklyPlanLook, renameOutfit } from "@/app/actions/outfits";
 
 const getSession = vi.mocked(auth.getSession);
 const sqlMock = vi.mocked(requireSql);
 const commitMock = vi.mocked(commitOutfitForDay);
+const revalidateTagMock = vi.mocked(revalidateTag);
 
 function adminSession() {
   process.env.APP_OWNER_USER_ID = "u1";
@@ -175,5 +180,38 @@ describe("approveWeeklyPlanLook", () => {
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.outfitId).toBe(outfitId);
     expect(commitMock).toHaveBeenCalled();
+  });
+});
+
+describe("renameOutfit", () => {
+  const outfitId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+
+  beforeEach(() => {
+    revalidateTagMock.mockClear();
+  });
+
+  /** loadCalendarMonthData is cached under calendarMonthTag and reads name. */
+  it("invalidates the calendar month as well as the saved outfits list", async () => {
+    getSession.mockResolvedValue(adminSession());
+    sqlMock.mockReturnValue(
+      vi.fn().mockResolvedValue([{ id: outfitId }]) as never,
+    );
+
+    const res = await renameOutfit(outfitId, "Rainy Tuesday");
+
+    expect(res.ok).toBe(true);
+    const tags = revalidateTagMock.mock.calls.map((call) => call[0]);
+    expect(tags).toContain(closetSavedOutfitsTag("u1"));
+    expect(tags).toContain(calendarMonthTag("u1"));
+  });
+
+  it("does not invalidate caches when the outfit was not found", async () => {
+    getSession.mockResolvedValue(adminSession());
+    sqlMock.mockReturnValue(vi.fn().mockResolvedValue([]) as never);
+
+    const res = await renameOutfit(outfitId, "Nope");
+
+    expect(res.ok).toBe(false);
+    expect(revalidateTagMock).not.toHaveBeenCalled();
   });
 });
