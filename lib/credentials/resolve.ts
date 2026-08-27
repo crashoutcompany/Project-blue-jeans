@@ -3,6 +3,7 @@ import "server-only";
 import {
   getMembershipPolicy,
   membershipAllowsPlatformCredentials,
+  MembershipStoreUnavailableError,
   type MembershipPolicy,
 } from "@/lib/auth/membership";
 import { normalizePastedSecret } from "@/lib/credentials/paste";
@@ -180,42 +181,67 @@ export function uploadThingCredentialMessage(
   }
 }
 
-export async function resolveUploadThingToken(
-  userId: string,
-  fallbackMembership?: MembershipPolicy | null,
-): Promise<
+export type ResolvedUploadThingToken =
   | {
       ok: true;
       token: string;
       connectionId: string | null;
       source: "platform_env" | "user_byok";
     }
-  | { ok: false; message: string }
-> {
+  | { ok: false; message: string };
+
+/**
+ * The stored policy wins over any caller-supplied membership so a deleted
+ * account cannot keep spending credentials via a stale session value.
+ */
+async function membershipForTokenResolution(
+  userId: string,
+  fallbackMembership?: MembershipPolicy | null,
+): Promise<MembershipPolicy | null> {
   const fromDb = await getMembershipPolicy(userId);
-  const membership = membershipForResolution(
-    userId,
-    fromDb,
-    fallbackMembership,
-  );
-  try {
-    const resolved = await resolveProviderCredential(
-      userId,
-      "uploadthing",
-      membership,
-    );
-    return {
-      ok: true,
-      token: resolved.secret.token,
-      connectionId: resolved.connectionId,
-      source: resolved.source,
-    };
-  } catch (error) {
-    if (error instanceof ProviderCredentialUnavailableError) {
-      return { ok: false, message: uploadThingCredentialMessage(error) };
-    }
-    throw error;
+  return membershipForResolution(userId, fromDb, fallbackMembership);
+}
+
+/**
+ * Callers branch on `ok`, so a membership store that cannot answer has to be
+ * reported the same way rather than thrown past them as a 500.
+ */
+function uploadThingFailure(error: unknown): { ok: false; message: string } {
+  if (error instanceof ProviderCredentialUnavailableError) {
+    return { ok: false, message: uploadThingCredentialMessage(error) };
   }
+  if (error instanceof MembershipStoreUnavailableError) {
+    return { ok: false, message: error.message };
+  }
+  throw error;
+}
+
+export async function resolveUploadThingToken(
+  userId: string,
+  fallbackMembership?: MembershipPolicy | null,
+): Promise<ResolvedUploadThingToken> {
+  try {
+    const membership = await membershipForTokenResolution(
+      userId,
+      fallbackMembership,
+    );
+    return uploadThingSuccess(
+      await resolveProviderCredential(userId, "uploadthing", membership),
+    );
+  } catch (error) {
+    return uploadThingFailure(error);
+  }
+}
+
+function uploadThingSuccess(
+  resolved: ResolvedProviderCredential<"uploadthing">,
+): ResolvedUploadThingToken {
+  return {
+    ok: true,
+    token: resolved.secret.token,
+    connectionId: resolved.connectionId,
+    source: resolved.source,
+  };
 }
 
 /**
@@ -227,30 +253,24 @@ export async function resolveUploadThingTokenForConnection(
   userId: string,
   connectionId: string | null | undefined,
   fallbackMembership?: MembershipPolicy | null,
-): Promise<
-  | {
-      ok: true;
-      token: string;
-      connectionId: string | null;
-      source: "platform_env" | "user_byok";
-    }
-  | { ok: false; message: string }
-> {
-  const fromDb = await getMembershipPolicy(userId);
-  const membership = membershipForResolution(
-    userId,
-    fromDb,
-    fallbackMembership,
-  );
-  const recordedConnectionId = connectionId?.trim() || null;
-  if (
-    !recordedConnectionId ||
-    membershipAllowsPlatformCredentials(membership, userId)
-  ) {
-    return resolveUploadThingToken(userId, membership);
-  }
-
+): Promise<ResolvedUploadThingToken> {
   try {
+    const membership = await membershipForTokenResolution(
+      userId,
+      fallbackMembership,
+    );
+    const recordedConnectionId = connectionId?.trim() || null;
+    if (
+      !recordedConnectionId ||
+      membershipAllowsPlatformCredentials(membership, userId)
+    ) {
+      // Pass the membership just read from the store rather than delegating,
+      // which would query it a second time for the same request.
+      return uploadThingSuccess(
+        await resolveProviderCredential(userId, "uploadthing", membership),
+      );
+    }
+
     if (!membership) {
       throw new ProviderCredentialUnavailableError(
         "This account has not been admitted to Blue Jeans.",
@@ -281,9 +301,6 @@ export async function resolveUploadThingTokenForConnection(
       source: "user_byok",
     };
   } catch (error) {
-    if (error instanceof ProviderCredentialUnavailableError) {
-      return { ok: false, message: uploadThingCredentialMessage(error) };
-    }
-    throw error;
+    return uploadThingFailure(error);
   }
 }
