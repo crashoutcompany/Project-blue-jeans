@@ -124,7 +124,7 @@ export function DayLookView({
                 alt={look.title ?? "Look for this day"}
                 fill
                 priority
-                unoptimized={look.heroImageUrl.startsWith("data:")}
+                unoptimized={shouldBypassImageOptimizer(look.heroImageUrl)}
                 className="object-cover transition-opacity duration-220 ease-[cubic-bezier(0.23,1,0.32,1)]"
                 sizes="(max-width: 768px) 100vw, 48rem"
               />
@@ -368,6 +368,7 @@ export function DayLookView({
                       fill
                       className="object-cover"
                       sizes="64px"
+                      unoptimized={shouldBypassImageOptimizer(day.heroImageUrl)}
                     />
                   ) : (
                     <span className="sr-only">
