@@ -260,9 +260,10 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
       },
     ]);
     expect([...second.validIds].sort()).toEqual(
-      [TOP_B, BOTTOM_B, SHOE_A].sort(),
+      [TOP_B, BOTTOM_A, BOTTOM_B, SHOE_A].sort(),
     );
     expect(second.validIds.has(TOP_A)).toBe(false);
+    expect(second.validIds.has(BOTTOM_A)).toBe(true);
 
     const lookInserts = calls.filter((c) =>
       c.text.includes("INSERT INTO weekly_plan_looks"),
@@ -331,6 +332,8 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     expect(only.weeklyWeekday).toBe("Saturday");
     expect(only.validIds.has(TOP_A)).toBe(false);
     expect(only.validIds.has(TOP_B)).toBe(true);
+    expect(only.validIds.has(BOTTOM_A)).toBe(true);
+    expect(only.validIds.has(SHOE_A)).toBe(true);
   });
 
   it("locks garments from retained past-day Fits before planning remaining days", async () => {
@@ -373,9 +376,10 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
       },
     ]);
     expect([...first.validIds].sort()).toEqual(
-      [TOP_B, BOTTOM_B, SHOE_A].sort(),
+      [TOP_B, BOTTOM_A, BOTTOM_B, SHOE_A].sort(),
     );
     expect(first.validIds.has(TOP_A)).toBe(false);
-    expect(first.validIds.has(BOTTOM_A)).toBe(false);
+    expect(first.validIds.has(BOTTOM_A)).toBe(true);
+    expect(first.validIds.has(SHOE_A)).toBe(true);
   });
 });

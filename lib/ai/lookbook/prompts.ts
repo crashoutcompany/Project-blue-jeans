@@ -34,7 +34,7 @@ export function step1UserPrompt(params: {
 
   let weeklyHint: string;
   if (weekly && lookCount === 1 && weeklyWeekday) {
-    weeklyHint = `You are planning **one day** of the user's week: **${weeklyWeekday}**. Produce exactly **one** outfit for that day only. Other weekdays are planned in separate requests—give this day a clear character (energy, formality) that can coexist with a varied week.`;
+    weeklyHint = `You are planning **one day** of the user's week: **${weeklyWeekday}**. Produce exactly **one** outfit for that day only. Other weekdays are planned in separate requests—give this day a clear character (energy, formality) that can coexist with a varied week. Bottoms and shoes may repeat across days when they suit the styling, but vary the overall look; tops must not repeat.`;
   } else if (weekly) {
     weeklyHint = `Produce exactly ${lookCount} outfits for a Sunday-start week. Each look should feel distinct but compatible with the same closet.`;
   } else {

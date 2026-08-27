@@ -47,48 +47,20 @@ export function weeklyDaysToPlan(
   return days;
 }
 
-export function closetCategories(
-  garments: CatalogGarment[],
-): Set<string> {
-  return new Set(garments.map((g) => g.category));
-}
-
 /**
- * Closet minus Outfit locks. Uniquely used Fit garments stay out unless
- * their category is exhausted (then only that category may reuse).
+ * Bottoms and shoes may repeat throughout a week. Tops used by either a
+ * committed Outfit or a planned Fit stay out of the remaining days.
  */
 export function availableGarments(
   garments: CatalogGarment[],
   outfitLockedIds: ReadonlySet<string>,
   uniqueLockedIds: ReadonlySet<string>,
-  exhaustedCategories: ReadonlySet<string>,
 ): CatalogGarment[] {
   return garments.filter((g) => {
+    if (g.category === "bottoms" || g.category === "shoes") return true;
     if (outfitLockedIds.has(g.id)) return false;
-    if (uniqueLockedIds.has(g.id) && !exhaustedCategories.has(g.category)) {
-      return false;
-    }
-    return true;
+    return !uniqueLockedIds.has(g.id);
   });
-}
-
-export function exhaustedCategoriesAfterLook(
-  garments: CatalogGarment[],
-  outfitLockedIds: ReadonlySet<string>,
-  uniqueLockedIds: ReadonlySet<string>,
-  closetHas: ReadonlySet<string>,
-): Set<string> {
-  const exhausted = new Set<string>();
-  for (const cat of closetHas) {
-    const unused = garments.some(
-      (g) =>
-        g.category === cat &&
-        !outfitLockedIds.has(g.id) &&
-        !uniqueLockedIds.has(g.id),
-    );
-    if (!unused) exhausted.add(cat);
-  }
-  return exhausted;
 }
 
 export function lockLookGarments(
