@@ -78,13 +78,16 @@ export async function POST(request: Request) {
     const result = await generateLookbook(input);
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({
-      ok: false as const,
-      message: safeClientMessage(
-        "POST /api/generate-lookbook",
-        error,
-        "We could not generate your lookbook. Try again in a moment.",
-      ),
-    });
+    return NextResponse.json(
+      {
+        ok: false as const,
+        message: safeClientMessage(
+          "POST /api/generate-lookbook",
+          error,
+          "We could not generate your lookbook. Try again in a moment.",
+        ),
+      },
+      { status: 500 },
+    );
   }
 }
