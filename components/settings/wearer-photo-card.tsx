@@ -21,6 +21,7 @@ export function WearerPhotoCard({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadInFlightRef = useRef(false);
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -52,6 +53,10 @@ export function WearerPhotoCard({
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
+    // Two quick picks would otherwise overlap and let the older upload's
+    // response win, leaving the card showing a photo that is not current.
+    if (uploadInFlightRef.current) return;
+    uploadInFlightRef.current = true;
     setError(null);
     setUploading(true);
     try {
@@ -77,6 +82,7 @@ export function WearerPhotoCard({
           : "Could not upload photo. Try again.",
       );
     } finally {
+      uploadInFlightRef.current = false;
       setUploading(false);
     }
   }

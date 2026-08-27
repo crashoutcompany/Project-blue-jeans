@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { CalendarDays, Search, X } from "lucide-react";
 
 import { toggleGarmentFavorite } from "@/app/actions/garments";
@@ -109,10 +116,14 @@ export function ClosetView({
   const [savingDrafts, setSavingDrafts] = useState(false);
 
   const previewUrlsRef = useRef<Set<string>>(new Set());
+  const savingDraftsRef = useRef(false);
 
   useEffect(() => {
+    // The Set is created once and only mutated, so reading it at unmount is
+    // the intent; copying the ref here would capture the very same Set.
+    const previewUrls = previewUrlsRef.current;
     return () => {
-      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -158,17 +169,23 @@ export function ClosetView({
   const pieceLabel =
     garments.length === 1 ? "1 piece" : `${garments.length} pieces`;
 
-  function handleFilesReady(items: ClosetPendingLocalImage[]) {
+  // Stable so the upload picker does not tear down and re-register its
+  // document-level paste listener on every re-render of this view.
+  const handleFilesReady = useCallback((items: ClosetPendingLocalImage[]) => {
     setPersistError(null);
     for (const item of items) previewUrlsRef.current.add(item.previewUrl);
     setPendingDrafts((prev) => [
       ...prev,
       ...items.map(garmentDraftFromLocalPick),
     ]);
-  }
+  }, []);
 
   async function handleSavePendingToCloset() {
     if (pendingDrafts.length === 0) return;
+    // A disabled button is not enough: two clicks in the same frame both
+    // enter here before React has re-rendered, uploading the queue twice.
+    if (savingDraftsRef.current) return;
+    savingDraftsRef.current = true;
     setPersistError(null);
     setSavingDrafts(true);
     const draftsSnapshot = pendingDrafts;
@@ -262,6 +279,7 @@ export function ClosetView({
           : "Could not complete upload or save. Try again.";
       setPersistError(msg);
     } finally {
+      savingDraftsRef.current = false;
       setSavingDrafts(false);
     }
   }
