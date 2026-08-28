@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { GeneratorView } from "@/components/outfit/generator-view";
@@ -15,7 +15,20 @@ describe("GeneratorView", () => {
     },
   ];
 
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -51,6 +64,11 @@ describe("GeneratorView", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Look" })).toBeInTheDocument();
+    });
+    expect(screen.getByText("Your look includes:")).toBeInTheDocument();
+    expect(screen.getByText("Tee")).toBeInTheDocument();
   });
 
   it("starts generation from an empty-state starter", async () => {
@@ -68,6 +86,9 @@ describe("GeneratorView", () => {
       (fetchMock.mock.calls[0]?.[1] as RequestInit).body as string,
     );
     expect(body.narrative).toMatch(/gallery opening/i);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Look" })).toBeInTheDocument();
+    });
   });
 
   /**
