@@ -304,6 +304,10 @@ export function GeneratorView({
   const [pending, startTransition] = useTransition();
   const scrollRef = useRef<HTMLDivElement>(null);
   const onHasGeneratedOptionsChangeRef = useRef(onHasGeneratedOptionsChange);
+  // Refs, not state: `disabled` and `pending` only update on the next render,
+  // so two clicks in one frame would both get through.
+  const approveInFlightRef = useRef(false);
+  const generateInFlightRef = useRef(false);
   useEffect(() => {
     onHasGeneratedOptionsChangeRef.current = onHasGeneratedOptionsChange;
   });
@@ -332,6 +336,10 @@ export function GeneratorView({
         setError("This look has no linked closet pieces to save.");
         return;
       }
+      // A disabled button is not enough: two clicks in the same frame both
+      // enter here before React re-renders, saving the outfit twice.
+      if (approveInFlightRef.current) return;
+      approveInFlightRef.current = true;
       setError(null);
       setApproveSavingLookId(look.id);
       const imageUrl =
@@ -374,6 +382,7 @@ export function GeneratorView({
           "Could not reach the server. Check your connection and try again.",
         );
       } finally {
+        approveInFlightRef.current = false;
         setApproveSavingLookId(null);
       }
     },
@@ -408,9 +417,15 @@ export function GeneratorView({
       setError("Type a request to generate looks.");
       return;
     }
+    // Starter buttons call this directly and rely on `disabled`, which lags a
+    // frame behind. Generation spends the account's Gemini quota, so guard it
+    // with a ref rather than the pending transition state.
+    if (generateInFlightRef.current) return;
+    generateInFlightRef.current = true;
     setError(null);
     if (closetGarments.length > 0 && selectedIds.size === 0) {
       setError("Include at least one closet piece.");
+      generateInFlightRef.current = false;
       return;
     }
 
@@ -418,88 +433,92 @@ export function GeneratorView({
     setMessages((m) => [...m, { id: userId, role: "user", text: trimmed }]);
 
     startTransition(async () => {
-      let result: GenerateLookbookResult;
       try {
-        const res = await fetch("/api/generate-lookbook", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            narrative: buildNarrative(trimmed),
-            ...(!allSelected && selectedIds.size > 0
-              ? { includedGarmentIds: [...selectedIds] }
-              : {}),
-          }),
-        });
-
-        const raw = await res.text();
-        let payload: unknown;
+        let result: GenerateLookbookResult;
         try {
-          payload = raw.length > 0 ? JSON.parse(raw) : null;
-        } catch (error) {
-          console.log(error);
-          const parseErr = `The server returned a non-JSON response (${res.status}). Try refreshing the page.`;
-          result = { ok: false, message: parseErr };
+          const res = await fetch("/api/generate-lookbook", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              narrative: buildNarrative(trimmed),
+              ...(!allSelected && selectedIds.size > 0
+                ? { includedGarmentIds: [...selectedIds] }
+                : {}),
+            }),
+          });
+
+          const raw = await res.text();
+          let payload: unknown;
+          try {
+            payload = raw.length > 0 ? JSON.parse(raw) : null;
+          } catch (error) {
+            console.log(error);
+            const parseErr = `The server returned a non-JSON response (${res.status}). Try refreshing the page.`;
+            result = { ok: false, message: parseErr };
+            setMessages((m) => [
+              ...m,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                error: parseErr,
+              },
+            ]);
+            return;
+          }
+
+          if (!res.ok) {
+            const msg =
+              typeof payload === "object" &&
+              payload !== null &&
+              "message" in payload &&
+              typeof (payload as { message: unknown }).message === "string"
+                ? (payload as { message: string }).message
+                : `Request failed (${res.status}).`;
+            result = { ok: false, message: msg };
+          } else {
+            const parsed = generateLookbookResultSchema.safeParse(payload);
+            result = parsed.success
+              ? parsed.data
+              : {
+                  ok: false,
+                  message: "Unexpected response from the lookbook API.",
+                };
+          }
+        } catch {
+          result = {
+            ok: false,
+            message:
+              "Could not reach the server. Check your connection and try again.",
+          };
+        }
+
+        if (!result.ok) {
           setMessages((m) => [
             ...m,
             {
               id: crypto.randomUUID(),
               role: "assistant",
-              error: parseErr,
+              error: result.message,
             },
           ]);
           return;
         }
 
-        if (!res.ok) {
-          const msg =
-            typeof payload === "object" &&
-            payload !== null &&
-            "message" in payload &&
-            typeof (payload as { message: unknown }).message === "string"
-              ? (payload as { message: string }).message
-              : `Request failed (${res.status}).`;
-          result = { ok: false, message: msg };
-        } else {
-          const parsed = generateLookbookResultSchema.safeParse(payload);
-          result = parsed.success
-            ? parsed.data
-            : {
-                ok: false,
-                message: "Unexpected response from the lookbook API.",
-              };
-        }
-      } catch {
-        result = {
-          ok: false,
-          message:
-            "Could not reach the server. Check your connection and try again.",
-        };
-      }
-
-      if (!result.ok) {
+        setPastUserPrompts((p) => [...p, trimmed]);
+        const assistantId = crypto.randomUUID();
         setMessages((m) => [
           ...m,
           {
-            id: crypto.randomUUID(),
+            id: assistantId,
             role: "assistant",
-            error: result.message,
+            looks: result.looks,
+            note: result.curatorNote,
           },
         ]);
-        return;
+      } finally {
+        generateInFlightRef.current = false;
       }
-
-      setPastUserPrompts((p) => [...p, trimmed]);
-      const assistantId = crypto.randomUUID();
-      setMessages((m) => [
-        ...m,
-        {
-          id: assistantId,
-          role: "assistant",
-          looks: result.looks,
-          note: result.curatorNote,
-        },
-      ]);
     });
   }
 

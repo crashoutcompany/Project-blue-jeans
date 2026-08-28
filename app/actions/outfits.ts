@@ -7,14 +7,12 @@ import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces
 import { requireSql } from "@/lib/db";
 import { logServerError } from "@/lib/server/safe-client-error";
 import { APPROVE_OUTFIT_MAX_NAME } from "@/lib/outfits/approve-outfit-limits";
-import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
 import {
   assignOutfitToDay,
   type ApproveOutfitResult,
 } from "@/lib/outfits/persist-generator-outfit";
 import { promoteWeeklyFitToOutfit } from "@/lib/outfits/promote-fit";
 import { productTodayIso } from "@/lib/time/product-timezone";
-import { revalidatePath, revalidateTag } from "next/cache";
 
 export type { ApproveOutfitResult };
 
@@ -88,9 +86,9 @@ export async function renameOutfit(
     if (!parsed.success || !parsed.data[0]) {
       return { ok: false, message: "That outfit was not found." };
     }
-    revalidateTag(closetSavedOutfitsTag(gate.userId), "max");
-    revalidatePath("/closet");
-    revalidatePath("/");
+    // The cached calendar month reads outfits.name, so it has to be
+    // invalidated too — not just the saved-outfits list.
+    revalidateOutfitSurfaces(gate.userId);
     return { ok: true };
   } catch (e) {
     logServerError("renameOutfit", e);

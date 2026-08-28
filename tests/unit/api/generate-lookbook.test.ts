@@ -117,7 +117,7 @@ describe("POST /api/generate-lookbook", () => {
     );
   });
 
-  it("returns a structured error when generateLookbook throws", async () => {
+  it("fails with 500 and a safe message when generateLookbook throws", async () => {
     process.env.APP_OWNER_USER_ID = "u1";
     getSession.mockResolvedValue({
       data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
@@ -131,7 +131,7 @@ describe("POST /api/generate-lookbook", () => {
         body: JSON.stringify({ narrative: "Summer brunch" }),
       }),
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(500);
     await expect(res.json()).resolves.toEqual({
       ok: false,
       message: "We could not generate your lookbook. Try again in a moment.",

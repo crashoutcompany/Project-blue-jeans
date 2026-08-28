@@ -50,6 +50,13 @@ export function DayLookView({
   const [selectedWornOn, setSelectedWornOn] = useState(() =>
     initialSelectedDay(data, dayFromUrl),
   );
+  const [seenDayParam, setSeenDayParam] = useState(dayFromUrl);
+  // The initializer only runs on mount, so a ?day= change from client
+  // navigation (including back/forward) left the previous day selected.
+  if (dayFromUrl !== seenDayParam) {
+    setSeenDayParam(dayFromUrl);
+    setSelectedWornOn(initialSelectedDay(data, dayFromUrl));
+  }
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [manualChangeLookOpen, setManualChangeLookOpen] = useState(false);
@@ -124,7 +131,7 @@ export function DayLookView({
                 alt={look.title ?? "Look for this day"}
                 fill
                 priority
-                unoptimized={look.heroImageUrl.startsWith("data:")}
+                unoptimized={shouldBypassImageOptimizer(look.heroImageUrl)}
                 className="object-cover transition-opacity duration-220 ease-[cubic-bezier(0.23,1,0.32,1)]"
                 sizes="(max-width: 768px) 100vw, 48rem"
               />
@@ -368,6 +375,7 @@ export function DayLookView({
                       fill
                       className="object-cover"
                       sizes="64px"
+                      unoptimized={shouldBypassImageOptimizer(day.heroImageUrl)}
                     />
                   ) : (
                     <span className="sr-only">

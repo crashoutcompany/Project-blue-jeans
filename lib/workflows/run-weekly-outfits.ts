@@ -1,4 +1,5 @@
 import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
+import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
@@ -17,8 +18,6 @@ import {
 import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
 import {
   availableGarments,
-  closetCategories,
-  exhaustedCategoriesAfterLook,
   lockLookGarments,
   todaySortOrder,
   weeklyDaysToPlan,
@@ -32,6 +31,13 @@ import {
 import type { WeeklyOutfitsInput } from "@/lib/workflows/types";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import { z } from "zod";
+
+/**
+ * A full week is 7 looks, and each hero is a multimodal generation plus up to
+ * 15 image fetches. Firing all of them at once spikes provider rate limits and
+ * memory; the generator path is effectively capped at 3 for the same reason.
+ */
+const HERO_IMAGE_CONCURRENCY = 3;
 
 const WEEKLY_JOB_FAILED_PUBLIC =
   "Weekly outfits job failed. Check server logs for details.";
@@ -92,8 +98,8 @@ function garmentNamesForIds(
 }
 
 /**
- * Plan my week: sequential step-1 (shrinking catalog, Outfit locks, per-category
- * reuse when exhausted), then parallel hero-image calls.
+ * Plan my week: sequential step-1 (tops stay unique; bottoms and shoes may
+ * repeat), then parallel hero-image calls.
  */
 export async function runWeeklyOutfitsJob(
   input: WeeklyOutfitsInput,
@@ -171,9 +177,7 @@ export async function runWeeklyOutfitsJob(
   }
 
   const garmentsById = new Map(garments.map((g) => [g.id, g]));
-  const closetHas = closetCategories(garments);
   const uniqueLockedIds = new Set<string>();
-  let exhausted = new Set<string>();
   const alreadyPlanned: AlreadyPlannedLook[] = [];
   const plans: LookbookPlan[] = [];
   const looksForDb: {
@@ -210,12 +214,6 @@ export async function runWeeklyOutfitsJob(
       });
       lockLookGarments(ids, outfitLockedIds, uniqueLockedIds);
     }
-    exhausted = exhaustedCategoriesAfterLook(
-      garments,
-      outfitLockedIds,
-      uniqueLockedIds,
-      closetHas,
-    );
   }
 
   try {
@@ -224,7 +222,6 @@ export async function runWeeklyOutfitsJob(
         garments,
         outfitLockedIds,
         uniqueLockedIds,
-        exhausted,
       );
       if (available.length === 0) {
         return {
@@ -271,12 +268,6 @@ export async function runWeeklyOutfitsJob(
         garmentNames: garmentNamesForIds(look.garmentIds ?? [], garmentsById),
       });
       lockLookGarments(look.garmentIds ?? [], outfitLockedIds, uniqueLockedIds);
-      exhausted = exhaustedCategoriesAfterLook(
-        garments,
-        outfitLockedIds,
-        uniqueLockedIds,
-        closetHas,
-      );
     }
   } catch (e) {
     logServerError("runWeeklyOutfitsJob step1", e);
@@ -348,8 +339,10 @@ export async function runWeeklyOutfitsJob(
     }
 
     const wearer = await getWearerPhoto(input.userId);
-    const heroOutcomes = await Promise.all(
-      looksForDb.map(async (look) => {
+    const heroOutcomes = await mapWithConcurrency(
+      looksForDb,
+      HERO_IMAGE_CONCURRENCY,
+      async (look) => {
         const ids = look.garmentIds;
         if (ids.length === 0) {
           return {
@@ -408,7 +401,7 @@ export async function runWeeklyOutfitsJob(
             missingGarments: false as const,
           };
         }
-      }),
+      },
     );
 
     const missing = heroOutcomes.find((o) => o.missingGarments);
