@@ -106,7 +106,8 @@ async function syncLastWorn(outfitId: string): Promise<void> {
 
 /**
  * Atomically replace the wear for (user_id, worn_on) and return the previous
- * outfit id (when different) for orphan cleanup. Requires UNIQUE (user_id, worn_on).
+ * outfit id (when different) for orphan cleanup. Requires a unique index on
+ * (user_id, worn_on) for concurrent safety; see db/migrate-outfit-wears-unique.sql.
  */
 async function replaceWearForDay(
   userId: string,
@@ -124,8 +125,6 @@ async function replaceWearForDay(
     inserted AS (
       INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
       VALUES (${outfitId}::uuid, ${userId}, ${wornOn}::date)
-      ON CONFLICT (user_id, worn_on) DO UPDATE
-        SET outfit_id = EXCLUDED.outfit_id
       RETURNING 1
     )
     SELECT prior_outfit_id FROM deleted
