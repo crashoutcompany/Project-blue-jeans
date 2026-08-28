@@ -108,12 +108,19 @@ export function GeneratorChatStack({
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
 
-  function goTo(nextIndex: number) {
+  function goTo(
+    nextIndex: number,
+    requestedDirection?: "next" | "prev",
+  ) {
     if (!multi || disabled || departingRef.current) return;
     const from = indexRef.current;
     const to = wrapLookIndex(nextIndex, slice.length);
     if (to === from) return;
-    const direction = lookStackDirection(from, to, slice.length);
+    const direction =
+      requestedDirection ?? lookStackDirection(from, to, slice.length);
+    if (stageRef.current?.contains(document.activeElement)) {
+      stageRef.current.focus({ preventScroll: true });
+    }
     if (prefersReducedMotion()) {
       setIndex(to);
       return;
@@ -123,7 +130,8 @@ export function GeneratorChatStack({
   }
 
   function go(delta: number) {
-    goTo(indexRef.current + (delta > 0 ? 1 : -1));
+    const direction = delta > 0 ? "next" : "prev";
+    goTo(indexRef.current + (direction === "next" ? 1 : -1), direction);
   }
 
   function restTransformFor(lookId: string, itemIndex: number) {
@@ -224,7 +232,7 @@ export function GeneratorChatStack({
   }
 
   function onStageKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
-    if (!multi || disabled) return;
+    if (!multi || disabled || e.target !== e.currentTarget) return;
     if (e.key === "ArrowRight") {
       e.preventDefault();
       go(1);
@@ -390,7 +398,7 @@ function LookStackCard({
       {!isFront && !isDeparting ? (
         <button
           type="button"
-          className="absolute inset-y-0 right-0 w-5"
+          className="absolute inset-y-0 right-0 w-6"
           disabled={disabled}
           aria-label={`Show look ${itemIndex + 1}: ${look.title}`}
           onClick={onShow}
@@ -426,7 +434,7 @@ function LookCardFace({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={look.imageDataUrl}
-            alt=""
+            alt={`${look.title} outfit preview`}
             draggable={false}
             className="absolute inset-0 size-full object-cover"
           />

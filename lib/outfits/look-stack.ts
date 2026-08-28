@@ -1,4 +1,4 @@
-const STACK_PEEK_PX = 20;
+const STACK_PEEK_PX = 24;
 const STACK_LIFT_PX = 2;
 const STACK_SCALE_STEP = 0.015;
 const STACK_MAX_DEPTH = 4;

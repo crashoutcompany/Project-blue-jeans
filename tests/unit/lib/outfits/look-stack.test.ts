@@ -63,6 +63,6 @@ describe("look stack math", () => {
 
   it("reserves peek width for the deck", () => {
     expect(lookStackPeekReservePx(1)).toBe(0);
-    expect(lookStackPeekReservePx(3)).toBe(40);
+    expect(lookStackPeekReservePx(3)).toBe(48);
   });
 });

@@ -84,6 +84,9 @@ describe("GeneratorChatStack", () => {
     expect(
       screen.getByRole("button", { name: "Approve" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Gallery navy outfit preview" }),
+    ).toBeInTheDocument();
   });
 
   it("brings a peeking card to the front", async () => {
@@ -99,6 +102,9 @@ describe("GeneratorChatStack", () => {
       />,
     );
 
+    const stage = screen.getByRole("region", {
+      name: "Generated outfit looks",
+    });
     await user.click(
       screen.getByRole("button", { name: "Show look 2: Travel khaki" }),
     );
@@ -109,6 +115,7 @@ describe("GeneratorChatStack", () => {
     expect(
       screen.getByText(/Look 2 of 3: Travel khaki/),
     ).toBeInTheDocument();
+    expect(stage).toHaveFocus();
   });
 
   it("advances with the keyboard", async () => {
@@ -133,6 +140,51 @@ describe("GeneratorChatStack", () => {
     expect(
       screen.getByText(/Look 2 of 3: Travel khaki/),
     ).toBeInTheDocument();
+  });
+
+  it("does not navigate when arrow keys originate from an action", async () => {
+    const user = userEvent.setup();
+    render(
+      <GeneratorChatStack
+        messageId="m1"
+        looks={looks}
+        approvedLookId={null}
+        onApprove={vi.fn()}
+        onRemix={vi.fn()}
+        closetGarments={garments}
+      />,
+    );
+
+    screen.getByRole("button", { name: "Approve" }).focus();
+    await user.keyboard("{ArrowRight}");
+
+    expect(screen.getByRole("button", { name: "Approve" })).toHaveFocus();
+    expect(screen.getByText(/Look 1 of 3: Gallery navy/)).toBeInTheDocument();
+  });
+
+  it("preserves previous motion direction with two looks", () => {
+    render(
+      <GeneratorChatStack
+        messageId="m1"
+        looks={looks.slice(0, 2)}
+        approvedLookId={null}
+        onApprove={vi.fn()}
+        onRemix={vi.fn()}
+        closetGarments={garments}
+      />,
+    );
+
+    const stage = screen.getByRole("region", {
+      name: "Generated outfit looks",
+    });
+    const frontCard = stage.querySelector<HTMLElement>(
+      '[data-look-card="look-a"]',
+    );
+    stage.focus();
+    fireEvent.keyDown(stage, { key: "ArrowLeft" });
+
+    expect(frontCard?.style.transform).toContain("translate3d(18%");
+    expect(screen.getByText(/Look 2 of 2: Travel khaki/)).toBeInTheDocument();
   });
 
   it("restores the deck without switching when a drag is canceled", () => {
