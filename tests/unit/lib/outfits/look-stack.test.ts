@@ -34,7 +34,7 @@ describe("look stack math", () => {
 
   it("offsets resting cards to the right", () => {
     expect(lookStackRestTransform(0)).toBe("translate3d(0px, 0px, 0) scale(1)");
-    expect(lookStackRestTransform(1)).toContain("translate3d(20px, 2px, 0)");
+    expect(lookStackRestTransform(1)).toContain("translate3d(24px, 2px, 0)");
     expect(lookStackRestTransform(1)).toContain("scale(0.985)");
   });
 
