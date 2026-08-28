@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { GeneratorChatStack } from "@/components/outfit/generator-chat-stack";
@@ -133,6 +133,52 @@ describe("GeneratorChatStack", () => {
     expect(
       screen.getByText(/Look 2 of 3: Travel khaki/),
     ).toBeInTheDocument();
+  });
+
+  it("restores the deck without switching when a drag is canceled", () => {
+    render(
+      <GeneratorChatStack
+        messageId="m1"
+        looks={looks}
+        approvedLookId={null}
+        onApprove={vi.fn()}
+        onRemix={vi.fn()}
+        closetGarments={garments}
+      />,
+    );
+
+    const stage = screen.getByRole("region", {
+      name: "Generated outfit looks",
+    });
+    const frontCard = stage.querySelector<HTMLElement>(
+      '[data-look-card="look-a"]',
+    );
+    expect(frontCard).not.toBeNull();
+
+    fireEvent.pointerDown(stage, {
+      pointerId: 1,
+      button: 0,
+      clientX: 120,
+      clientY: 100,
+    });
+    fireEvent.pointerMove(stage, {
+      pointerId: 1,
+      clientX: 40,
+      clientY: 100,
+    });
+    expect(stage).toHaveAttribute("data-dragging");
+
+    fireEvent.pointerCancel(stage, {
+      pointerId: 1,
+      clientX: 0,
+      clientY: 100,
+    });
+
+    expect(stage).not.toHaveAttribute("data-dragging");
+    expect(frontCard?.style.transform).toBe(
+      "translate3d(0px, 0px, 0) scale(1)",
+    );
+    expect(screen.getByText(/Look 1 of 3: Gallery navy/)).toBeInTheDocument();
   });
 
   it("approves the visible look", async () => {

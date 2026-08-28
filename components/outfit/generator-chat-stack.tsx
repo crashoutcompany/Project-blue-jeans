@@ -212,6 +212,17 @@ export function GeneratorChatStack({
     }
   }
 
+  function onPointerCancel(e: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    stageRef.current?.removeAttribute("data-dragging");
+    if (drag.armed) writeRestTransforms();
+    if (stageRef.current?.hasPointerCapture?.(e.pointerId)) {
+      stageRef.current.releasePointerCapture(e.pointerId);
+    }
+  }
+
   function onStageKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
     if (!multi || disabled) return;
     if (e.key === "ArrowRight") {
@@ -249,7 +260,8 @@ export function GeneratorChatStack({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onLostPointerCapture={onPointerCancel}
         onKeyDown={onStageKeyDown}
         className={cn(
           "group/stack relative overflow-hidden touch-pan-y outline-none",
