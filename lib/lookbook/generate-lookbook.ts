@@ -19,6 +19,7 @@ import {
   resolveOwnedImageFetchUrl,
 } from "@/lib/media/owned-image";
 import { getWearerPhoto } from "@/lib/wearer/profile";
+import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
 
 const DEFAULT_CLIMATE = "Temperate";
 const DEFAULT_CONTEXT = "Versatile day-to-night";
@@ -28,6 +29,8 @@ export type GenerateLookbookInput = {
   membership?: MembershipPolicy | null;
   climate?: string;
   context?: string;
+  /** Override default weather location (New York, NY) when set. */
+  location?: string;
   narrative: string;
   includedGarmentIds?: string[];
   lookCount?: number;
@@ -80,6 +83,7 @@ export async function generateLookbook(
   const narrative = input.narrative.trim().slice(0, MAX_NARRATIVE_LEN);
   const climate = (input.climate?.trim() || DEFAULT_CLIMATE).slice(0, 80);
   const context = (input.context?.trim() || DEFAULT_CONTEXT).slice(0, 80);
+  const location = resolveOutfitLocation(input.location);
 
   let garments = await loadGarmentCatalog(input.userId);
   if (garments.length === 0) {
@@ -115,6 +119,7 @@ export async function generateLookbook(
       narrative,
       catalogText,
       validIds,
+      location,
       weekly: input.weekly,
     });
 

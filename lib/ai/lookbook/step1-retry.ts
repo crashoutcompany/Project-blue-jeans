@@ -14,6 +14,7 @@ export type RunStep1PlanWithRetryParams = {
   narrative: string;
   catalogText: string;
   validIds: ReadonlySet<string>;
+  location: string;
   weekly?: boolean;
   weeklyWeekday?: string;
   alreadyPlanned?: AlreadyPlannedLook[];
@@ -33,6 +34,7 @@ export async function runStep1PlanWithRetry(
     narrative,
     catalogText,
     validIds,
+    location,
     weekly,
     weeklyWeekday,
     alreadyPlanned,
@@ -45,6 +47,7 @@ export async function runStep1PlanWithRetry(
     context,
     narrative,
     catalogText,
+    location,
     weekly,
     weeklyWeekday,
     alreadyPlanned,
@@ -62,6 +65,7 @@ export async function runStep1PlanWithRetry(
         narrative +
         `\n\nIMPORTANT: You must only output garmentIds that appear in this exact list: ${[...validIds].join(", ")}`,
       catalogText,
+      location,
       weekly,
       weeklyWeekday,
       alreadyPlanned,

@@ -34,6 +34,7 @@ import {
 } from "@/lib/time/product-timezone";
 import type { WeeklyOutfitsInput } from "@/lib/workflows/types";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
+import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
 import { z } from "zod";
 
 /**
@@ -246,6 +247,7 @@ export async function runWeeklyOutfitsJob(
         narrative,
         catalogText: formatClosetCatalog(available),
         validIds,
+        location: resolveOutfitLocation(input.location),
         weekly: true,
         weeklyWeekday: day.weekday,
         alreadyPlanned: alreadyPlanned.slice(),

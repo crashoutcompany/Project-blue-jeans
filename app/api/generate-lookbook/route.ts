@@ -56,6 +56,7 @@ export async function POST(request: Request) {
 
   if (typeof body.climate === "string") input.climate = body.climate;
   if (typeof body.context === "string") input.context = body.context;
+  if (typeof body.location === "string") input.location = body.location;
   if (body.includedGarmentIds !== undefined) {
     if (!isStringArray(body.includedGarmentIds)) {
       return NextResponse.json(

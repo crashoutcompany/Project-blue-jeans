@@ -8,4 +8,6 @@ export type WeeklyOutfitsInput = {
   climate: string;
   context: string;
   narrative: string;
+  /** Override default weather location (New York, NY) when set. */
+  location?: string;
 };

@@ -113,6 +113,9 @@ describe("generateLookbook", () => {
     });
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.looks.length).toBeGreaterThan(0);
+    expect(step1).toHaveBeenCalledWith(
+      expect.objectContaining({ location: "New York, NY" }),
+    );
   });
 
   it("keeps ok when hero images partially fail", async () => {

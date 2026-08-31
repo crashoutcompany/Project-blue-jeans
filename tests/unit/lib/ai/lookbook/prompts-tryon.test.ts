@@ -7,6 +7,7 @@ import {
   step2TryOnUserPrompt,
   step2UserPrompt,
 } from "@/lib/ai/lookbook/prompts";
+import { DEFAULT_OUTFIT_LOCATION } from "@/lib/ai/weather/constants";
 
 const sampleLook = {
   title: "Navy set",
@@ -49,6 +50,7 @@ describe("weekly sequential step-1 prompt", () => {
       climate: "Temperate",
       context: "Everyday week",
       narrative: "",
+      location: DEFAULT_OUTFIT_LOCATION,
       catalogText:
         "- **id-1** | tops | Tee | color: — | desc: (no description) | notes: —",
       weekly: true,
@@ -67,6 +69,7 @@ describe("weekly sequential step-1 prompt", () => {
     expect(prompt).toContain("Thursday — Office polo (Polo, Grey trousers)");
     expect(prompt).toContain("Bottoms and shoes may repeat");
     expect(prompt).toContain("tops must not repeat");
+    expect(prompt).toContain(`Weather location: ${DEFAULT_OUTFIT_LOCATION}`);
     expect(prompt).not.toContain("Monday (index 0)");
   });
 });

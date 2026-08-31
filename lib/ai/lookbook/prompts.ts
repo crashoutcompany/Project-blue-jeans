@@ -1,4 +1,6 @@
-export const STEP1_SYSTEM = `You are a senior fashion stylist for a digital wardrobe app. You choose outfits only from the provided closet catalog. Every garment id you output must appear exactly in that catalog. Prefer cohesive palettes, appropriate layering for the climate, and occasion-appropriate formality.`;
+export const STEP1_SYSTEM = `You are a senior fashion stylist for a digital wardrobe app. You choose outfits only from the provided closet catalog. Every garment id you output must appear exactly in that catalog. Prefer cohesive palettes, appropriate layering for real conditions, and occasion-appropriate formality.
+
+Always call the getWeather tool before finalizing outfits. Use the default location provided in the user message unless the user's style notes clearly name a different city or place—in that case, call getWeather for the place they named instead. Use temperature, precipitation, wind, and conditions to choose layering, fabrics, and outerwear.`;
 
 export const STEP2_SYSTEM = `You are an editorial fashion photographer AI. Generate a single photorealistic full-length studio photoshoot of the outfit. Place the subject standing in front of a seamless solid-color backdrop (light gray, off-white, or similar cyclorama)—not a room, street, landscape, or lifestyle scene. Honor the reference garment images as the actual pieces to visualize. No text, logos, or watermarks on the image.`;
 
@@ -16,6 +18,8 @@ export function step1UserPrompt(params: {
   context: string;
   narrative: string;
   catalogText: string;
+  /** Default weather location; user notes may override when calling getWeather. */
+  location: string;
   weekly?: boolean;
   /** Weekday name for a single-day weekly plan, e.g. "Wednesday". */
   weeklyWeekday?: string;
@@ -27,6 +31,7 @@ export function step1UserPrompt(params: {
     context,
     narrative,
     catalogText,
+    location,
     weekly,
     weeklyWeekday,
     alreadyPlanned,
@@ -54,8 +59,9 @@ export function step1UserPrompt(params: {
   return `${weeklyHint}
 
 ${planned}Constraints:
-- Climate vibe: ${climate}
+- Climate vibe (styling mood only): ${climate}
 - Occasion / setting: ${context}
+- Weather location: ${location} (call getWeather for this place before planning; if user style notes clearly name a different place, use that instead)
 - User style notes (may be empty): ${narrative || "(none)"}
 
 Closet catalog (use only these garment ids):
