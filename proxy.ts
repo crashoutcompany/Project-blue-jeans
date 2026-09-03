@@ -37,7 +37,25 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/" || pathname.startsWith("/invite/")) {
-    return NextResponse.next();
+    /**
+     * The landing page is publicly accessible (no auth required), but we still
+     * need to let Neon Auth middleware run so it can refresh the session cookie
+     * for signed-in visitors. If the middleware would redirect an unauthenticated
+     * user to /auth/sign-in, we convert that to a pass-through instead — the page
+     * itself renders the landing shell for signed-out users.
+     *
+     * Without this, auth.getSession() inside the RSC (HomeContent) attempts to
+     * write the refreshed Set-Cookie header during render, which Next.js forbids
+     * ("Cookies can only be modified in a Server Action or Route Handler").
+     */
+    const mergedReq = nextRequestWithMergedCookieHeader(request);
+    const authResponse = await neonAuthMiddleware(mergedReq);
+    // If Neon would redirect (unauthenticated user → /auth/sign-in), let the
+    // page through anyway — the RSC handles the signed-out landing render.
+    if (authResponse.status >= 300 && authResponse.status < 400) {
+      return NextResponse.next();
+    }
+    return authResponse;
   }
 
   /**
