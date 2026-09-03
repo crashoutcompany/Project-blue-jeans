@@ -25,20 +25,42 @@ describe("proxy", () => {
     vi.unstubAllEnvs();
   });
 
-  it("bypasses auth middleware for /", async () => {
+  it("runs auth middleware for / and passes its response through (non-redirect)", async () => {
+    // neonMw returns a non-redirect response → proxy forwards it as-is so the
+    // session-refresh Set-Cookie headers (written by middleware) reach the client.
     const { proxy } = await import("@/proxy");
     const req = new NextRequest("https://example.com/");
     const res = await proxy(req);
-    expect(res.status).toBe(200);
-    expect(neonMw).not.toHaveBeenCalled();
+    expect(neonMw).toHaveBeenCalled();
+    expect(res.status).toBe(418); // sentinel: neonMw response forwarded
   });
 
-  it("bypasses auth middleware for invite links", async () => {
+  it("runs auth middleware for / and falls through to 200 when middleware redirects (unauthenticated)", async () => {
+    // Simulate neonMw redirecting an unauthenticated user → proxy converts to
+    // NextResponse.next() so the public landing page stays accessible.
+    neonMw.mockResolvedValueOnce(NextResponse.redirect("https://example.com/auth/sign-in"));
+    const { proxy } = await import("@/proxy");
+    const req = new NextRequest("https://example.com/");
+    const res = await proxy(req);
+    expect(neonMw).toHaveBeenCalled();
+    expect(res.status).toBe(200);
+  });
+
+  it("runs auth middleware for invite links and passes its response through (non-redirect)", async () => {
     const { proxy } = await import("@/proxy");
     const req = new NextRequest("https://example.com/invite/abc");
     const res = await proxy(req);
+    expect(neonMw).toHaveBeenCalled();
+    expect(res.status).toBe(418); // sentinel: neonMw response forwarded
+  });
+
+  it("runs auth middleware for invite links and falls through to 200 when middleware redirects", async () => {
+    neonMw.mockResolvedValueOnce(NextResponse.redirect("https://example.com/auth/sign-in"));
+    const { proxy } = await import("@/proxy");
+    const req = new NextRequest("https://example.com/invite/abc");
+    const res = await proxy(req);
+    expect(neonMw).toHaveBeenCalled();
     expect(res.status).toBe(200);
-    expect(neonMw).not.toHaveBeenCalled();
   });
 
   it("does not run Neon auth middleware for /api/* but merges cookies", async () => {
