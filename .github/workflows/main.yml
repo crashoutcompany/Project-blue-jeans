@@ -1,5 +1,5 @@
-# Fork PRs do not receive repository secrets. Lint/test/e2e use stub Neon Auth env.
-# Build runs only for push to main and same-repo PRs. Needs VERCEL_TOKEN,
+# Fork PRs do not receive repository secrets. Build and authenticated E2E run
+# only for push to main and same-repo PRs. Build needs VERCEL_TOKEN,
 # VERCEL_ORG_ID, VERCEL_PROJECT_ID, plus app secrets that Vercel marks Sensitive
 # (those pull as "[SENSITIVE]" placeholders and must come from GitHub secrets).
 # Install (`npm ci`) runs without those app secrets; they are injected only on
@@ -16,9 +16,6 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     continue-on-error: true
-    env:
-      NEON_AUTH_BASE_URL: https://example.invalid
-      NEON_AUTH_COOKIE_SECRET: "01234567890123456789012345678901"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -51,7 +48,6 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel
 
-      # No app secrets here — postinstall runs patch-package.
       - name: Install dependencies
         run: npm ci
 
@@ -65,16 +61,14 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          NEON_AUTH_BASE_URL: ${{ secrets.NEON_AUTH_BASE_URL }}
-          NEON_AUTH_COOKIE_SECRET: ${{ secrets.NEON_AUTH_COOKIE_SECRET }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
+          AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }} --prod
 
   test:
     runs-on: ubuntu-latest
-    env:
-      NEON_AUTH_BASE_URL: https://example.invalid
-      NEON_AUTH_COOKIE_SECRET: "01234567890123456789012345678901"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -92,17 +86,15 @@ jobs:
         run: npm run test
 
   e2e:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      BETTER_AUTH_SECRET: test-better-auth-secret-at-least-32-characters
-      TEST_AUTH_SECRET: test-auth-secret
-      APP_OWNER_USER_ID: e2e-admin
+      # Real Neon URL required (no invented tokens). Auth secrets fall back for CI.
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET != '' && secrets.BETTER_AUTH_SECRET || 'test-better-auth-secret-at-least-32-characters' }}
+      TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET != '' && secrets.TEST_AUTH_SECRET || 'test-auth-secret' }}
       EXPOSE_TESTING_API: "1"
-      E2E_PLAYWRIGHT: "1"
-      # Legacy Neon Auth stubs kept so older import paths do not crash at build.
-      NEON_AUTH_BASE_URL: https://example.invalid
-      NEON_AUTH_COOKIE_SECRET: "01234567890123456789012345678901"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -117,12 +109,7 @@ jobs:
         run: npm ci
 
       - name: Build (Next.js, instant-nav testing API)
-        run: npm run build:instant
-        env:
-          E2E_PLAYWRIGHT: "1"
-          EXPOSE_TESTING_API: "1"
-          BETTER_AUTH_SECRET: test-better-auth-secret-at-least-32-characters
-          APP_OWNER_USER_ID: e2e-admin
+        run: npm run build:e2e
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
@@ -130,9 +117,5 @@ jobs:
       - name: E2E tests (Playwright)
         run: npm run test:e2e
         env:
-          E2E_PLAYWRIGHT: "1"
           EXPOSE_TESTING_API: "1"
-          BETTER_AUTH_SECRET: test-better-auth-secret-at-least-32-characters
-          TEST_AUTH_SECRET: test-auth-secret
-          APP_OWNER_USER_ID: e2e-admin
           CI: "true"
