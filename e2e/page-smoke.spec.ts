@@ -35,7 +35,7 @@ test.describe("guest page smoke", () => {
 });
 
 test.describe("admin page smoke", () => {
-  test.use({ storageState: "tests/e2e/.auth/admin.json" });
+  test.use({ storageState: "e2e/.auth/admin.json" });
 
   test("home day look shell renders", async ({ page }) => {
     await page.goto("/");
