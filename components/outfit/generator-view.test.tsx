@@ -68,7 +68,7 @@ describe("GeneratorView", () => {
       expect(screen.getByRole("heading", { name: "Look" })).toBeInTheDocument();
     });
     expect(screen.getByText("Your look includes:")).toBeInTheDocument();
-    expect(screen.getByText("Tee")).toBeInTheDocument();
+    expect(screen.getAllByText("Tee").length).toBeGreaterThan(1);
   });
 
   it("starts generation from an empty-state starter", async () => {
@@ -109,5 +109,38 @@ describe("GeneratorView", () => {
         (call) => call[0] === "/api/generate-lookbook",
       ),
     ).toHaveLength(1);
+  });
+
+  it("does not POST Include marks for committed Outfit tops", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+    const oxford = {
+      id: "a47ac10b-58cc-4372-a567-0e02b2c3d479",
+      name: "Oxford",
+      category: "tops",
+      imageUrl: "https://example.com/b.jpg",
+    };
+    const { rerender } = render(
+      <GeneratorView closetGarments={[...garments, oxford]} />,
+    );
+    await user.click(screen.getByRole("button", { name: /include tee/i }));
+    rerender(
+      <GeneratorView
+        closetGarments={[...garments, oxford]}
+        committedOutfitTopIds={[gid]}
+      />,
+    );
+    await user.type(screen.getByLabelText(/outfit request/i), "Brunch look");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/generate-lookbook",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0]?.[1] as RequestInit).body as string,
+    );
+    expect(body.includedGarmentIds ?? []).not.toContain(gid);
   });
 });

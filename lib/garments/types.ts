@@ -1,21 +1,36 @@
 import { z } from "zod";
 
-export type GarmentCategoryDb = "tops" | "bottoms" | "shoes";
+export type GarmentCategoryDb =
+  | "tops"
+  | "bottoms"
+  | "shoes"
+  | "outerwear"
+  | "accessories";
 
 /** Values of Postgres `garment_category` (see db/schema.sql). */
 export const GARMENT_CATEGORY_VALUES: readonly GarmentCategoryDb[] = [
   "tops",
   "bottoms",
   "shoes",
+  "outerwear",
+  "accessories",
 ];
 
 export const GARMENT_CATEGORY_LABEL: Record<GarmentCategoryDb, string> = {
   tops: "Tops",
   bottoms: "Bottoms",
   shoes: "Shoes",
+  outerwear: "Outerwear",
+  accessories: "Accessories",
 };
 
-export const garmentCategorySchema = z.enum(["tops", "bottoms", "shoes"]);
+export const garmentCategorySchema = z.enum([
+  "tops",
+  "bottoms",
+  "shoes",
+  "outerwear",
+  "accessories",
+]);
 
 export function isGarmentCategoryDb(v: string): v is GarmentCategoryDb {
   return (GARMENT_CATEGORY_VALUES as readonly string[]).includes(v);

@@ -21,8 +21,8 @@ The wearer's catalog of owned **Garments**, plus archived **Outfits** (two modes
 _Avoid_: Dashboard (URL leftover; not the product concept); stuffing **Fits** into Closet
 
 **Garment**:
-A single owned clothing item in the **Digital Closet** (may be archived/hidden without destroying history).
-_Avoid_: Piece (ok in casual UI copy), “item” as the domain noun; hard-deleting pieces that still appear in past **Outfits**
+A single owned clothing item in the **Digital Closet**. Removing one is a **hard delete** (photo gone, stripped from **Outfits**, uniqueness rekeyed).
+_Avoid_: Piece (ok in casual UI copy), “item” as the domain noun; archive/hide; leaving deleted pieces in past **Outfits**
 
 **Fit**:
 An AI-suggested combination for a day that is not yet committed.
@@ -41,8 +41,8 @@ The post-login home surface that presents (or helps create) the **Outfit** for t
 _Avoid_: Dashboard, home-as-closet
 
 **Outfit Generator**:
-A today-scoped re-roll surface: short prompt + optional constraint chips (**Include** / **Avoid**) → up to three options → approve as today’s **Outfit** (not a freeform planner chat).
-_Avoid_: Treating Generator as the home or as a dateless mood board; week planning in Generator; calling Include “must-wear”
+A today-scoped re-roll surface: **chat** plus optional **Include** / **Avoid** chips (chips persist across turns) → up to three options → approve as today’s **Outfit**.
+_Avoid_: Treating Generator as the home or as a dateless mood board; week planning in Generator; chips-only (no chat); treating Include as a closet-scope filter
 
 **Wearer account**:
 A signed-in user whose **Digital Closet**, **Fits**, **Outfits**, and **Today** are private to them.
@@ -65,8 +65,8 @@ A single saved body/reference image for a **Wearer account**, used to composite 
 _Avoid_: Re-uploading a body shot every generate; treating AI editorial as the default hero when a **Wearer photo** exists; hard-gating Today on missing photo
 
 **Settings**:
-Account-level controls reached from the account menu (not primary nav); includes **Wearer photo** and archived **Garments**.
-_Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putting archived pieces in the main Closet grid
+Account-level controls reached from the account menu (not primary nav); includes **Wearer photo**, **home city** (weather), and provider keys.
+_Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; archived-garment management (delete is hard)
 
 ## Relationships
 
@@ -82,11 +82,12 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 - Opening a **Calendar** day: if it’s **today** → go to **Today** (`/`); otherwise stay in Calendar with an in-Calendar day detail (not a full Today-clone for arbitrary dates)
 - Precedence on a given day: committed **Outfit** > **Fit** > empty state with CTA
 - Empty **Today** (no **Outfit**, no **Fit**): primary CTA generates **Weekly Fits** and returns the user to **Today** with today featured
-- Re-running **Weekly Fits** **replaces Fits** but never overwrites committed **Outfits**
-- Re-run / refresh **Weekly Fits** lives on **Calendar** (week overview action), not as a mid-week control on **Today** (empty **Today** still has the primary generate CTA)
+- Re-running **Weekly Fits** **replaces remaining Fits** (today through Saturday) but never overwrites committed **Outfits**
+- Re-run / refresh **Weekly Fits** is **Plan my week** on empty **Today** only — there is no Calendar refresh control
 - On **Today**, “Wear this” promotes a **Fit** to today’s **Outfit** (no Calendar required)
 - **Outfit Generator** revises the _current day’s_ answer; **Weekly Fits** fills the week when nothing exists yet
-- **Outfit Generator** UI: short prompt + optional chips (**Include** / **Avoid**) → **up to three** options (fewer OK if the closet can’t support three) → approve (hybrid, not free chat or one-tap-only)
+- **Outfit Generator** UI: **chat** plus optional chips (**Include** = must-wear, max 3; **Avoid** = never-use; unmarked stay in the pool) → **up to three** options → approve. Chips persist across turns. Not a mode switch.
+- **Outfit Generator** may reuse later **Fits’** tops, but not tops already on a committed **Outfit** this week (those tops are omitted from Include). Approving does not rewrite other days.
 - **Outfit Generator** opens as a **sheet/modal** over **Today** (not a full-page default); approve dismisses back to the updated hero
 - Approving in **Outfit Generator** writes today’s **Outfit** immediately (same end-state as **Wear this**)
 - **Change look** → approve **replaces** today’s **Outfit** in place (stays committed; no demote-to-Fit step)
@@ -99,7 +100,7 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 - **Today** CTAs: **Fit** → **Wear this** (primary) + **Change look**; **Outfit** → **Change look** (primary path to replace) + quiet **Unwear**
 - Under the **Today** hero: **garments used** first (compact strip), then a thin **week peek** of other days (secondary; **Calendar** remains the week/month map)
 - **Week peek** days with a Fit/Outfit are tappable: swap the home hero in place (no Calendar hop); empty days stay inert
-- Above the home hero: full product-timezone date (e.g. Monday, August 10)
+- Above the home hero: full product-timezone date (e.g. Monday, August 10) and, for **today**, a quiet weather line (`city · 54° rain`). Home city lives in **Settings** (empty → New York, NY). Chat may name a different place for that send only.
 - Selected day **past**: view-only (no Change look / Wear this / Unwear); **today and future**: full actions for that date (Change look targets that day’s `wornOn`)
 - Tapping a piece in **garments used** opens that **Garment** in the **Digital Closet**
 - **Digital Closet** modes: **Pieces** (**Garments**) and **Outfits** (archived committed looks) — not **Fits**
@@ -109,16 +110,18 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 - **Occasion** is out for v1; optional **name** on the shared **Outfit** is **user-only** (blank until they name it — not AI-assigned)
 - Closet / Today / Calendar / Generator data are **per Wearer account**, not a shared household closet
 - Closet → **Pieces**: one grid with **category filter chips** (not department sections, not tag-only)
-- Closet chrome: **Pieces | Outfits** mode tabs first; category chips (`All` · `Tops` · `Bottoms` · `Shoes`) only under **Pieces** — **Outfits** is not a garment-category chip; chip ids match `garment_category` (`tops` | `bottoms` | `shoes`)
+- Closet chrome: **Pieces | Outfits** mode tabs first; category chips (`All` · `Tops` · `Bottoms` · `Shoes` · `Outerwear` · `Accessories`) only under **Pieces** — **Outfits** is not a garment-category chip; chip ids match `garment_category` (`tops` | `bottoms` | `shoes` | `outerwear` | `accessories`)
+- **Outerwear** is a structured shell only (coat, parka, puffer, trench, blazer, hard jacket). Hoodies, sweaters, flannels, overshirts, and cardigans are **Tops**. Hats, scarves, belts, bags, jewelry are **Accessories**.
+- A **Fit** / **Outfit** stack: required 1 top + 1 bottom + 1 shoes; optional 2nd top, 0–1 outerwear, 0–3 accessories. Weekly uniqueness: **tops** only (all used tops); bottoms, shoes, outerwear, and accessories may repeat. If unique tops run out, leftover days stay empty (already-planned days stay).
 - **Today** hero primary path is **wearer photo / try-on** (not AI editorial as the default hero)
 - Try-on uses one saved **Wearer photo** per account; AI composites the day’s garments onto it for the hero
 - Missing **Wearer photo**: soft prompt + **AI editorial** hero fallback (not a hard gate); try-on when the photo exists
 - Add/replace **Wearer photo** via **Today** soft CTA when missing, and anytime in **Settings**
 - First implementation slice: routing + **Today** shell (nav, `/` / `/closet`, hero/CTAs on existing data; editorial heroes OK) **and** a **full signed-out landing rewrite** (promise + purge Style DNA/weather/old names)
 - Signed-out marketing promise: decide what to wear today from clothes you already own (closet / try-on are support, not the headline)
-- Removing a **Garment** is **archive/hide** (soft): leave historical **Outfits** intact; hide from active Closet / future Fits
-- Archived **Garments** are managed in **Settings** only; Closet **Pieces** shows active inventory
-- If today’s **Outfit** still includes an archived **Garment**, leave the commitment as-is (optional soft note); don’t auto-Unwear or strip pieces
+- Removing a **Garment** is a **hard delete**: strip it from **Outfits**, rekey uniqueness, delete the photo. There is no archive.
+- Invited Wearers see **soft Settings banners** on Today / Closet when Gemini or UploadThing is missing (not a hard gate).
+- Closet upload: AI suggests a category; the wearer can override. Auto-apply only while the draft is still the default **Tops**.
 - Closet → **Outfits** cards: hero + optional name + **last worn** (date) — not wear-count or garment-thumbnail grids for v1; unnamed Outfits show without a title (or a quiet fallback like “Outfit”)
 - Empty **Today** (has **Garments**, no Fit/Outfit): minimal copy (“No look for today yet”) + one primary button **Plan my week** (generates **Weekly Fits**)
 - Tap Closet → **Outfits** card → **detail** (not instant wear); detail offers **Wear today** to assign that **Outfit** to today
@@ -337,18 +340,19 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; putti
 
 ## Flagged ambiguities
 
-- Generator UI is still a chat lookbook — hybrid **Include**/**Avoid** chips ahead of code; **sheet over Today**, today-scoped approve → **Outfit**, and discard-confirm are shipped.
+- Generator UI is **chat** plus **Include**/**Avoid** chips (must-wear Include, max 3; Avoid never-use; persist across turns). Sheet over Today; today-scoped approve → **Outfit**; discard-confirm shipped.
 - Admission is invite-gated membership (`wearer_memberships` / `wearer_invitations`); production owner bootstrap uses `APP_OWNER_USER_ID` only. Closet / Today / Calendar / Generator / Wearer photo data are scoped by Neon Auth `user.id` (cache tags per account). Existing DBs need `db/migrate-per-account.sql` (+ optional claim `UPDATE` for pre-isolation rows), plus `db/migrate-admission-invites.sql` for invitations.
 - Closet **Pieces | Outfits** mode tabs, garment-set uniqueness (`outfit_wears` + `garment_set_key`), detail **Wear today** (+ replace confirm), and user rename are shipped. Existing DBs need `db/migrate-outfit-wears.sql`.
-- **Wearer photo** + try-on hero path shipped (Settings + Today soft CTA; Generator / Weekly Fits use try-on when a photo exists, editorial fallback otherwise). Existing DBs need `db/migrate-wearer-profile.sql`. Soft-delete garment archive still ahead.
+- **Wearer photo** + try-on hero path shipped (Settings + Today soft CTA; Generator / Weekly Fits use try-on when a photo exists, editorial fallback otherwise). Existing DBs need `db/migrate-wearer-profile.sql`.
+- Look stack + categories (`outerwear` / `accessories`), Sunday-start weeks, Settings **home city**, Today weather line, and BYOK banners shipped. Existing DBs need `db/migrate-garment-categories-location.sql`.
 - Slice E shipped: per **Wearer account** isolation (`user_id` on garments / outfits / wears / weekly plans; `wearer_profile` keyed by user).
 
 ## Deferred
 
-- **Style DNA** and **weather-aware** dressing: cut from marketing for now; revisit later (occasion → weather → Style DNA).
-- **Occasion** (and per-wear labels): deferred with Style DNA / weather; optional Outfit **name** only for now.
+- **Style DNA** and occasion: deferred.
+- **Occasion** (and per-wear labels): deferred; optional Outfit **name** only for now.
 - Multi-wearer profiles under one login (partner / kid): deferred.
-- Soft-delete garment archive; hybrid Generator Include/Avoid chips; Style DNA / weather later.
-- Former marketing names (**The Digital Atelier**, **Curated Canvas**) retired; purge in a rename pass (included in landing rewrite).
+- Soft-delete garment archive: rejected for this product; delete is hard.
+- Former marketing names (**The Digital Atelier**, **Curated Canvas**) retired from product chrome.
 - Former term **Draft Look** retired in favor of **Fit**.
 - Landing visual craft (exact photography, type, motion) owned at implementation time within the locked structure in Relationships.

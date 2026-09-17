@@ -16,6 +16,7 @@ import type { TodayPageData } from "@/lib/outfits/today-data";
 import { formatProductDateLong } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 import { GeneratorSheet } from "@/components/outfit/generator-sheet";
+import { ProviderSetupBanner } from "@/components/settings/provider-setup-banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -39,9 +40,13 @@ function initialSelectedDay(
 export function DayLookView({
   data,
   closetGarments,
+  missingGemini = false,
+  missingUploadThing = false,
 }: {
   data: TodayPageData;
   closetGarments: ClothingCardData[];
+  missingGemini?: boolean;
+  missingUploadThing?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -68,6 +73,15 @@ export function DayLookView({
   const changeLookOpen =
     canEdit && (changeLookFromUrl || manualChangeLookOpen);
   const isTodaySelected = selectedWornOn === data.todayIso;
+  const committedOutfitTopIds = closetGarments
+    .filter((g) => g.category === "tops")
+    .filter((g) =>
+      Object.values(data.weekLooks).some(
+        (look) =>
+          look.kind === "outfit" && look.garments.some((piece) => piece.id === g.id),
+      ),
+    )
+    .map((g) => g.id);
 
   function setChangeLookOpen(open: boolean) {
     if (open) {
@@ -85,6 +99,10 @@ export function DayLookView({
     return (
       <>
         <div className="page-canvas mx-auto flex min-h-[70svh] max-w-lg flex-col justify-center gap-5">
+          <ProviderSetupBanner
+            missingGemini={missingGemini}
+            missingUploadThing={missingUploadThing}
+          />
           <h1 className="font-serif text-3xl tracking-tight text-foreground">
             Your closet is empty
           </h1>
@@ -103,6 +121,7 @@ export function DayLookView({
           onOpenChange={setChangeLookOpen}
           closetGarments={closetGarments}
           wornOn={data.todayIso}
+          committedOutfitTopIds={committedOutfitTopIds}
           onApproved={() => router.refresh()}
         />
       </>
@@ -117,11 +136,20 @@ export function DayLookView({
 
   return (
     <div className="page-canvas mx-auto flex w-full max-w-3xl flex-col gap-12 pb-16">
+      <ProviderSetupBanner
+        missingGemini={missingGemini}
+        missingUploadThing={missingUploadThing}
+      />
       {look ? (
         <div className="flex flex-col gap-5">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            {dateHeading}
-          </p>
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              {dateHeading}
+            </p>
+            {isTodaySelected ? (
+              <p className="text-sm text-muted-foreground">{data.weatherLine}</p>
+            ) : null}
+          </div>
 
           <section className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-muted">
             {look.heroImageUrl ? (
@@ -247,9 +275,14 @@ export function DayLookView({
         </div>
       ) : (
         <div className="flex min-h-[36svh] flex-col justify-center gap-5 py-6">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            {dateHeading}
-          </p>
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              {dateHeading}
+            </p>
+            {isTodaySelected ? (
+              <p className="text-sm text-muted-foreground">{data.weatherLine}</p>
+            ) : null}
+          </div>
           <h1 className="font-serif text-3xl tracking-tight text-foreground">
             {isTodaySelected
               ? "No look for today yet."
@@ -394,6 +427,7 @@ export function DayLookView({
         onOpenChange={setChangeLookOpen}
         closetGarments={closetGarments}
         wornOn={selectedWornOn}
+        committedOutfitTopIds={committedOutfitTopIds}
         onApproved={() => router.refresh()}
       />
     </div>

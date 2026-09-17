@@ -26,6 +26,7 @@ import {
   garmentDraftFromLocalPick,
   type GarmentUploadDraft,
 } from "@/components/upload/closet-garment-draft-card";
+import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import { useUploadThing } from "@/lib/uploadthing";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 import type { ClothingCardData } from "@/lib/garments/types";
@@ -34,6 +35,7 @@ import {
   updateGarmentFieldsResultSchema,
 } from "@/lib/garments/types";
 import type { ClosetSavedOutfit } from "@/lib/outfits/closet-saved-outfits";
+import { ProviderSetupBanner } from "@/components/settings/provider-setup-banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClothingCard } from "@/components/outfit/clothing-card";
@@ -51,6 +53,9 @@ import { formatProductWornOn } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 
 type ClosetMode = "pieces" | "outfits";
+
+/** Match persist-time Gemini describe concurrency so a large paste does not burst. */
+const SUGGEST_CATEGORY_CONCURRENCY = 3;
 
 function optimisticGarmentFromDraft(
   draft: GarmentUploadDraft,
@@ -71,9 +76,13 @@ function optimisticGarmentFromDraft(
 export function ClosetView({
   initialGarments,
   savedOutfits = [],
+  missingGemini = false,
+  missingUploadThing = false,
 }: {
   initialGarments: ClothingCardData[];
   savedOutfits?: ClosetSavedOutfit[];
+  missingGemini?: boolean;
+  missingUploadThing?: boolean;
 }) {
   const [, startTransition] = useTransition();
   const [serverGarments, setServerGarments] = useState(initialGarments);
@@ -174,10 +183,36 @@ export function ClosetView({
   const handleFilesReady = useCallback((items: ClosetPendingLocalImage[]) => {
     setPersistError(null);
     for (const item of items) previewUrlsRef.current.add(item.previewUrl);
-    setPendingDrafts((prev) => [
-      ...prev,
-      ...items.map(garmentDraftFromLocalPick),
-    ]);
+    const drafts = items.map(garmentDraftFromLocalPick);
+    setPendingDrafts((prev) => [...prev, ...drafts]);
+    void mapWithConcurrency(drafts, SUGGEST_CATEGORY_CONCURRENCY, async (draft) => {
+      try {
+        const body = new FormData();
+        body.append("image", draft.file);
+        const res = await fetch("/api/closet/suggest-category", {
+          method: "POST",
+          credentials: "same-origin",
+          body,
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          ok?: boolean;
+          category?: GarmentUploadDraft["category"];
+        };
+        if (!json.ok || !json.category) return;
+        setPendingDrafts((prev) =>
+          prev.map((d) =>
+            d.clientKey === draft.clientKey &&
+            d.category === "tops" &&
+            !d.categoryTouched
+              ? { ...d, category: json.category! }
+              : d,
+          ),
+        );
+      } catch {
+        // Suggestion is optional; wearer can pick a category by hand.
+      }
+    });
   }, []);
 
   async function handleSavePendingToCloset() {
@@ -431,6 +466,12 @@ export function ClosetView({
 
   return (
     <div className="relative flex min-h-[calc(100svh-5rem)] flex-col">
+      <div className="px-1 sm:px-0">
+        <ProviderSetupBanner
+          missingGemini={missingGemini}
+          missingUploadThing={missingUploadThing}
+        />
+      </div>
       <header className="flex flex-col gap-6 px-1 pt-2 sm:px-0 sm:pt-6">
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div

@@ -20,6 +20,8 @@ export type RunOutfitPlanStepParams = {
   weekly?: boolean;
   weeklyWeekday?: string;
   alreadyPlanned?: AlreadyPlannedLook[];
+  mustWearIds?: string[];
+  mustWearNames?: string[];
 };
 
 export async function runOutfitPlanStep(
@@ -42,6 +44,8 @@ export async function runOutfitPlanStep(
       weekly: params.weekly,
       weeklyWeekday: params.weeklyWeekday,
       alreadyPlanned: params.alreadyPlanned,
+      mustWearIds: params.mustWearIds,
+      mustWearNames: params.mustWearNames,
     }),
   });
 

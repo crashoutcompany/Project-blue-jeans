@@ -114,6 +114,7 @@ function baseData(overrides: Partial<TodayPageData> = {}): TodayPageData {
       },
     ],
     hasWearerPhoto: true,
+    weatherLine: "New York, NY",
     ...overrides,
   };
 }

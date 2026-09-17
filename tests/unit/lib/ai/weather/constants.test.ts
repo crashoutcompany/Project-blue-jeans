@@ -8,6 +8,7 @@ import {
 describe("resolveOutfitLocation", () => {
   it("defaults to New York, NY", () => {
     expect(resolveOutfitLocation()).toBe(DEFAULT_OUTFIT_LOCATION);
+    expect(resolveOutfitLocation(null)).toBe(DEFAULT_OUTFIT_LOCATION);
     expect(resolveOutfitLocation("")).toBe(DEFAULT_OUTFIT_LOCATION);
     expect(resolveOutfitLocation("   ")).toBe(DEFAULT_OUTFIT_LOCATION);
   });

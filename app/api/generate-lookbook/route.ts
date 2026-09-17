@@ -69,6 +69,18 @@ export async function POST(request: Request) {
     }
     input.includedGarmentIds = body.includedGarmentIds;
   }
+  if (body.avoidedGarmentIds !== undefined) {
+    if (!isStringArray(body.avoidedGarmentIds)) {
+      return NextResponse.json(
+        {
+          ok: false as const,
+          message: "avoidedGarmentIds must be a string array.",
+        },
+        { status: 400 },
+      );
+    }
+    input.avoidedGarmentIds = body.avoidedGarmentIds;
+  }
   if (typeof body.lookCount === "number" && Number.isFinite(body.lookCount)) {
     input.lookCount = body.lookCount;
   }

@@ -1,9 +1,15 @@
 -- Neon / Postgres — fresh install: run in Neon SQL Editor or via migration tool.
 -- UploadThing: store public `image_url` (CDN); `uploadthing_key` for delete/rename via API.
 
--- Enum: category for each garment (tops / bottoms / shoes).
+-- Enum: category for each garment.
 DO $$ BEGIN
-  CREATE TYPE garment_category AS ENUM ('tops', 'bottoms', 'shoes');
+  CREATE TYPE garment_category AS ENUM (
+    'tops',
+    'bottoms',
+    'shoes',
+    'outerwear',
+    'accessories'
+  );
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
@@ -227,6 +233,14 @@ CREATE TABLE IF NOT EXISTS wearer_profile (
 
 COMMENT ON TABLE wearer_profile IS 'Per-account body/reference photo for try-on hero composites.';
 
+CREATE TABLE IF NOT EXISTS wearer_preferences (
+  user_id text PRIMARY KEY,
+  location text,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE wearer_preferences IS 'Per-account home-base city for weather-aware planning. Empty falls back to New York, NY.';
+
 -- Outfit: unique garment-set recipe (Closet → Outfits). Days live in outfit_wears.
 CREATE TABLE IF NOT EXISTS outfits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -308,7 +322,7 @@ CREATE TABLE IF NOT EXISTS weekly_plan_looks (
 
 CREATE INDEX IF NOT EXISTS weekly_plan_looks_plan_sort_idx ON weekly_plan_looks (plan_id, sort_order);
 
-COMMENT ON TYPE garment_category IS 'tops | bottoms | shoes';
+COMMENT ON TYPE garment_category IS 'tops | bottoms | shoes | outerwear | accessories';
 COMMENT ON TYPE outfit_occasion IS 'everyday | casual | business | evening | office | gala';
 COMMENT ON TYPE weekly_plan_status IS 'draft | completed | failed';
 COMMENT ON TYPE provider_kind IS 'External services that may use platform env credentials or per-Wearer BYOK.';
@@ -328,4 +342,4 @@ COMMENT ON COLUMN outfits.worn_on IS 'Denormalized last-worn date (max outfit_we
 COMMENT ON TABLE outfit_garments IS 'Links outfits to every garment in the look (required usage: insert one row per piece).';
 COMMENT ON TABLE outfit_wears IS 'Day assignment of a shared Outfit (one wear per calendar day).';
 COMMENT ON TABLE weekly_outfit_plans IS 'One row per calendar week (week_start = Sunday); AI weekly outfit pipeline. Monday cron deletes plans older than the current week.';
-COMMENT ON TABLE weekly_plan_looks IS 'Seven rows per plan (sort_order 0–6 = Mon–Sun); garment_ids from step 1; hero_image_url from inline image step.';
+COMMENT ON TABLE weekly_plan_looks IS 'Rows per plan (sort_order 0–6 = Sunday–Saturday); garment_ids from step 1; hero_image_url from inline image step.';

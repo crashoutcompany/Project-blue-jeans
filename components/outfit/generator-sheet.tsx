@@ -20,12 +20,14 @@ export function GeneratorSheet({
   onOpenChange,
   closetGarments,
   wornOn,
+  committedOutfitTopIds,
   onApproved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   closetGarments: ClothingCardData[];
   wornOn: string;
+  committedOutfitTopIds?: readonly string[];
   onApproved?: () => void;
 }) {
   const [hasGeneratedOptions, setHasGeneratedOptions] = useState(false);
@@ -85,6 +87,7 @@ export function GeneratorSheet({
                 key={sessionKey}
                 closetGarments={closetGarments}
                 wornOn={wornOn}
+                committedOutfitTopIds={committedOutfitTopIds}
                 onHasGeneratedOptionsChange={setHasGeneratedOptions}
                 onApproved={() => {
                   setHasGeneratedOptions(false);

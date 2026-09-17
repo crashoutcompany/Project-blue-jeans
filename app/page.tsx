@@ -9,6 +9,8 @@ import { DayLookView } from "@/components/outfit/day-look-view";
 import { LandingPage } from "@/components/landing/landing-page";
 import { auth } from "@/lib/auth/server";
 import { getMembershipPolicyForUser } from "@/lib/auth/admitted";
+import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
+import { getUploadThingSettings } from "@/lib/credentials/uploadthing";
 import { getClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
 import { loadTodayPageData } from "@/lib/outfits/today-data";
 
@@ -36,15 +38,23 @@ async function HomeContent() {
       redirect("/auth/accept-invite");
     }
     const userId = membership.userId;
-    const [todayData, closetGarments] = await Promise.all([
-      loadTodayPageData(userId),
-      getClosetGarmentsCached(userId),
-    ]);
+    const [todayData, closetGarments, googleAiStudio, uploadthing] =
+      await Promise.all([
+        loadTodayPageData(userId),
+        getClosetGarmentsCached(userId),
+        getGoogleAiStudioSettings(userId, membership),
+        getUploadThingSettings(userId, membership),
+      ]);
     return (
       <AuthenticatedShellSuspense>
         <div data-testid="today-shell-marker">
           <Suspense fallback={<div className="min-h-[70svh] bg-background" />}>
-            <DayLookView data={todayData} closetGarments={closetGarments} />
+            <DayLookView
+              data={todayData}
+              closetGarments={closetGarments}
+              missingGemini={!googleAiStudio.connected}
+              missingUploadThing={!uploadthing.connected}
+            />
           </Suspense>
         </div>
       </AuthenticatedShellSuspense>

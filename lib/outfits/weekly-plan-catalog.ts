@@ -1,4 +1,5 @@
 import type { CatalogGarment } from "@/lib/ai/lookbook/catalog";
+import { isWeeklyUniqueCategory } from "@/lib/outfits/look-composition";
 import {
   addDaysIso,
   formatProductWeekday,
@@ -48,27 +49,27 @@ export function weeklyDaysToPlan(
 }
 
 /**
- * Bottoms and shoes may repeat throughout a week. Tops used by either a
- * committed Outfit or a planned Fit stay out of the remaining days.
+ * Bottoms, shoes, outerwear, and accessories may repeat. Tops used in a
+ * committed Outfit or an earlier planned Fit stay out of remaining days.
  */
 export function availableGarments(
   garments: CatalogGarment[],
-  outfitLockedIds: ReadonlySet<string>,
-  uniqueLockedIds: ReadonlySet<string>,
+  lockedTopIds: ReadonlySet<string>,
 ): CatalogGarment[] {
   return garments.filter((g) => {
-    if (g.category === "bottoms" || g.category === "shoes") return true;
-    if (outfitLockedIds.has(g.id)) return false;
-    return !uniqueLockedIds.has(g.id);
+    if (!isWeeklyUniqueCategory(g.category)) return true;
+    return !lockedTopIds.has(g.id);
   });
 }
 
-export function lockLookGarments(
-  lookIds: string[],
-  outfitLockedIds: ReadonlySet<string>,
-  uniqueLockedIds: Set<string>,
+export function lockLookTops(
+  lookIds: readonly string[],
+  categoryById: ReadonlyMap<string, string>,
+  lockedTopIds: Set<string>,
 ): void {
   for (const id of lookIds) {
-    if (!outfitLockedIds.has(id)) uniqueLockedIds.add(id);
+    if (isWeeklyUniqueCategory(categoryById.get(id) ?? "")) {
+      lockedTopIds.add(id);
+    }
   }
 }

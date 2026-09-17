@@ -1,6 +1,7 @@
 import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
+import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
 import type { MembershipPolicy } from "@/lib/auth/membership";
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
@@ -8,18 +9,34 @@ import {
   loadGarmentCatalog,
   loadGarmentsByIds,
 } from "@/lib/garments/load-catalog";
-import { safeClientMessage } from "@/lib/server/safe-client-error";
-import {
-  existingHeroForGarments,
-  findExistingOutfitHeroUrls,
-} from "@/lib/outfits/existing-outfit-heroes";
-import type { OutfitLook } from "@/lib/outfits/types";
 import {
   resolveGarmentImageSourcesForAi,
   resolveOwnedImageFetchUrl,
 } from "@/lib/media/owned-image";
+import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
+import {
+  existingHeroForGarments,
+  findExistingOutfitHeroUrls,
+} from "@/lib/outfits/existing-outfit-heroes";
+import {
+  catalogCanFormLook,
+  categoryByIdFromCatalog,
+  countLookSlots,
+  isWeeklyUniqueCategory,
+  lookContainsAll,
+  lookStackError,
+  validateIncludeAvoidPair,
+  validateMustWearIncludes,
+} from "@/lib/outfits/look-composition";
+import type { OutfitLook } from "@/lib/outfits/types";
+import { safeClientMessage } from "@/lib/server/safe-client-error";
+import {
+  addDaysIso,
+  productTodayIso,
+  sundayWeekStartIso,
+} from "@/lib/time/product-timezone";
+import { getWearerLocation } from "@/lib/wearer/preferences";
 import { getWearerPhoto } from "@/lib/wearer/profile";
-import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
 
 const DEFAULT_CLIMATE = "Temperate";
 const DEFAULT_CONTEXT = "Versatile day-to-night";
@@ -33,6 +50,7 @@ export type GenerateLookbookInput = {
   location?: string;
   narrative: string;
   includedGarmentIds?: string[];
+  avoidedGarmentIds?: string[];
   lookCount?: number;
   weekly?: boolean;
   skipHeroImage?: boolean;
@@ -83,7 +101,10 @@ export async function generateLookbook(
   const narrative = input.narrative.trim().slice(0, MAX_NARRATIVE_LEN);
   const climate = (input.climate?.trim() || DEFAULT_CLIMATE).slice(0, 80);
   const context = (input.context?.trim() || DEFAULT_CONTEXT).slice(0, 80);
-  const location = resolveOutfitLocation(input.location);
+  const storedLocation = input.location?.trim()
+    ? input.location
+    : await getWearerLocation(input.userId);
+  const location = resolveOutfitLocation(storedLocation);
 
   let garments = await loadGarmentCatalog(input.userId);
   if (garments.length === 0) {
@@ -94,21 +115,75 @@ export async function generateLookbook(
     };
   }
 
-  const requestedIds = input.includedGarmentIds?.filter(Boolean);
-  if (requestedIds && requestedIds.length > 0) {
-    const allow = new Set(requestedIds);
-    garments = garments.filter((g) => allow.has(g.id));
-    if (garments.length === 0) {
-      return {
-        ok: false,
-        message:
-          "None of the selected pieces are in your closet. Refresh the page or adjust your selection.",
-      };
+  const todayIso = productTodayIso();
+  const weekStart = sundayWeekStartIso(todayIso);
+  const weekEnd = addDaysIso(weekStart, 6);
+  const committedOutfits = input.weekly
+    ? []
+    : await loadOutfitsInRange(input.userId, weekStart, weekEnd, {
+        onError: "throw",
+      }).catch(() => null);
+  if (committedOutfits === null) {
+    return {
+      ok: false,
+      message: "Could not load this week's Outfits. Try again.",
+    };
+  }
+  const categoryById = categoryByIdFromCatalog(garments);
+  const committedTopIds = new Set<string>();
+  for (const outfit of committedOutfits) {
+    for (const id of outfit.garmentIds) {
+      if (isWeeklyUniqueCategory(categoryById.get(id) ?? "")) {
+        committedTopIds.add(id);
+      }
     }
+  }
+
+  const avoided = new Set(
+    (input.avoidedGarmentIds ?? []).filter((id) => categoryById.has(id)),
+  );
+  const includedRaw = (input.includedGarmentIds ?? []).filter(Boolean);
+  const pairError = validateIncludeAvoidPair(includedRaw, [...avoided]);
+  if (pairError) return { ok: false, message: pairError };
+
+  garments = garments.filter((g) => {
+    if (avoided.has(g.id)) return false;
+    if (committedTopIds.has(g.id) && !includedRaw.includes(g.id)) return false;
+    return true;
+  });
+
+  if (includedRaw.length > 0) {
+    const includeError = validateMustWearIncludes(
+      includedRaw,
+      categoryByIdFromCatalog(garments),
+    );
+    if (includeError) return { ok: false, message: includeError };
+    for (const id of includedRaw) {
+      if (committedTopIds.has(id)) {
+        return {
+          ok: false,
+          message:
+            "That top is already on a committed Outfit this week. Unwear it first or pick another piece.",
+        };
+      }
+    }
+  }
+
+  const included = [...new Set(includedRaw)];
+
+  if (!catalogCanFormLook(garments)) {
+    return {
+      ok: false,
+      message:
+        "Add at least one top, one bottom, and one pair of shoes before generating.",
+    };
   }
 
   const validIds = new Set(garments.map((g) => g.id));
   const catalogText = formatClosetCatalog(garments);
+  const mustWearNames = included.map(
+    (id) => garments.find((g) => g.id === id)?.name?.trim() || id,
+  );
 
   try {
     const plan = await runStep1PlanWithRetry({
@@ -121,7 +196,25 @@ export async function generateLookbook(
       validIds,
       location,
       weekly: input.weekly,
+      mustWearIds: included.length > 0 ? included : undefined,
+      mustWearNames: included.length > 0 ? mustWearNames : undefined,
     });
+
+    const liveCategoryById = categoryByIdFromCatalog(garments);
+    for (const look of plan.looks) {
+      const stackErr = lookStackError(
+        countLookSlots(look.garmentIds, liveCategoryById),
+      );
+      if (stackErr) {
+        return { ok: false, message: stackErr };
+      }
+      if (!lookContainsAll(look.garmentIds, included)) {
+        return {
+          ok: false,
+          message: "Every look must include the pieces you pinned.",
+        };
+      }
+    }
 
     const baseId = `gen-${Date.now()}`;
     const looks = buildOutfitLooks(plan, baseId);

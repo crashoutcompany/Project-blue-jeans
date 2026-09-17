@@ -22,10 +22,17 @@ import {
 } from "@/lib/outfits/existing-outfit-heroes";
 import {
   availableGarments,
-  lockLookGarments,
+  lockLookTops,
   todaySortOrder,
   weeklyDaysToPlan,
 } from "@/lib/outfits/weekly-plan-catalog";
+import {
+  catalogCanFormLook,
+  categoryByIdFromCatalog,
+  countLookSlots,
+  lookStackError,
+} from "@/lib/outfits/look-composition";
+import { getWearerLocation } from "@/lib/wearer/preferences";
 import { logServerError } from "@/lib/server/safe-client-error";
 import {
   addDaysIso,
@@ -103,7 +110,7 @@ function garmentNamesForIds(
 }
 
 /**
- * Plan my week: sequential step-1 (tops stay unique; bottoms and shoes may
+ * Plan my week: sequential step-1 (tops stay unique; bottoms, shoes,
  * repeat), then bounded hero-image calls. Looks whose garment set already has
  * a stored Outfit hero reuse that image instead of generating.
  */
@@ -137,22 +144,23 @@ export async function runWeeklyOutfitsJob(
   `;
   const existingParsed = z.array(planStatusRowSchema).safeParse(existingRaw);
   const row = existingParsed.success ? existingParsed.data[0] : undefined;
-  if (row?.status === "completed") {
-    return { ok: true, planId: row.id, skipped: true };
-  }
 
-  const outfitRows = await loadOutfitsInRange(
-    input.userId,
-    input.weekStart,
-    weekEnd,
-  );
-  const outfitWornOn = new Set(outfitRows.map((r) => r.wornOn));
-  const outfitLockedIds = new Set<string>();
-  for (const r of outfitRows) {
-    for (const id of r.garmentIds) {
-      outfitLockedIds.add(id);
-    }
+  let outfitRows: Awaited<ReturnType<typeof loadOutfitsInRange>>;
+  try {
+    outfitRows = await loadOutfitsInRange(
+      input.userId,
+      input.weekStart,
+      weekEnd,
+      { onError: "throw" },
+    );
+  } catch {
+    return {
+      ok: false,
+      error: WEEKLY_JOB_FAILED_PUBLIC,
+      planId: row?.id,
+    };
   }
+  const outfitWornOn = new Set(outfitRows.map((r) => r.wornOn));
 
   const daysToPlan = weeklyDaysToPlan(
     input.weekStart,
@@ -183,7 +191,11 @@ export async function runWeeklyOutfitsJob(
   }
 
   const garmentsById = new Map(garments.map((g) => [g.id, g]));
-  const uniqueLockedIds = new Set<string>();
+  const categoryById = categoryByIdFromCatalog(garments);
+  const lockedTopIds = new Set<string>();
+  for (const r of outfitRows) {
+    lockLookTops(r.garmentIds, categoryById, lockedTopIds);
+  }
   const alreadyPlanned: AlreadyPlannedLook[] = [];
   const plans: LookbookPlan[] = [];
   const looksForDb: {
@@ -218,24 +230,29 @@ export async function runWeeklyOutfitsJob(
         title: look.title,
         garmentNames: garmentNamesForIds(ids, garmentsById),
       });
-      lockLookGarments(ids, outfitLockedIds, uniqueLockedIds);
+      lockLookTops(ids, categoryById, lockedTopIds);
     }
   }
 
+  const location = resolveOutfitLocation(
+    input.location?.trim()
+      ? input.location
+      : await getWearerLocation(input.userId),
+  );
+
   try {
     for (const day of daysToPlan) {
-      const available = availableGarments(
-        garments,
-        outfitLockedIds,
-        uniqueLockedIds,
-      );
-      if (available.length === 0) {
-        return {
-          ok: false,
-          error:
-            "Not enough unused clothes left in your closet to plan this week.",
-          planId: row?.id,
-        };
+      const available = availableGarments(garments, lockedTopIds);
+      if (!catalogCanFormLook(available)) {
+        if (looksForDb.length === 0) {
+          return {
+            ok: false,
+            error:
+              "Need a top, bottom, and shoes still available to finish the week. Add clothes or Change look on a day.",
+            planId: row?.id,
+          };
+        }
+        break;
       }
 
       const validIds = new Set(available.map((g) => g.id));
@@ -247,7 +264,7 @@ export async function runWeeklyOutfitsJob(
         narrative,
         catalogText: formatClosetCatalog(available),
         validIds,
-        location: resolveOutfitLocation(input.location),
+        location,
         weekly: true,
         weeklyWeekday: day.weekday,
         alreadyPlanned: alreadyPlanned.slice(),
@@ -257,6 +274,16 @@ export async function runWeeklyOutfitsJob(
         return {
           ok: false,
           error: `Day ${day.weekday} returned no look.`,
+          planId: row?.id,
+        };
+      }
+      const stackErr = lookStackError(
+        countLookSlots(look.garmentIds ?? [], categoryById),
+      );
+      if (stackErr) {
+        return {
+          ok: false,
+          error: stackErr,
           planId: row?.id,
         };
       }
@@ -274,7 +301,7 @@ export async function runWeeklyOutfitsJob(
         title: look.title,
         garmentNames: garmentNamesForIds(look.garmentIds ?? [], garmentsById),
       });
-      lockLookGarments(look.garmentIds ?? [], outfitLockedIds, uniqueLockedIds);
+      lockLookTops(look.garmentIds ?? [], categoryById, lockedTopIds);
     }
   } catch (e) {
     logServerError("runWeeklyOutfitsJob step1", e);

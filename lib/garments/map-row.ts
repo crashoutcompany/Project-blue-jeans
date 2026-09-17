@@ -1,5 +1,8 @@
-import type { ClothingCardData } from "@/lib/garments/types";
-import { GARMENT_HEX_COLOR } from "@/lib/garments/types";
+import {
+  GARMENT_HEX_COLOR,
+  isGarmentCategoryDb,
+  type ClothingCardData,
+} from "@/lib/garments/types";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 
 export type GarmentRow = {
@@ -19,10 +22,7 @@ export function garmentRowToCardData(row: GarmentRow): ClothingCardData {
   const rawColor = row.color?.trim() || null;
   const isHex = rawColor ? GARMENT_HEX_COLOR.test(rawColor) : false;
   const colorHex = isHex && rawColor ? rawColor : "#e8e8e6";
-  const category =
-    row.category === "bottoms" || row.category === "shoes"
-      ? row.category
-      : "tops";
+  const category = isGarmentCategoryDb(row.category) ? row.category : "tops";
 
   return {
     id: row.id,

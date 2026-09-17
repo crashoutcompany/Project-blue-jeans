@@ -1,3 +1,6 @@
+import { fetchWeather } from "@/lib/ai/weather/fetch-weather";
+import { formatTodayWeatherLine } from "@/lib/ai/weather/format-today-line";
+import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
 import { getSql } from "@/lib/db";
 import { loadGarmentsByIds } from "@/lib/garments/load-catalog";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
@@ -12,6 +15,7 @@ import {
   productTodayIso,
   sundayWeekStartIso,
 } from "@/lib/time/product-timezone";
+import { getWearerLocation } from "@/lib/wearer/preferences";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 import { z } from "zod";
 
@@ -53,6 +57,8 @@ export type TodayPageData = {
   weekPeek: TodayWeekPeekDay[];
   /** Soft prompt when missing; try-on heroes when present. */
   hasWearerPhoto: boolean;
+  /** Quiet line under today's date, e.g. "New York, NY · 54° rain". */
+  weatherLine: string;
 };
 
 const WEEKDAY_SHORT = [
@@ -141,10 +147,25 @@ export async function loadTodayPageData(
       weekLooks: {},
       weekPeek: [],
       hasWearerPhoto: false,
+      weatherLine: resolveOutfitLocation(),
     };
   }
 
   const sql = getSql();
+  const locationPromise = getWearerLocation(userId);
+  const weatherLinePromise = locationPromise.then(async (stored) => {
+    const place = resolveOutfitLocation(stored ?? undefined);
+    try {
+      const snapshot = await fetchWeather(
+        { location: place },
+        { abortSignal: AbortSignal.timeout(5_000) },
+      );
+      return formatTodayWeatherLine(place, snapshot.ok ? snapshot : null);
+    } catch (e) {
+      console.error("[today] weather failed", e);
+      return place;
+    }
+  });
   const garmentCountPromise = (async () => {
     if (!sql) return 0;
     try {
@@ -164,9 +185,14 @@ export async function loadTodayPageData(
   const outfitsPromise = loadOutfitsByDay(userId, weekStartIso, weekEndIso);
   const fitsPromise = loadFitsByDay(userId, weekStartIso, weekEndIso);
 
-  const [garmentCount, wearerPhoto, outfitsByDay, fitsByDay] = await Promise.all(
-    [garmentCountPromise, getWearerPhoto(userId), outfitsPromise, fitsPromise],
-  );
+  const [garmentCount, wearerPhoto, outfitsByDay, fitsByDay, weatherLine] =
+    await Promise.all([
+      garmentCountPromise,
+      getWearerPhoto(userId),
+      outfitsPromise,
+      fitsPromise,
+      weatherLinePromise,
+    ]);
 
   const referencedIds = new Set<string>();
   for (let i = 0; i < 7; i++) {
@@ -213,5 +239,6 @@ export async function loadTodayPageData(
     weekLooks,
     weekPeek,
     hasWearerPhoto: Boolean(wearerPhoto?.imageUrl),
+    weatherLine,
   };
 }
