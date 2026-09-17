@@ -1,28 +1,19 @@
 import { Pool } from "@neondatabase/serverless";
-import { betterAuth } from "better-auth";
-import { nextCookies } from "better-auth/next-js";
 import { headers } from "next/headers";
 
 import {
   AUTH_PREVIEW_ORIGIN,
   AUTH_PRODUCTION_URL,
-  resolveAuthBaseUrl,
 } from "@/lib/auth/config";
+import {
+  createAuth,
+  getEnabledSocialProviders,
+} from "@/lib/auth/create-auth";
 
-const googleClientId = process.env.AUTH_GOOGLE_ID?.trim();
-const googleClientSecret = process.env.AUTH_GOOGLE_SECRET?.trim();
-const googleEnabled = Boolean(googleClientId && googleClientSecret);
+export type { SocialProviderId } from "@/lib/auth/create-auth";
 
-export const providers: readonly "google"[] = googleEnabled ? ["google"] : [];
-
-const socialProviders = googleEnabled
-  ? {
-      google: {
-        clientId: googleClientId!,
-        clientSecret: googleClientSecret!,
-      },
-    }
-  : {};
+export const enabledSocialProviders = getEnabledSocialProviders();
+export const providers = enabledSocialProviders;
 
 const globalForAuth = globalThis as typeof globalThis & {
   blueJeansAuthPool?: Pool;
@@ -39,20 +30,11 @@ if (process.env.NODE_ENV !== "production") {
   globalForAuth.blueJeansAuthPool = database;
 }
 
-export const auth = betterAuth({
+export const auth = createAuth({
   appName: "Project Blue Jeans",
-  baseURL: resolveAuthBaseUrl(),
-  secret: process.env.BETTER_AUTH_SECRET,
-  trustedOrigins: [AUTH_PRODUCTION_URL, AUTH_PREVIEW_ORIGIN],
   database,
-  socialProviders,
-  session: {
-    cookieCache: {
-      enabled: true,
-      maxAge: 300,
-    },
-  },
-  plugins: [nextCookies()],
+  productionUrl: AUTH_PRODUCTION_URL,
+  previewOrigin: AUTH_PREVIEW_ORIGIN,
 });
 
 export async function getSession(requestHeaders?: Headers) {

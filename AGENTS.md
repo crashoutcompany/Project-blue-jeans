@@ -32,6 +32,24 @@ There is one local process — the **Next.js dev server**. Everything else is a 
 - **The Neon schema is applied manually** — run `db/schema.sql` in the Neon SQL editor once against the target database. Existing databases must run `db/migrate-better-auth.sql` before this app version. Confirm the legacy `neon_auth.user` shape and identity mapping when the guarded migration reports that it could not copy users. Configure the Google OAuth callback as `/api/auth/callback/google`.
 - All Gemini access goes through `@ai-sdk/google`.
 
+## How agents sign in
+
+- Build and start with `EXPOSE_TESTING_API=1`. Never set that flag on Vercel Production.
+- Set `TEST_AUTH_SECRET` and `POST /api/test-auth/login` with header
+  `x-test-auth-secret: <secret>`.
+- The route upserts the seeded tester (and a wearer membership) and mints a real
+  Better Auth session cookie. Production always 404s; a wrong secret returns 401.
+- Playwright `tests/e2e/global-setup.ts` writes storage state under `tests/e2e/.auth/`.
+- If Deployment Protection is on, also send
+  `x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET`.
+
+## Neon Managed Better Auth revisit
+
+Revisit Neon Managed Better Auth only after all of: GA; SDK ≥1.0 with a changelog;
+documented http-dev cookie story or configurable cookie names; API to seed a tester
+per branch. Users already live in this Neon database, so a later switch is a schema
+move, not a rewrite.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
