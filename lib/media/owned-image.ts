@@ -7,7 +7,7 @@ import { getOwnedMediaAsset } from "@/lib/media/assets";
 import {
   parseMediaAssetIdFromPath,
 } from "@/lib/media/display";
-import { generatePrivateMediaUrl } from "@/lib/media/uploadthing-api";
+import { publicUploadThingFileUrl } from "@/lib/media/uploadthing-api";
 
 export type OwnedImageRef = {
   mediaAssetId?: string | null;
@@ -57,7 +57,7 @@ export async function resolveOwnedImageFetchUrl(
       membership,
     );
     if (!resolved.ok) return null;
-    return generatePrivateMediaUrl(resolved.token, asset.providerFileKey);
+    return publicUploadThingFileUrl(resolved.token, asset.providerFileKey);
   }
 
   const imageUrl = ref.imageUrl?.trim() ?? "";

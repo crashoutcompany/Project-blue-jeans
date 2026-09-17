@@ -15,8 +15,9 @@ import { logServerError } from "@/lib/server/safe-client-error";
 
 const f = createUploadthing();
 
-const PRIVATE_IMAGE = {
-  image: { maxFileSize: "8MB" as const, maxFileCount: 24, acl: "private" as const },
+// Omit `acl` so free UploadThing apps keep the public-read default.
+const PUBLIC_IMAGE = {
+  image: { maxFileSize: "8MB" as const, maxFileCount: 24 },
 };
 
 async function uploadMiddleware(endpoint: UploadEndpoint) {
@@ -77,7 +78,7 @@ async function completeUpload(input: {
 }
 
 export const ourFileRouter = {
-  closetImage: f(PRIVATE_IMAGE, { awaitServerData: true })
+  closetImage: f(PUBLIC_IMAGE, { awaitServerData: true })
     .middleware(async () => uploadMiddleware("closetImage"))
     .onUploadComplete(async ({ metadata, file }) => {
       return completeUpload({
@@ -90,7 +91,7 @@ export const ourFileRouter = {
 
   wearerPhoto: f(
     {
-      image: { maxFileSize: "8MB", maxFileCount: 1, acl: "private" },
+      image: { maxFileSize: "8MB", maxFileCount: 1 },
     },
     { awaitServerData: true },
   )

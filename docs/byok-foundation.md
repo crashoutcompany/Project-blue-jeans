@@ -68,14 +68,15 @@ deletes, and browser reads resolve through `resolveUploadThingToken`.
 
 Closet and wearer photos are stored as `media_assets` rows bound to the
 UploadThing connection that uploaded them. The database stores `/api/media/{id}`
-display paths — not durable public CDN URLs. Browser reads redirect to
-UploadThing signed URLs (≤ 15 minutes). AI image inputs resolve from owned
-media records server-side.
+display paths. Browser reads still require an admitted session and redirect to
+the public UploadThing CDN URL (`https://{appId}.ufs.sh/f/{key}`). Anyone who
+has that CDN URL can fetch the bytes; in-app listing stays gated. AI image
+inputs resolve from owned media records server-side.
 
-Existing public UploadThing files are sealed in place on the next settings or
-upload request: ACL moves to private where possible, keys bind to
-`media_assets`, and display paths switch to `/api/media/{id}`. Files that no
-longer exist in the owning app are left unreachable rather than grandfathered.
+Existing files without a `media_asset_id` are bound in place on the next
+settings or upload request: keys bind to `media_assets`, and display paths
+switch to `/api/media/{id}`. Files that no longer exist in the owning app are
+left unreachable rather than grandfathered.
 
 Settings is gated by admitted membership. The owner invites Wearers from
 Settings (copy a one-time `/invite/{token}` link). Invited Wearers must sign in
@@ -84,8 +85,9 @@ enforce membership and never fall back to platform keys for `user_byok`.
 
 ## UploadThing app requirements
 
-Each BYOK Wearer needs their own UploadThing app with **private ACL** enabled
-for the routes Blue Jeans uses (`closetImage`, `wearerPhoto`). The validator
-stores the app id (`external_account_id`) so the same UploadThing app cannot be
-linked to two Wearers. Reconnecting must use a token from that same app; a
-different app is rejected so existing private photos stay readable.
+Each BYOK Wearer needs their own UploadThing app for the routes Blue Jeans
+uses (`closetImage`, `wearerPhoto`). Files are uploaded with public-read ACL so
+a free UploadThing plan works. The validator stores the app id
+(`external_account_id`) so the same UploadThing app cannot be linked to two
+Wearers. Reconnecting must use a token from that same app; a different app is
+rejected so existing photos stay readable.

@@ -17,27 +17,20 @@ vi.mock("@/lib/media/platform-connection", () => ({
   ensurePlatformUploadThingConnection: vi.fn(),
 }));
 
-vi.mock("@/lib/media/uploadthing-api", () => ({
-  makeUploadThingFilesPrivate: vi.fn(),
-}));
-
 import { resolveUploadThingToken } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { insertLegacyMediaAsset } from "@/lib/media/assets";
-import { makeUploadThingFilesPrivate } from "@/lib/media/uploadthing-api";
 import { sealLegacyUploadThingMedia } from "@/lib/media/seal-legacy";
 
 const resolveToken = vi.mocked(resolveUploadThingToken);
 const requireSqlMock = vi.mocked(requireSql);
 const insertAsset = vi.mocked(insertLegacyMediaAsset);
-const makePrivate = vi.mocked(makeUploadThingFilesPrivate);
 
 describe("sealLegacyUploadThingMedia", () => {
   beforeEach(() => {
     resolveToken.mockReset();
     requireSqlMock.mockReset();
     insertAsset.mockReset();
-    makePrivate.mockReset();
     resolveToken.mockResolvedValue({
       ok: true,
       token: "tok",
@@ -46,15 +39,39 @@ describe("sealLegacyUploadThingMedia", () => {
     });
   });
 
-  it("does not rewrite URLs when ACL sealing fails", async () => {
+  it("binds legacy keys to media assets without changing ACL", async () => {
     const sql = vi
       .fn()
-      .mockResolvedValueOnce([
-        { id: "g1", uploadthing_key: "legacy-key" },
-      ])
+      .mockResolvedValueOnce([{ id: "g1", uploadthing_key: "legacy-key" }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     requireSqlMock.mockReturnValue(sql as never);
-    makePrivate.mockResolvedValue(false);
+    insertAsset.mockResolvedValue({
+      id: "asset-1",
+      userId: "u1",
+      connectionId: "c1",
+      kind: "closet_image",
+      providerFileKey: "legacy-key",
+    });
+
+    await sealLegacyUploadThingMedia("u1");
+
+    expect(insertAsset).toHaveBeenCalledWith({
+      userId: "u1",
+      connectionId: "c1",
+      kind: "closet_image",
+      fileKey: "legacy-key",
+    });
+    expect(sql.mock.calls.length).toBe(3);
+    const updateStrings = String(sql.mock.calls[2]?.[0] ?? "");
+    expect(updateStrings).toMatch(/UPDATE garments/i);
+    expect(sql.mock.calls[2]?.[1]).toBe("asset-1");
+    expect(sql.mock.calls[2]?.[2]).toBe("/api/media/asset-1");
+  });
+
+  it("does nothing when there are no legacy files", async () => {
+    const sql = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    requireSqlMock.mockReturnValue(sql as never);
 
     await sealLegacyUploadThingMedia("u1");
     expect(insertAsset).not.toHaveBeenCalled();

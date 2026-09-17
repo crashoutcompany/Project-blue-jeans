@@ -1,8 +1,5 @@
-/** Same-origin display path for a private media asset. Not a durable CDN URL. */
+/** Same-origin display path for an owned media asset. */
 export const MEDIA_ASSET_PATH_PREFIX = "/api/media/";
-
-/** UploadThing signed URL lifetime for browser and server fetches. */
-export const MEDIA_SIGNED_URL_MAX_SECONDS = 15 * 60;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -20,7 +17,8 @@ export function parseMediaAssetIdFromPath(url: string): string | null {
 }
 
 /**
- * Private media must not go through Next's publicly cacheable optimizer.
+ * Cookie-gated /api/media paths must not go through Next's publicly cacheable
+ * optimizer (it fetches without the caller's cookies).
  */
 export function shouldBypassImageOptimizer(src: string): boolean {
   return (

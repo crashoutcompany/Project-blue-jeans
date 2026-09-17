@@ -5,8 +5,6 @@ import { requireSql } from "@/lib/db";
 import { insertLegacyMediaAsset } from "@/lib/media/assets";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 import { ensurePlatformUploadThingConnection } from "@/lib/media/platform-connection";
-import { makeUploadThingFilesPrivate } from "@/lib/media/uploadthing-api";
-import { logServerError } from "@/lib/server/safe-client-error";
 
 type LegacyFileRow = {
   id: string;
@@ -15,8 +13,8 @@ type LegacyFileRow = {
 };
 
 /**
- * Bind existing UploadThing keys to media_assets and switch ACL to private
- * where the API accepts the change. Unreachable files are left as-is.
+ * Bind existing UploadThing keys to media_assets. Files stay publicly
+ * readable on the CDN (free-tier ACL). Display paths switch to /api/media/{id}.
  */
 export async function sealLegacyUploadThingMedia(userId: string): Promise<void> {
   const resolved = await resolveUploadThingToken(userId);
@@ -64,18 +62,6 @@ export async function sealLegacyUploadThingMedia(userId: string): Promise<void> 
   ];
 
   if (legacy.length === 0) return;
-
-  const keys = legacy
-    .map((row) => row.uploadthing_key?.trim() || "")
-    .filter(Boolean);
-  const sealed = await makeUploadThingFilesPrivate(keys, resolved.token);
-  if (!sealed) {
-    logServerError(
-      "sealLegacyUploadThingMedia",
-      `updateACL failed for ${keys.length} legacy file(s); media remains public.`,
-    );
-    return;
-  }
 
   for (const row of legacy) {
     const fileKey = row.uploadthing_key?.trim();

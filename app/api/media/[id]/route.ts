@@ -1,10 +1,9 @@
 import { connection, NextResponse } from "next/server";
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
-import { getOwnedMediaAsset } from "@/lib/media/assets";
-import { MEDIA_SIGNED_URL_MAX_SECONDS } from "@/lib/media/display";
 import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
-import { generatePrivateMediaUrl } from "@/lib/media/uploadthing-api";
+import { getOwnedMediaAsset } from "@/lib/media/assets";
+import { publicUploadThingFileUrl } from "@/lib/media/uploadthing-api";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -51,10 +50,9 @@ export async function GET(
   }
 
   try {
-    const url = await generatePrivateMediaUrl(
+    const url = publicUploadThingFileUrl(
       resolved.token,
       asset.providerFileKey,
-      MEDIA_SIGNED_URL_MAX_SECONDS,
     );
     return new NextResponse(null, {
       status: 302,
