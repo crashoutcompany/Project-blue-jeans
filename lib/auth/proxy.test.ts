@@ -58,12 +58,18 @@ describe("createAuthProxy", () => {
   });
 
   it("refreshes session cookies on public paths when a session cookie exists", async () => {
-    const getSession = vi.fn().mockResolvedValue({
-      headers: new Headers({
-        "set-cookie": "better-auth.session_token=refreshed; Path=/; HttpOnly",
-      }),
-      response: { user: { id: "u1" } },
-    });
+    const getSession = vi
+      .fn()
+      .mockResolvedValueOnce({
+        headers: new Headers(),
+        response: { user: { id: "u1" }, needsRefresh: true },
+      })
+      .mockResolvedValueOnce({
+        headers: new Headers({
+          "set-cookie": "better-auth.session_token=refreshed; Path=/; HttpOnly",
+        }),
+        response: { user: { id: "u1" } },
+      });
     const proxy = createAuthProxy({
       auth: { api: { getSession } },
       publicPaths: ["/"],
@@ -75,9 +81,15 @@ describe("createAuthProxy", () => {
       request("/", "better-auth.session_token=old"),
     );
 
-    expect(getSession).toHaveBeenCalledWith({
+    expect(getSession).toHaveBeenNthCalledWith(1, {
       headers: expect.any(Headers),
       returnHeaders: true,
+      method: "GET",
+    });
+    expect(getSession).toHaveBeenNthCalledWith(2, {
+      headers: expect.any(Headers),
+      returnHeaders: true,
+      method: "POST",
     });
     expect(response.cookies.get("better-auth.session_token")?.value).toBe(
       "refreshed",
@@ -101,6 +113,7 @@ describe("createAuthProxy", () => {
     expect(getSession).toHaveBeenCalledWith({
       headers: incoming.headers,
       returnHeaders: true,
+      method: "GET",
     });
     expect(response.headers.get("location")).toBe("https://example.com/signin");
   });
