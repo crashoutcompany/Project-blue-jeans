@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
  * Smoke: closet renders for admin (DB may be empty in CI).
  */
 test.describe("closet (admin)", () => {
-  test.use({ storageState: "tests/e2e/.auth/admin.json" });
+  test.use({ storageState: "e2e/.auth/admin.json" });
 
   test("shows closet on /closet", async ({ page }) => {
     await page.goto("/closet");
