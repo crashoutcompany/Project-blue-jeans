@@ -82,7 +82,10 @@ function SidebarProvider({
   // cookies() in the shell — it can race with auth session cookie writes on `/`.
   const [_open, _setOpen] = React.useState(defaultOpen);
   React.useEffect(() => {
-    _setOpen(readSidebarOpenCookie(defaultOpen));
+    const frame = window.requestAnimationFrame(() => {
+      _setOpen(readSidebarOpenCookie(defaultOpen));
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [defaultOpen]);
   const open = openProp ?? _open;
   const setOpen = React.useCallback(
