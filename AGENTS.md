@@ -2,7 +2,7 @@
 
 ## Cursor Cloud specific instructions
 
-`project-blue-jeans` is a **Next.js 16 / React 19** app (an AI outfit generator / digital closet) using **npm** (`package-lock.json`). Node 20+ is required; the environment ships Node 22.
+`project-blue-jeans` is a **Next.js 16 / React 19** app (an AI outfit generator / digital closet) using **Node.js 24** and **pnpm 10** (`pnpm-lock.yaml`).
 
 ### Services
 
@@ -16,10 +16,11 @@ There is one local process — the **Next.js dev server**. Everything else is a 
 
 ### Commands (already defined in `package.json`)
 
-- Run (dev): `npm run dev` → http://localhost:3000
-- Lint: `npm run lint`
-- Build: `npm run build`
-- Unit tests: `npm run test` (Vitest). E2E: `npm run build:e2e` then `npm run test:e2e` (Playwright; needs `EXPOSE_TESTING_API=1`, `TEST_AUTH_SECRET`, and Better Auth/DB variables).
+- Run (dev): `pnpm dev` → http://localhost:3000
+- Lint: `pnpm lint`
+- Typecheck: `pnpm typecheck`
+- Build: `pnpm build`
+- Unit tests: `pnpm test` (Vitest). E2E: `pnpm build:e2e` then `pnpm test:e2e` (Playwright; needs `EXPOSE_TESTING_API=1`, `TEST_AUTH_SECRET`, and Better Auth/DB variables).
 
 ### Non-obvious notes
 
