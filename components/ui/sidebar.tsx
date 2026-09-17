@@ -79,7 +79,7 @@ function SidebarProvider({
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // Restore from document cookie on client mount/remount. Avoid next/headers
-  // cookies() in the shell — it races with Neon Auth session cookie writes on `/`.
+  // cookies() in the shell — it can race with auth session cookie writes on `/`.
   const [_open, _setOpen] = React.useState(defaultOpen);
   React.useEffect(() => {
     _setOpen(readSidebarOpenCookie(defaultOpen));

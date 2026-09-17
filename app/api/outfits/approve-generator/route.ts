@@ -8,7 +8,7 @@ import {
 } from "@/lib/outfits/persist-generator-outfit";
 
 /**
- * JSON save for generator “Approve” — avoids server actions + Neon Auth refresh races
+ * JSON save for generator “Approve” — avoids server actions and auth refresh races.
  * (`fetchServerAction` “unexpected response”).
  */
 export async function POST(request: Request) {

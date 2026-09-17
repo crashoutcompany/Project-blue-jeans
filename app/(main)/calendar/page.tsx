@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { OutfitCalendar } from "@/components/outfit/outfit-calendar";
 import { requireAdmittedAccess } from "@/lib/auth/admitted";
+import { AUTH_SIGN_IN_PATH } from "@/lib/auth/config";
 import { getWearerUserId } from "@/lib/auth/wearer";
 import { loadCalendarMonthData } from "@/lib/outfits/calendar-data";
 import { productTodayIso } from "@/lib/time/product-timezone";
@@ -37,7 +38,7 @@ async function CalendarContent({
   await requireAdmittedAccess();
   const userId = await getWearerUserId();
   if (!userId) {
-    redirect("/auth/sign-in");
+    redirect(AUTH_SIGN_IN_PATH);
   }
   const sp = await searchParams;
   const { year, month } = clampMonthYear(sp);

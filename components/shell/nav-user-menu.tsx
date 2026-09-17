@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { LogOut } from "lucide-react";
 
@@ -24,6 +25,7 @@ export function NavUserMenu({
   signInClassName,
   variant = "app",
 }: NavUserMenuProps) {
+  const router = useRouter();
   const { data, isPending } = authClient.useSession();
 
   if (isPending) {
@@ -38,7 +40,7 @@ export function NavUserMenu({
   if (!data?.user) {
     return (
       <Link
-        href="/auth/sign-in"
+        href="/signin"
         className={cn(
           buttonVariants({ size: "sm" }),
           variant === "landing" &&
@@ -90,7 +92,14 @@ export function NavUserMenu({
         <DropdownMenuItem render={<Link href="/settings" />}>
           Settings
         </DropdownMenuItem>
-        <DropdownMenuItem render={<Link href="/auth/sign-out" />}>
+        <DropdownMenuItem
+          onClick={() => {
+            void authClient.signOut().then(() => {
+              router.push("/signin");
+              router.refresh();
+            });
+          }}
+        >
           <LogOut className="mr-2 size-4 opacity-70" />
           Sign out
         </DropdownMenuItem>

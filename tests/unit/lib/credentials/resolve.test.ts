@@ -49,7 +49,6 @@ describe("provider credential resolution", () => {
   const originalGoogleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   const originalUploadThingToken = process.env.UPLOADTHING_TOKEN;
   const originalOwnerId = process.env.APP_OWNER_USER_ID;
-  const originalE2e = process.env.E2E_PLAYWRIGHT;
 
   beforeEach(() => {
     membershipMock.mockReset();
@@ -57,7 +56,6 @@ describe("provider credential resolution", () => {
     delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     delete process.env.UPLOADTHING_TOKEN;
     delete process.env.APP_OWNER_USER_ID;
-    delete process.env.E2E_PLAYWRIGHT;
   });
 
   afterEach(() => {
@@ -75,11 +73,6 @@ describe("provider credential resolution", () => {
       delete process.env.APP_OWNER_USER_ID;
     } else {
       process.env.APP_OWNER_USER_ID = originalOwnerId;
-    }
-    if (originalE2e === undefined) {
-      delete process.env.E2E_PLAYWRIGHT;
-    } else {
-      process.env.E2E_PLAYWRIGHT = originalE2e;
     }
   });
 
