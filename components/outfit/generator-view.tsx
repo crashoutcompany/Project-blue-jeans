@@ -131,22 +131,14 @@ export function GeneratorView({
     [committedOutfitTopIds],
   );
   const [marks, setMarks] = useState<ConstraintMap>({});
-
-  useEffect(() => {
-    setMarks((prev) => {
-      let changed = false;
-      const next: ConstraintMap = {};
-      const closetIds = new Set(closetGarments.map((g) => g.id));
-      for (const [id, mark] of Object.entries(prev)) {
-        if (omittedIds.has(id) || !closetIds.has(id)) {
-          changed = true;
-          continue;
-        }
-        next[id] = mark;
-      }
-      return changed ? next : prev;
-    });
-  }, [closetGarments, omittedIds]);
+  const visibleMarks = useMemo(() => {
+    const closetIds = new Set(closetGarments.map((garment) => garment.id));
+    return Object.fromEntries(
+      Object.entries(marks).filter(
+        ([id]) => closetIds.has(id) && !omittedIds.has(id),
+      ),
+    );
+  }, [closetGarments, marks, omittedIds]);
 
   useEffect(() => {
     onHasGeneratedOptionsChangeRef.current?.(
@@ -248,7 +240,7 @@ export function GeneratorView({
     generateInFlightRef.current = true;
     setError(null);
 
-    const { includedGarmentIds, avoidedGarmentIds } = marksToIds(marks);
+    const { includedGarmentIds, avoidedGarmentIds } = marksToIds(visibleMarks);
     const visibleIds = new Set(visibleGarments.map((g) => g.id));
     const included = includedGarmentIds.filter((id) => visibleIds.has(id));
     const avoided = avoidedGarmentIds.filter((id) => visibleIds.has(id));
@@ -385,7 +377,7 @@ export function GeneratorView({
           key={closetSig}
           closetGarments={closetGarments}
           omittedIds={omittedIds}
-          marks={marks}
+          marks={visibleMarks}
           onChange={setMarks}
           pending={pending}
         />

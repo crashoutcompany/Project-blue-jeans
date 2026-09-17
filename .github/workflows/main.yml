@@ -1,121 +1,151 @@
-# Fork PRs do not receive repository secrets. Build and authenticated E2E run
-# only for push to main and same-repo PRs. Build needs VERCEL_TOKEN,
-# VERCEL_ORG_ID, VERCEL_PROJECT_ID, plus app secrets that Vercel marks Sensitive
-# (those pull as "[SENSITIVE]" placeholders and must come from GitHub secrets).
-# Install (`npm ci`) runs without those app secrets; they are injected only on
-# vercel pull / vercel build. Fork PRs: lint + test (+ e2e) only.
-name: Actions CI
+name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   lint:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.1.0
+      - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run linter
-        run: npm run lint
-
-  build:
-    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-
-      - name: Install Vercel CLI
-        run: npm install -g vercel
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Pull Vercel Environment Variables
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: Build with Vercel
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
-          AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }} --prod
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.1.0
+      - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: npm
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run unit tests
-        run: npm run test
+  build:
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+      AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
+      AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.1.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm add --global vercel@latest
+      - name: Pull Vercel environment
+        env:
+          VERCEL_ENV: ${{ github.event_name == 'push' && 'production' || 'preview' }}
+        run: vercel pull --yes --environment="$VERCEL_ENV" --token="$VERCEL_TOKEN"
+      - name: Build with Vercel
+        env:
+          VERCEL_ENV: ${{ github.event_name == 'push' && 'production' || 'preview' }}
+        run: |
+          if [ "$VERCEL_ENV" = "production" ]; then
+            vercel build --prod --token="$VERCEL_TOKEN"
+          else
+            vercel build --token="$VERCEL_TOKEN"
+          fi
 
   e2e:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
-      # Real Neon URL required (no invented tokens). Auth secrets fall back for CI.
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET != '' && secrets.BETTER_AUTH_SECRET || 'test-better-auth-secret-at-least-32-characters' }}
       TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET != '' && secrets.TEST_AUTH_SECRET || 'test-auth-secret' }}
-      EXPOSE_TESTING_API: "1"
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET != '' && secrets.BETTER_AUTH_SECRET || 'test-better-auth-secret-at-least-32-characters' }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.1.0
+      - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: npm
+          cache: pnpm
+
+      - name: Resolve Neon branch
+        id: neon
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.number }}
+          HEAD_REF: ${{ github.head_ref }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            safe_ref="${HEAD_REF//\//-}"
+            printf 'name=preview/pr-%s-%s\n' "$PR_NUMBER" "$safe_ref" >> "$GITHUB_OUTPUT"
+            printf 'ephemeral=false\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'name=ci/e2e-%s\n' "$GIT_SHA" >> "$GITHUB_OUTPUT"
+            printf 'ephemeral=true\n' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or reuse Neon branch
+        id: database
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch_name: ${{ steps.neon.outputs.name }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          database: ${{ secrets.NEON_DATABASE }}
+          role: ${{ secrets.NEON_ROLE }}
 
       - name: Install dependencies
-        run: npm ci
+        env:
+          DATABASE_URL: ${{ steps.database.outputs.db_url_pooled }}
+        run: pnpm install --frozen-lockfile
 
-      - name: Build (Next.js, instant-nav testing API)
-        run: npm run build:e2e
+      - name: Build E2E application
+        env:
+          DATABASE_URL: ${{ steps.database.outputs.db_url_pooled }}
+          EXPOSE_TESTING_API: "1"
+        run: pnpm build:e2e
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
-      - name: E2E tests (Playwright)
-        run: npm run test:e2e
+      - name: Run authenticated E2E
         env:
+          DATABASE_URL: ${{ steps.database.outputs.db_url_pooled }}
           EXPOSE_TESTING_API: "1"
-          CI: "true"
+        run: pnpm test:e2e
+
+      - name: Delete ephemeral Neon branch
+        if: always() && steps.neon.outputs.ephemeral == 'true' && steps.database.outcome == 'success'
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: ${{ steps.database.outputs.branch_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
