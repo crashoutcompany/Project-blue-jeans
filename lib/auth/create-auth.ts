@@ -1,4 +1,4 @@
-// shared:create-auth v1
+// shared:create-auth v2
 
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { nextCookies } from "better-auth/next-js";

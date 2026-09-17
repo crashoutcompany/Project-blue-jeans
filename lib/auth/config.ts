@@ -2,8 +2,12 @@ export const AUTH_PRODUCTION_URL = "https://project-blue-jeans.vercel.app";
 export const AUTH_PREVIEW_ORIGIN =
   "https://*-crashoutcos-projects.vercel.app";
 export const AUTH_SIGN_IN_PATH = "/signin";
+/** Alias for shared sign-in button / RDC copy-paste. */
+export const SIGN_IN_PATH = AUTH_SIGN_IN_PATH;
 export const PRODUCTION_URL = AUTH_PRODUCTION_URL;
 export const PREVIEW_ORIGIN = AUTH_PREVIEW_ORIGIN;
+
+export type SocialProvider = "github" | "google";
 
 export const TEST_AUTH_HEADER = "x-test-auth-secret";
 export const TESTER_ID = "preview-tester";

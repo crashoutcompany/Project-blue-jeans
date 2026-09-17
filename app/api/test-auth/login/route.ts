@@ -1,9 +1,9 @@
+// shared:test-auth-route v2
 import { NextResponse } from "next/server";
 
 import {
   createTestSession,
-  isTestAuthEnabled,
-  isValidTestAuthSecret,
+  evaluateTestAuthRequest,
   readTestAuthSecret,
 } from "@/lib/auth/test-auth";
 
@@ -12,11 +12,9 @@ export function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!isTestAuthEnabled()) {
-    return new NextResponse(null, { status: 404 });
-  }
-  if (!isValidTestAuthSecret(readTestAuthSecret(request))) {
-    return new NextResponse(null, { status: 401 });
+  const decision = evaluateTestAuthRequest(readTestAuthSecret(request));
+  if (!decision.allow) {
+    return new NextResponse(null, { status: decision.status });
   }
 
   const { cookie, cookieValue, session, user } =
