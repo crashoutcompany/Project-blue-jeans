@@ -4,8 +4,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { SignInButton } from "@/components/auth/sign-in-button";
-import { getSession, providers } from "@/lib/auth";
+import { SignInButtons } from "@/components/auth/sign-in-buttons";
+import { getSession, enabledSocialProviders } from "@/lib/auth";
 
 const AUTH_IMAGE =
   "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=1800&q=85";
@@ -76,13 +76,7 @@ async function SignInContent() {
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
               Step back into your closet and find your next look.
             </p>
-            {providers.includes("google") ? (
-              <SignInButton />
-            ) : (
-              <p role="status" className="mt-9 text-sm text-muted-foreground">
-                Google sign-in is not configured for this environment.
-              </p>
-            )}
+            <SignInButtons providers={enabledSocialProviders} />
           </div>
         </div>
         <footer className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
