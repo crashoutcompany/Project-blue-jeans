@@ -18,7 +18,7 @@ test.describe("guest (no cookies)", () => {
 });
 
 test.describe("admin session", () => {
-  test.use({ storageState: "tests/e2e/.auth/admin.json" });
+  test.use({ storageState: "e2e/.auth/admin.json" });
 
   test("loads closet", async ({ page }) => {
     await page.goto("/closet");
@@ -42,7 +42,7 @@ test.describe("admin session", () => {
 });
 
 test.describe("signed-in session without admission", () => {
-  test.use({ storageState: "tests/e2e/.auth/non-admin.json" });
+  test.use({ storageState: "e2e/.auth/non-admin.json" });
 
   test("redirects /closet to not-admitted", async ({ page }) => {
     await page.goto("/closet");

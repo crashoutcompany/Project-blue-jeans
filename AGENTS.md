@@ -39,7 +39,7 @@ There is one local process — the **Next.js dev server**. Everything else is a 
   `x-test-auth-secret: <secret>`.
 - The route upserts the seeded tester (and a wearer membership) and mints a real
   Better Auth session cookie. Production always 404s; a wrong secret returns 401.
-- Playwright `tests/e2e/global-setup.ts` writes storage state under `tests/e2e/.auth/`.
+- Playwright `e2e/global-setup.ts` writes storage state under `e2e/.auth/`.
 - If Deployment Protection is on, also send
   `x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET`.
 

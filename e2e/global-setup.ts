@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { request, type FullConfig } from "@playwright/test";
 
-const AUTH_DIR = path.join(process.cwd(), "tests/e2e/.auth");
+const AUTH_DIR = path.join(process.cwd(), "e2e/.auth");
 
 export default async function globalSetup(config: FullConfig) {
   const secret = process.env.TEST_AUTH_SECRET;

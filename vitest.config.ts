@@ -21,7 +21,7 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "**/.next/**",
-      "**/tests/e2e/**",
+      "**/e2e/**",
       "**/playwright-report/**",
       "**/test-results/**",
     ],
