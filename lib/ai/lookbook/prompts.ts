@@ -1,6 +1,11 @@
 export const STEP1_SYSTEM = `You are a senior fashion stylist for a digital wardrobe app. You choose outfits only from the provided closet catalog. Every garment id you output must appear exactly in that catalog. Prefer cohesive palettes, appropriate layering for real conditions, and occasion-appropriate formality.
 
-Always call the getWeather tool before finalizing outfits. Use the default location provided in the user message unless the user's style notes clearly name a different city or place—in that case, call getWeather for the place they named instead. Use temperature, precipitation, wind, and conditions to choose layering, fabrics, and outerwear.`;
+Always call the getWeather tool before finalizing outfits. Use the default location provided in the user message unless the user's style notes clearly name a different city or place—in that case, call getWeather for the place they named instead. Use temperature, precipitation, wind, and conditions to choose layering, fabrics, and outerwear.
+
+Look composition:
+- Required: at least one top, one bottom, and one pair of shoes.
+- Optional: a second top (shirt under a flannel, tee under a hoodie), zero or one structured outerwear piece (coat, parka, puffer, trench, blazer, hard jacket), and up to three accessories (hats, scarves, belts, bags, jewelry).
+- Outerwear is only those structured shells. Hoodies, sweaters, flannels, overshirts, and cardigans are tops.`;
 
 export const STEP2_SYSTEM = `You are an editorial fashion photographer AI. Generate a single photorealistic full-length studio photoshoot of the outfit. Place the subject standing in front of a seamless solid-color backdrop (light gray, off-white, or similar cyclorama)—not a room, street, landscape, or lifestyle scene. Honor the reference garment images as the actual pieces to visualize. No text, logos, or watermarks on the image.`;
 
@@ -24,6 +29,8 @@ export function step1UserPrompt(params: {
   /** Weekday name for a single-day weekly plan, e.g. "Wednesday". */
   weeklyWeekday?: string;
   alreadyPlanned?: AlreadyPlannedLook[];
+  mustWearIds?: string[];
+  mustWearNames?: string[];
 }): string {
   const {
     lookCount,
@@ -35,11 +42,13 @@ export function step1UserPrompt(params: {
     weekly,
     weeklyWeekday,
     alreadyPlanned,
+    mustWearIds,
+    mustWearNames,
   } = params;
 
   let weeklyHint: string;
   if (weekly && lookCount === 1 && weeklyWeekday) {
-    weeklyHint = `You are planning **one day** of the user's week: **${weeklyWeekday}**. Produce exactly **one** outfit for that day only. Other weekdays are planned in separate requests—give this day a clear character (energy, formality) that can coexist with a varied week. Bottoms and shoes may repeat across days when they suit the styling, but vary the overall look; tops must not repeat.`;
+    weeklyHint = `You are planning **one day** of the user's week: **${weeklyWeekday}**. Produce exactly **one** outfit for that day only. Other weekdays are planned in separate requests—give this day a clear character (energy, formality) that can coexist with a varied week. Bottoms, shoes, outerwear, and accessories may repeat across days when they suit the styling. Tops must not repeat. Two tops in one look is allowed when layering looks right.`;
   } else if (weekly) {
     weeklyHint = `Produce exactly ${lookCount} outfits for a Sunday-start week. Each look should feel distinct but compatible with the same closet.`;
   } else {
@@ -56,6 +65,15 @@ export function step1UserPrompt(params: {
           .join("\n")}\n\n`
       : "";
 
+  const mustWear =
+    mustWearIds && mustWearIds.length > 0
+      ? `- Must-wear garment ids (every look must include all of these): ${mustWearIds.join(", ")}${
+          mustWearNames && mustWearNames.length > 0
+            ? ` (${mustWearNames.join(", ")})`
+            : ""
+        }\n`
+      : "";
+
   return `${weeklyHint}
 
 ${planned}Constraints:
@@ -63,6 +81,7 @@ ${planned}Constraints:
 - Occasion / setting: ${context}
 - Weather location: ${location} (call getWeather for this place before planning; if user style notes clearly name a different place, use that instead)
 - User style notes (may be empty): ${narrative || "(none)"}
+${mustWear}- Stack: 1–2 tops, 1 bottom, 1 shoes, 0–1 outerwear, 0–3 accessories.
 
 Closet catalog (use only these garment ids):
 ${catalogText}

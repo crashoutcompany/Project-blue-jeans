@@ -21,13 +21,13 @@ import {
 import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = [
+  "Sun",
   "Mon",
   "Tue",
   "Wed",
   "Thu",
   "Fri",
   "Sat",
-  "Sun",
 ] as const;
 
 const CELL_ASPECT = "aspect-[3/4]";
@@ -41,13 +41,12 @@ function monthHref(y: number, m: number) {
   return `/calendar?year=${y}&month=${m}`;
 }
 
-function padGridStartMonday(year: number, month: number): number {
-  const dow = new Date(year, month - 1, 1).getDay();
-  return (dow + 6) % 7;
+function padGridStartSunday(year: number, month: number): number {
+  return new Date(year, month - 1, 1).getDay();
 }
 
 function buildMonthCells(year: number, month: number) {
-  const pad = padGridStartMonday(year, month);
+  const pad = padGridStartSunday(year, month);
   const daysInMonth = new Date(year, month, 0).getDate();
   const cells: ({ type: "empty" } | { type: "day"; day: number })[] = [];
   for (let i = 0; i < pad; i++) cells.push({ type: "empty" });

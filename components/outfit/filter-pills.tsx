@@ -1,16 +1,21 @@
 "use client";
 
+import {
+  GARMENT_CATEGORY_LABEL,
+  GARMENT_CATEGORY_VALUES,
+  type GarmentCategoryDb,
+} from "@/lib/garments/types";
 import { cn } from "@/lib/utils";
 
-/** Matches `garment_category` enum in db/schema.sql (Pieces mode only). */
-const CATEGORIES = [
-  { id: "all", label: "All" },
-  { id: "tops", label: "Tops" },
-  { id: "bottoms", label: "Bottoms" },
-  { id: "shoes", label: "Shoes" },
-] as const;
+export type CategoryFilterId = "all" | GarmentCategoryDb;
 
-export type CategoryFilterId = (typeof CATEGORIES)[number]["id"];
+const CATEGORIES: { id: CategoryFilterId; label: string }[] = [
+  { id: "all", label: "All" },
+  ...GARMENT_CATEGORY_VALUES.map((id) => ({
+    id,
+    label: GARMENT_CATEGORY_LABEL[id],
+  })),
+];
 
 export function FilterPills({
   value,

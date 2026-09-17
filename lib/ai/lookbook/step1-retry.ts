@@ -18,6 +18,8 @@ export type RunStep1PlanWithRetryParams = {
   weekly?: boolean;
   weeklyWeekday?: string;
   alreadyPlanned?: AlreadyPlannedLook[];
+  mustWearIds?: string[];
+  mustWearNames?: string[];
 };
 
 /**
@@ -38,6 +40,8 @@ export async function runStep1PlanWithRetry(
     weekly,
     weeklyWeekday,
     alreadyPlanned,
+    mustWearIds,
+    mustWearNames,
   } = params;
 
   let plan = await runOutfitPlanStep({
@@ -51,6 +55,8 @@ export async function runStep1PlanWithRetry(
     weekly,
     weeklyWeekday,
     alreadyPlanned,
+    mustWearIds,
+    mustWearNames,
   });
 
   plan = filterPlanToValidGarmentIds(plan, validIds);
@@ -69,6 +75,8 @@ export async function runStep1PlanWithRetry(
       weekly,
       weeklyWeekday,
       alreadyPlanned,
+      mustWearIds,
+      mustWearNames,
     });
     plan = filterPlanToValidGarmentIds(plan, validIds);
   }

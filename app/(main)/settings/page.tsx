@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { GoogleAiStudioCard } from "@/components/settings/google-ai-studio-card";
 import { InvitesCard } from "@/components/settings/invites-card";
+import { LocationCard } from "@/components/settings/location-card";
 import { UploadThingCard } from "@/components/settings/uploadthing-card";
 import { WearerPhotoCard } from "@/components/settings/wearer-photo-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,6 +15,7 @@ import {
 import { getWearerUserId } from "@/lib/auth/wearer";
 import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
 import { getUploadThingSettings } from "@/lib/credentials/uploadthing";
+import { getWearerLocation } from "@/lib/wearer/preferences";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 
 function SettingsHeader() {
@@ -72,7 +74,7 @@ async function SettingsContent() {
   const membership = data?.user
     ? await getMembershipPolicyForUser(data.user)
     : null;
-  const [photo, googleAiStudio, uploadthing] = await Promise.all([
+  const [photo, googleAiStudio, uploadthing, location] = await Promise.all([
     photoPromise,
     membership
       ? getGoogleAiStudioSettings(userId, membership)
@@ -80,6 +82,7 @@ async function SettingsContent() {
     membership
       ? getUploadThingSettings(userId, membership)
       : Promise.resolve(null),
+    getWearerLocation(userId),
   ]);
 
   return (
@@ -110,6 +113,13 @@ async function SettingsContent() {
           <UploadThingCard initial={uploadthing} />
         </div>
       ) : null}
+
+      <div className="flex flex-col gap-3">
+        <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          Home city
+        </h2>
+        <LocationCard initialLocation={location ?? ""} />
+      </div>
 
       <WearerPhotoSection imageUrl={photo?.imageUrl ?? null} />
     </>

@@ -24,9 +24,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The Digital Atelier",
-  description:
-    "Your personal fashion curator—digital closet and intelligent styling.",
+  title: "Project Blue Jeans",
+  description: "Decide what to wear today — from clothes you already own.",
 };
 
 export default function RootLayout({

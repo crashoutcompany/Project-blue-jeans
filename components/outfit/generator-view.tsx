@@ -1,22 +1,19 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import {
   type FormEvent,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
 } from "react";
-import { ChevronDown, SendHorizontal, Sparkles } from "lucide-react";
+import { SendHorizontal, Sparkles } from "lucide-react";
 
 import type { ClothingCardData } from "@/lib/garments/types";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
-import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import type { GenerateLookbookResult } from "@/lib/lookbook/generate-lookbook";
 import { APPROVE_OUTFIT_MAX_IMAGE_URL_LEN } from "@/lib/outfits/approve-outfit-limits";
 import type { ApproveOutfitResult } from "@/lib/outfits/persist-generator-outfit";
@@ -24,8 +21,18 @@ import {
   generateLookbookResultSchema,
   type OutfitLook,
 } from "@/lib/outfits/types";
+import {
+  categoryByIdFromCatalog,
+  validateIncludeAvoidPair,
+  validateMustWearIncludes,
+} from "@/lib/outfits/look-composition";
 import { productTodayIso } from "@/lib/time/product-timezone";
 import { GeneratorChatStack } from "@/components/outfit/generator-chat-stack";
+import {
+  GeneratorIncludeAvoidPicker,
+  marksToIds,
+  type ConstraintMap,
+} from "@/components/outfit/generator-include-avoid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -65,205 +72,6 @@ function idsSignature(garments: ClothingCardData[]) {
   return garments.map((g) => g.id).join("\0");
 }
 
-function garmentThumb(g: ClothingCardData, sizes: string) {
-  const hasImage = Boolean(g.imageUrl);
-  if (hasImage) {
-    return (
-      <Image
-        src={g.imageUrl!}
-        alt=""
-        fill
-        className="object-cover"
-        sizes={sizes}
-        unoptimized={shouldBypassImageOptimizer(g.imageUrl!)}
-      />
-    );
-  }
-  return (
-    <div
-      className="size-full"
-      style={{ backgroundColor: `${g.colorHex ?? "#e8e8e6"}40` }}
-    />
-  );
-}
-
-function GeneratorClosetScope({
-  closetGarments,
-  pending,
-  onSelectionChange,
-}: {
-  closetGarments: ClothingCardData[];
-  pending: boolean;
-  onSelectionChange: (ids: Set<string>) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(
-    () => new Set(closetGarments.map((g) => g.id)),
-  );
-
-  useLayoutEffect(() => {
-    onSelectionChange(new Set(closetGarments.map((g) => g.id)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync parent once per instance
-  }, []);
-
-  const allClosetIds = useMemo(
-    () => new Set(closetGarments.map((g) => g.id)),
-    [closetGarments],
-  );
-
-  const allSelected =
-    closetGarments.length > 0 &&
-    selectedIds.size === allClosetIds.size &&
-    [...selectedIds].every((id) => allClosetIds.has(id));
-
-  const previewGarments: ClothingCardData[] = [];
-  for (const g of closetGarments) {
-    if (!selectedIds.has(g.id)) continue;
-    previewGarments.push(g);
-    if (previewGarments.length === 3) break;
-  }
-
-  const count = closetGarments.length;
-  const summary =
-    count === 0
-      ? "No pieces yet"
-      : allSelected
-        ? count === 1
-          ? "Using 1 piece"
-          : `Using all ${count} pieces`
-        : selectedIds.size === 0
-          ? "No pieces selected"
-          : `${selectedIds.size} of ${count} pieces`;
-
-  function patchSelection(updater: (prev: Set<string>) => Set<string>) {
-    const next = updater(selectedIds);
-    setSelectedIds(next);
-    onSelectionChange(next);
-  }
-
-  function selectAllGarments() {
-    const next = new Set(closetGarments.map((g) => g.id));
-    setSelectedIds(next);
-    onSelectionChange(next);
-  }
-
-  function clearGarmentSelection() {
-    const next = new Set<string>();
-    setSelectedIds(next);
-    onSelectionChange(next);
-  }
-
-  if (closetGarments.length === 0) return null;
-
-  return (
-    <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls="closet-scope-panel"
-        disabled={pending}
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "flex w-full items-center gap-3 rounded-2xl bg-muted/50 px-3 py-2.5 text-left",
-          "transition-[transform,background-color] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
-          "active:scale-[0.985]",
-          "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-          pending && "opacity-60",
-        )}
-      >
-        <div className="flex shrink-0" aria-hidden>
-          {previewGarments.map((g, i) => (
-            <div
-              key={g.id}
-              className="relative size-8 overflow-hidden rounded-md bg-muted ring-2 ring-popover"
-              style={{ marginLeft: i === 0 ? 0 : -8 }}
-            >
-              {garmentThumb(g, "32px")}
-            </div>
-          ))}
-        </div>
-        <span className="sr-only">Closet scope, </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-          {summary}
-        </span>
-        <ChevronDown
-          className={cn(
-            "size-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-
-      {open ? (
-        <div
-          id="closet-scope-panel"
-          role="region"
-          aria-label="Pieces to include"
-          className="flex flex-col gap-2 animate-in fade-in duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:animate-none"
-        >
-          <div className="flex items-center justify-end gap-1 px-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              disabled={pending || allSelected}
-              onClick={selectAllGarments}
-            >
-              All
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              disabled={pending || selectedIds.size === 0}
-              onClick={clearGarmentSelection}
-            >
-              None
-            </Button>
-          </div>
-          <ul className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {closetGarments.map((g) => {
-              const checked = selectedIds.has(g.id);
-              return (
-                <li key={g.id} className="shrink-0">
-                  <button
-                    type="button"
-                    aria-pressed={checked}
-                    disabled={pending}
-                    onClick={() =>
-                      patchSelection((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(g.id)) next.delete(g.id);
-                        else next.add(g.id);
-                        return next;
-                      })
-                    }
-                    className={cn(
-                      "flex w-[4.5rem] flex-col gap-1.5 text-left",
-                      "transition-[transform,opacity] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
-                      "active:scale-[0.97]",
-                      "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                      checked ? "opacity-100" : "opacity-40",
-                      pending && "pointer-events-none",
-                    )}
-                  >
-                    <div className="relative aspect-[0.78] w-[4.5rem] overflow-hidden rounded-xl bg-muted">
-                      {garmentThumb(g, "72px")}
-                    </div>
-                    <span className="truncate text-[0.65rem] leading-tight text-foreground">
-                      {g.name}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 type ChatMessage =
   | { id: string; role: "user"; text: string }
   | {
@@ -283,11 +91,13 @@ function messagesHaveGeneratedOptions(messages: ChatMessage[]) {
 export function GeneratorView({
   closetGarments,
   wornOn,
+  committedOutfitTopIds = [],
   onApproved,
   onHasGeneratedOptionsChange,
 }: {
   closetGarments: ClothingCardData[];
   wornOn?: string;
+  committedOutfitTopIds?: readonly string[];
   onApproved?: () => void;
   onHasGeneratedOptionsChange?: (hasOptions: boolean) => void;
 }) {
@@ -316,12 +126,27 @@ export function GeneratorView({
     () => idsSignature(closetGarments),
     [closetGarments],
   );
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set(closetGarments.map((g) => g.id)),
+  const omittedIds = useMemo(
+    () => new Set(committedOutfitTopIds),
+    [committedOutfitTopIds],
   );
-  const onClosetSelectionChange = useCallback((ids: Set<string>) => {
-    setSelectedIds(ids);
-  }, []);
+  const [marks, setMarks] = useState<ConstraintMap>({});
+
+  useEffect(() => {
+    setMarks((prev) => {
+      let changed = false;
+      const next: ConstraintMap = {};
+      const closetIds = new Set(closetGarments.map((g) => g.id));
+      for (const [id, mark] of Object.entries(prev)) {
+        if (omittedIds.has(id) || !closetIds.has(id)) {
+          changed = true;
+          continue;
+        }
+        next[id] = mark;
+      }
+      return changed ? next : prev;
+    });
+  }, [closetGarments, omittedIds]);
 
   useEffect(() => {
     onHasGeneratedOptionsChangeRef.current?.(
@@ -389,15 +214,14 @@ export function GeneratorView({
     [onApproved, wornOn],
   );
 
-  const allClosetIds = useMemo(
-    () => new Set(closetGarments.map((g) => g.id)),
-    [closetGarments],
+  const visibleGarments = useMemo(
+    () => closetGarments.filter((g) => !omittedIds.has(g.id)),
+    [closetGarments, omittedIds],
   );
-
-  const allSelected =
-    closetGarments.length > 0 &&
-    selectedIds.size === allClosetIds.size &&
-    [...selectedIds].every((id) => allClosetIds.has(id));
+  const categoryById = useMemo(
+    () => categoryByIdFromCatalog(visibleGarments),
+    [visibleGarments],
+  );
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -423,10 +247,24 @@ export function GeneratorView({
     if (generateInFlightRef.current) return;
     generateInFlightRef.current = true;
     setError(null);
-    if (closetGarments.length > 0 && selectedIds.size === 0) {
-      setError("Include at least one closet piece.");
+
+    const { includedGarmentIds, avoidedGarmentIds } = marksToIds(marks);
+    const visibleIds = new Set(visibleGarments.map((g) => g.id));
+    const included = includedGarmentIds.filter((id) => visibleIds.has(id));
+    const avoided = avoidedGarmentIds.filter((id) => visibleIds.has(id));
+    const pairError = validateIncludeAvoidPair(included, avoided);
+    if (pairError) {
+      setError(pairError);
       generateInFlightRef.current = false;
       return;
+    }
+    if (included.length > 0) {
+      const includeError = validateMustWearIncludes(included, categoryById);
+      if (includeError) {
+        setError(includeError);
+        generateInFlightRef.current = false;
+        return;
+      }
     }
 
     const userId = crypto.randomUUID();
@@ -442,9 +280,8 @@ export function GeneratorView({
             credentials: "same-origin",
             body: JSON.stringify({
               narrative: buildNarrative(trimmed),
-              ...(!allSelected && selectedIds.size > 0
-                ? { includedGarmentIds: [...selectedIds] }
-                : {}),
+              ...(included.length > 0 ? { includedGarmentIds: included } : {}),
+              ...(avoided.length > 0 ? { avoidedGarmentIds: avoided } : {}),
             }),
           });
 
@@ -539,17 +376,18 @@ export function GeneratorView({
 
   const showStarters = messages.length === 0 && !pending;
   const showRemix = messagesHaveGeneratedOptions(messages);
-  const sendDisabled =
-    pending || (closetGarments.length > 0 && selectedIds.size === 0);
+  const sendDisabled = pending;
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="shrink-0 px-4 pt-3 sm:px-6">
-        <GeneratorClosetScope
+        <GeneratorIncludeAvoidPicker
           key={closetSig}
           closetGarments={closetGarments}
+          omittedIds={omittedIds}
+          marks={marks}
+          onChange={setMarks}
           pending={pending}
-          onSelectionChange={onClosetSelectionChange}
         />
       </div>
 
