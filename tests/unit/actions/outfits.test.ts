@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server", () => ({
   auth: {
+    getAuthoritativeSession: vi.fn(),
     getSession: vi.fn(),
   },
 }));
@@ -38,7 +39,7 @@ import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-
 import { commitOutfitForDay } from "@/lib/outfits/persist-generator-outfit";
 import { approveWeeklyPlanLook, renameOutfit } from "@/app/actions/outfits";
 
-const getSession = vi.mocked(auth.getSession);
+const getSession = vi.mocked(auth.getAuthoritativeSession);
 const sqlMock = vi.mocked(requireSql);
 const commitMock = vi.mocked(commitOutfitForDay);
 const revalidateTagMock = vi.mocked(revalidateTag);

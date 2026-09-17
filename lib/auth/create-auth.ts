@@ -134,6 +134,8 @@ export function createAuth({
     socialProviders,
     session: {
       ...(sessionModelName ? { modelName: sessionModelName } : {}),
+      // Refresh only via proxy / route handlers / client POST — never from RSC GET.
+      deferSessionRefresh: true,
       cookieCache: {
         enabled: true,
         maxAge: 300,

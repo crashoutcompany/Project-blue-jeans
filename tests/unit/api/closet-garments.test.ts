@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server", () => ({
   auth: {
+    getAuthoritativeSession: vi.fn(),
     getSession: vi.fn(),
   },
 }));
