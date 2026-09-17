@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+const exposeTestingApi =
+  process.env.EXPOSE_TESTING_API === "1" && process.env.VERCEL !== "1";
+
 const nextConfig: NextConfig = {
   cacheComponents: true,
   // Icons are imported from the lucide-react barrel throughout the app, which
@@ -7,7 +10,7 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react"],
     // Instant-nav e2e only. Never set EXPOSE_TESTING_API in real production.
-    exposeTestingApiInProductionBuild: process.env.EXPOSE_TESTING_API === "1",
+    exposeTestingApiInProductionBuild: exposeTestingApi,
   },
   /**
    * Baseline hardening for every response. A Content-Security-Policy is

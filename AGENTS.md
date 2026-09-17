@@ -9,6 +9,7 @@
 There is one local process — the **Next.js dev server**. Everything else is a hosted integration reached via env vars (no local database, workers, or queues):
 
 - **Neon Postgres** (`DATABASE_URL`) — persists garments / outfits. Serverless HTTP driver; no local Postgres.
+- **Better Auth** (`BETTER_AUTH_SECRET`, optional `BETTER_AUTH_URL`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`) — self-hosted sessions and Google OAuth in the same Neon database.
 - **UploadThing** (`UPLOADTHING_TOKEN`) — image hosting for closet uploads.
 - **Google AI Studio / Gemini Developer API** (`GOOGLE_GENERATIVE_AI_API_KEY`) — powers outfit generation, hero images, and auto garment descriptions. See `docs/gemini-ai-studio-env.md`.
 - **Vercel Cron** (`CRON_SECRET`) — Bearer token for `GET /api/cron/purge-stale-fits` (Mondays 08:00 UTC). Deletes leftover Weekly Fits from previous Sunday-start weeks; committed Outfits are kept. Store the value raw.
@@ -18,7 +19,7 @@ There is one local process — the **Next.js dev server**. Everything else is a 
 - Run (dev): `npm run dev` → http://localhost:3000
 - Lint: `npm run lint`
 - Build: `npm run build`
-- Unit tests: `npm run test` (Vitest). E2E: `npm run build:instant` then `npm run test:e2e` (Playwright; needs `EXPOSE_TESTING_API=1` / `E2E_PLAYWRIGHT=1` as in CI).
+- Unit tests: `npm run test` (Vitest). E2E: `npm run build:e2e` then `npm run test:e2e` (Playwright; needs `EXPOSE_TESTING_API=1`, `TEST_AUTH_SECRET`, and Better Auth/DB variables).
 
 ### Non-obvious notes
 
@@ -26,8 +27,8 @@ There is one local process — the **Next.js dev server**. Everything else is a 
 - **The client-side closet "add garment" flow works without any secrets**: choosing photos compresses them on-device (`browser-image-compression`) and queues editable draft cards. Only the final **"Add to closet"** step needs `UPLOADTHING_TOKEN` (upload) + `DATABASE_URL` (persist). This is the best secret-free smoke test of core UI.
 - **Full end-to-end testing requires user-provided secrets**: `DATABASE_URL`, `UPLOADTHING_TOKEN`, and `GOOGLE_GENERATIVE_AI_API_KEY`. Add them via the Secrets panel; env vars are injected into the VM.
 - **Store secret values raw — no surrounding quotes.** `lib/ai/gemini-provider.ts` strips wrapping quotes from `GOOGLE_GENERATIVE_AI_API_KEY`. The UploadThing SDK reads `UPLOADTHING_TOKEN` verbatim (a stray quote breaks uploads). Paste these as the bare value.
-- **Production owner bootstrap is `APP_OWNER_USER_ID` only.** Neon Auth `role=admin` / `APP_ADMIN_EMAILS` do not admit an account. The Playwright harness still bootstraps its admin cookie when `E2E_PLAYWRIGHT=1`.
-- **The Neon schema is applied manually** — run `db/schema.sql` in the Neon SQL editor once against the target database. There is no migration tooling or npm script for it. Existing databases may also need one-shot migrations: `db/migrate-outfit-wears.sql` (Outfit uniqueness), `db/migrate-wearer-profile.sql` (Wearer photo / try-on), `db/migrate-per-account.sql` (per Wearer `user_id` isolation), `db/migrate-outfit-wears-unique.sql` (full `UNIQUE (user_id, worn_on)` on `outfit_wears` after per-account), `db/migrate-byok-foundation.sql` / `db/migrate-byok-uploadthing.sql` (BYOK vault and private media), `db/migrate-admission-invites.sql` (owner invitations), and `db/migrate-garment-categories-location.sql` (outerwear / accessories + wearer home city). After per-account migration, optionally `UPDATE … SET user_id = '<neon-auth-user-id>'` to claim rows created before isolation.
+- **Production owner bootstrap is `APP_OWNER_USER_ID` only.** Better Auth identity does not admit an account; admission remains in `wearer_memberships`. The test-login endpoint creates only test-environment membership rows.
+- **The Neon schema is applied manually** — run `db/schema.sql` in the Neon SQL editor once against the target database. Existing databases must run `db/migrate-better-auth.sql` before this app version. Confirm the legacy `neon_auth.user` shape and identity mapping when the guarded migration reports that it could not copy users. Configure the Google OAuth callback as `/api/auth/callback/google`.
 - All Gemini access goes through `@ai-sdk/google`.
 
 <!-- BEGIN:nextjs-agent-rules -->
