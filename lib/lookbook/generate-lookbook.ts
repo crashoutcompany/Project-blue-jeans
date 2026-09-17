@@ -120,7 +120,15 @@ export async function generateLookbook(
   const weekEnd = addDaysIso(weekStart, 6);
   const committedOutfits = input.weekly
     ? []
-    : await loadOutfitsInRange(input.userId, weekStart, weekEnd).catch(() => []);
+    : await loadOutfitsInRange(input.userId, weekStart, weekEnd, {
+        onError: "throw",
+      }).catch(() => null);
+  if (committedOutfits === null) {
+    return {
+      ok: false,
+      message: "Could not load this week's Outfits. Try again.",
+    };
+  }
   const categoryById = categoryByIdFromCatalog(garments);
   const committedTopIds = new Set<string>();
   for (const outfit of committedOutfits) {
@@ -134,24 +142,23 @@ export async function generateLookbook(
   const avoided = new Set(
     (input.avoidedGarmentIds ?? []).filter((id) => categoryById.has(id)),
   );
-  const included = [...new Set((input.includedGarmentIds ?? []).filter(Boolean))];
-
-  const pairError = validateIncludeAvoidPair(included, [...avoided]);
+  const includedRaw = (input.includedGarmentIds ?? []).filter(Boolean);
+  const pairError = validateIncludeAvoidPair(includedRaw, [...avoided]);
   if (pairError) return { ok: false, message: pairError };
 
   garments = garments.filter((g) => {
     if (avoided.has(g.id)) return false;
-    if (committedTopIds.has(g.id) && !included.includes(g.id)) return false;
+    if (committedTopIds.has(g.id) && !includedRaw.includes(g.id)) return false;
     return true;
   });
 
-  if (included.length > 0) {
+  if (includedRaw.length > 0) {
     const includeError = validateMustWearIncludes(
-      included,
+      includedRaw,
       categoryByIdFromCatalog(garments),
     );
     if (includeError) return { ok: false, message: includeError };
-    for (const id of included) {
+    for (const id of includedRaw) {
       if (committedTopIds.has(id)) {
         return {
           ok: false,
@@ -161,6 +168,8 @@ export async function generateLookbook(
       }
     }
   }
+
+  const included = [...new Set(includedRaw)];
 
   if (!catalogCanFormLook(garments)) {
     return {

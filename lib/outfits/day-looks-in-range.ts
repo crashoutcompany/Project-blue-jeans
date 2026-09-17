@@ -85,7 +85,7 @@ export async function loadOutfitsInRange(
   userId: string,
   startIso: string,
   endIso: string,
-  options?: { order?: "asc" | "desc" },
+  options?: { order?: "asc" | "desc"; onError?: "empty" | "throw" },
 ): Promise<OutfitInRange[]> {
   const sql = getSql();
   if (!sql || !userId) return [];
@@ -142,6 +142,7 @@ export async function loadOutfitsInRange(
     return parseOutfitRows(rows);
   } catch (e) {
     console.error("[outfits] loadOutfitsInRange failed", e);
+    if (options?.onError === "throw") throw e;
     return [];
   }
 }

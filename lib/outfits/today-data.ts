@@ -156,7 +156,10 @@ export async function loadTodayPageData(
   const weatherLinePromise = locationPromise.then(async (stored) => {
     const place = resolveOutfitLocation(stored ?? undefined);
     try {
-      const snapshot = await fetchWeather({ location: place });
+      const snapshot = await fetchWeather(
+        { location: place },
+        { abortSignal: AbortSignal.timeout(5_000) },
+      );
       return formatTodayWeatherLine(place, snapshot.ok ? snapshot : null);
     } catch (e) {
       console.error("[today] weather failed", e);

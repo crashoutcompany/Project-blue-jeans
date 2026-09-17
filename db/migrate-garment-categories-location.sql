@@ -30,6 +30,22 @@ BEGIN
       AND column_name = 'category'
       AND udt_name IS DISTINCT FROM 'garment_category'
   ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM garments
+      WHERE category IS NULL
+         OR lower(category::text) NOT IN (
+           'tops',
+           'bottoms',
+           'shoes',
+           'outerwear',
+           'accessories'
+         )
+    ) THEN
+      RAISE EXCEPTION
+        'garments.category has NULL or unsupported values; map them before converting to garment_category';
+    END IF;
+
     ALTER TABLE garments
       ALTER COLUMN category TYPE garment_category
       USING (
@@ -39,7 +55,6 @@ BEGIN
           WHEN 'shoes' THEN 'shoes'::garment_category
           WHEN 'outerwear' THEN 'outerwear'::garment_category
           WHEN 'accessories' THEN 'accessories'::garment_category
-          ELSE 'tops'::garment_category
         END
       );
   END IF;

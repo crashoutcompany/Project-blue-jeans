@@ -345,4 +345,36 @@ describe("generateLookbook", () => {
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.message).toBe("Each look needs a bottom.");
   });
+
+  it("rejects duplicate Include ids before planning", async () => {
+    resolveGemini.mockResolvedValue({ ok: true, apiKey: "gemini-key" });
+    loadCatalog.mockResolvedValue(closet);
+
+    const res = await generateLookbook({
+      userId: "u1",
+      narrative: "Brunch",
+      skipHeroImage: true,
+      includedGarmentIds: [GID_A, GID_A],
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.message).toBe("Include the same piece only once.");
+    expect(step1).not.toHaveBeenCalled();
+  });
+
+  it("stops when this week's Outfits cannot be loaded", async () => {
+    resolveGemini.mockResolvedValue({ ok: true, apiKey: "gemini-key" });
+    loadCatalog.mockResolvedValue(closet);
+    outfitsInRange.mockRejectedValue(new Error("db down"));
+
+    const res = await generateLookbook({
+      userId: "u1",
+      narrative: "Brunch",
+      skipHeroImage: true,
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.message).toMatch(/this week's Outfits/i);
+    expect(step1).not.toHaveBeenCalled();
+  });
 });
