@@ -17,7 +17,7 @@ function visibleTestId(page: Page, testId: string): Locator {
 }
 
 test.describe("instant soft nav (admin)", () => {
-  test.use({ storageState: "tests/e2e/.auth/admin.json" });
+  test.use({ storageState: "e2e/.auth/admin.json" });
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/closet");
@@ -67,7 +67,7 @@ test.describe("instant initial load", () => {
   });
 
   test.describe("admin session", () => {
-    test.use({ storageState: "tests/e2e/.auth/admin.json" });
+    test.use({ storageState: "e2e/.auth/admin.json" });
 
     test("closet shell is served", async ({ page }) => {
       const url = `${BASE}/closet`;
@@ -101,7 +101,7 @@ test.describe("instant initial load", () => {
   });
 
   test.describe("signed-in session without admission", () => {
-    test.use({ storageState: "tests/e2e/.auth/non-admin.json" });
+    test.use({ storageState: "e2e/.auth/non-admin.json" });
 
     test("not-admitted shell is served", async ({ page }) => {
       const url = `${BASE}/auth/not-admitted`;

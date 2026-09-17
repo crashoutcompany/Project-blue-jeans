@@ -12,6 +12,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  BETTER_AUTH_SECRET: test-better-auth-secret-at-least-32-characters
+
 jobs:
   lint:
     runs-on: ubuntu-latest

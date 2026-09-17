@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("generator (admin)", () => {
-  test.use({ storageState: "tests/e2e/.auth/admin.json" });
+  test.use({ storageState: "e2e/.auth/admin.json" });
 
   test("opens Change look sheet from /generator", async ({ page }) => {
     await page.goto("/generator");

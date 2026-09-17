@@ -16,7 +16,7 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
-/tests/e2e/.auth/
+/e2e/.auth/
 
 # next.js
 /.next/
@@ -47,3 +47,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Cloud Agent local Neon proxy
+.cursor/dev/certs/
+.cursor/dev/node_modules/

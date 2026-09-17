@@ -18,7 +18,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "build:e2e": "EXPOSE_TESTING_API=1 next build",
-    "test:instant": "playwright test tests/e2e/instant-nav.spec.ts"
+    "test:instant": "playwright test e2e/instant-nav.spec.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.104",
