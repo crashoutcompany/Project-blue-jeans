@@ -1,85 +1,57 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
-const mergedMock = vi.fn((r: NextRequest) => r);
-
-vi.mock("@/lib/auth/neon-dev-request-cookies", () => ({
-  nextRequestWithMergedCookieHeader: (r: NextRequest) => mergedMock(r),
+const { getSession } = vi.hoisted(() => ({
+  getSession: vi.fn(),
 }));
 
-const neonMw = vi.fn(async (req: NextRequest) =>
-  NextResponse.next({ status: 418, request: { headers: req.headers } }),
-);
-
-vi.mock("@/lib/auth/server", () => ({
-  auth: {
-    middleware: vi.fn(() => neonMw),
-  },
+vi.mock("@/lib/auth", () => ({
+  auth: { api: { getSession } },
 }));
+
+import { proxy } from "@/proxy";
 
 describe("proxy", () => {
   beforeEach(() => {
-    vi.resetModules();
-    mergedMock.mockImplementation((r) => r);
-    neonMw.mockClear();
-    vi.unstubAllEnvs();
+    getSession.mockReset();
   });
 
-  it("runs auth middleware for / and passes its response through (non-redirect)", async () => {
-    // neonMw returns a non-redirect response → proxy forwards it as-is so the
-    // session-refresh Set-Cookie headers (written by middleware) reach the client.
-    const { proxy } = await import("@/proxy");
-    const req = new NextRequest("https://example.com/");
-    const res = await proxy(req);
-    expect(neonMw).toHaveBeenCalled();
-    expect(res.status).toBe(418); // sentinel: neonMw response forwarded
+  it.each(["/", "/privacy", "/terms", "/invite/token"])(
+    "does not load a session for public path %s",
+    async (path) => {
+      const response = await proxy(
+        new NextRequest(`https://example.com${path}`),
+      );
+      expect(response.status).toBe(200);
+      expect(getSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it("checks sign-in and redirects an existing session", async () => {
+    getSession.mockResolvedValue({ user: { id: "u1" } });
+    const request = new NextRequest("https://example.com/signin");
+    const response = await proxy(request);
+
+    expect(getSession).toHaveBeenCalledWith({ headers: request.headers });
+    expect(response.headers.get("location")).toBe("https://example.com/");
   });
 
-  it("runs auth middleware for / and falls through to 200 when middleware redirects (unauthenticated)", async () => {
-    // Simulate neonMw redirecting an unauthenticated user → proxy converts to
-    // NextResponse.next() so the public landing page stays accessible.
-    neonMw.mockResolvedValueOnce(NextResponse.redirect("https://example.com/auth/sign-in"));
-    const { proxy } = await import("@/proxy");
-    const req = new NextRequest("https://example.com/");
-    const res = await proxy(req);
-    expect(neonMw).toHaveBeenCalled();
-    expect(res.status).toBe(200);
+  it("redirects a guest from a gated path", async () => {
+    getSession.mockResolvedValue(null);
+    const request = new NextRequest("https://example.com/closet");
+    const response = await proxy(request);
+
+    expect(getSession).toHaveBeenCalledWith({ headers: request.headers });
+    expect(response.headers.get("location")).toBe(
+      "https://example.com/signin",
+    );
   });
 
-  it("runs auth middleware for invite links and passes its response through (non-redirect)", async () => {
-    const { proxy } = await import("@/proxy");
-    const req = new NextRequest("https://example.com/invite/abc");
-    const res = await proxy(req);
-    expect(neonMw).toHaveBeenCalled();
-    expect(res.status).toBe(418); // sentinel: neonMw response forwarded
+  it("allows a signed-in user through a gated path", async () => {
+    getSession.mockResolvedValue({ user: { id: "u1" } });
+    const response = await proxy(
+      new NextRequest("https://example.com/closet"),
+    );
+    expect(response.status).toBe(200);
   });
-
-  it("runs auth middleware for invite links and falls through to 200 when middleware redirects", async () => {
-    neonMw.mockResolvedValueOnce(NextResponse.redirect("https://example.com/auth/sign-in"));
-    const { proxy } = await import("@/proxy");
-    const req = new NextRequest("https://example.com/invite/abc");
-    const res = await proxy(req);
-    expect(neonMw).toHaveBeenCalled();
-    expect(res.status).toBe(200);
-  });
-
-  it("does not run Neon auth middleware for /api/* but merges cookies", async () => {
-    const { proxy } = await import("@/proxy");
-    const req = new NextRequest("https://example.com/api/foo");
-    const res = await proxy(req);
-    expect(neonMw).not.toHaveBeenCalled();
-    expect(mergedMock).toHaveBeenCalled();
-    expect(res.status).toBe(200);
-  });
-
-  it("runs Neon auth middleware for non-api routes", async () => {
-    const { proxy } = await import("@/proxy");
-    const req = new NextRequest("https://example.com/dashboard");
-    const res = await proxy(req);
-    expect(neonMw).toHaveBeenCalled();
-    expect(res.status).toBe(418);
-  });
-
-  // Note: 127.0.0.1 → localhost redirect uses NODE_ENV === "development";
-  // Vitest workers typically fix NODE_ENV to "test", so that branch is not exercised here.
 });

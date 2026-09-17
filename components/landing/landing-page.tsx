@@ -35,7 +35,7 @@ export function LandingPage() {
               </p>
               <div className="mt-8 flex flex-wrap gap-4">
                 <Link
-                  href="/auth/sign-in"
+                  href="/signin"
                   className="inline-flex h-12 items-center bg-[#f4f0e8] px-8 text-sm font-medium tracking-wide text-[#1a1814] transition-colors duration-200 hover:bg-white"
                 >
                   Get started
@@ -102,7 +102,7 @@ export function LandingPage() {
             Ready for today?
           </p>
           <Link
-            href="/auth/sign-in"
+            href="/signin"
             className="mt-8 inline-flex h-12 items-center bg-[#f4f0e8] px-8 text-sm font-medium tracking-wide text-[#1a1814] transition-colors duration-200 hover:bg-white"
           >
             Sign in

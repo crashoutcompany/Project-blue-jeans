@@ -12,7 +12,7 @@ Run these once in the Neon SQL editor, in order:
 2. `db/migrate-byok-uploadthing.sql`
 3. `db/migrate-admission-invites.sql`
 
-Seed the sole platform-funded owner with the stable Neon Auth user id:
+Seed the sole platform-funded owner with the stable Better Auth user id:
 
 ```sql
 INSERT INTO wearer_memberships (
@@ -22,7 +22,7 @@ INSERT INTO wearer_memberships (
   status
 )
 VALUES (
-  '<neon-auth-user-id>',
+  '<better-auth-user-id>',
   'owner',
   'platform_env',
   'active'
@@ -37,10 +37,10 @@ accept an owner invite from Settings.
 
 Set these Vercel environment variables only in production:
 
-- `APP_OWNER_USER_ID`: the same stable Neon Auth id as the owner membership.
-  Production owner bootstrap uses this exact id only. Neon Auth `role=admin`
+- `APP_OWNER_USER_ID`: the same stable Better Auth id as the owner membership.
+  Production owner bootstrap uses this exact id only. Auth provider identity
   and `APP_ADMIN_EMAILS` do not grant product admission. The Playwright
-  harness (`E2E_PLAYWRIGHT=1`) may still bootstrap its admin cookie.
+  test-login route may create an admitted Wearer only outside production.
 - `PROVIDER_CREDENTIAL_KEY_VERSION=1`
 - `PROVIDER_CREDENTIAL_KEY_V1`: a base64-encoded 32-byte key generated with
   `openssl rand -base64 32`

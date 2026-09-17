@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 
 import { assertAdmittedSession } from "@/lib/auth/admitted";
+import { AUTH_SIGN_IN_PATH } from "@/lib/auth/config";
 import { auth } from "@/lib/auth/server";
 import {
   acceptInviteToken,
@@ -21,13 +22,13 @@ export async function GET(request: Request) {
     return redirectClearingPendingInvite(request, "/");
   }
   if (gate.status === 401) {
-    return redirectTo(request, "/auth/sign-in");
+    return redirectTo(request, AUTH_SIGN_IN_PATH);
   }
   if (gate.status === 503) {
     return new Response(gate.message, { status: 503 });
   }
 
-  const { data } = await auth.getSession();
+  const { data } = await auth.getSession(request.headers);
   const user = data?.user;
   const token = await readPendingInviteCookie();
   const email = user ? sessionEmailOf(user) : null;

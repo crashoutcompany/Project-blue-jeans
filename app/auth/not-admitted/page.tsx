@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { assertAdmittedSession } from "@/lib/auth/admitted";
+import { AUTH_SIGN_IN_PATH } from "@/lib/auth/config";
 import { MembershipStoreUnavailableError } from "@/lib/auth/membership";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Invite required",
@@ -23,7 +22,7 @@ async function NotAdmittedGate() {
     redirect("/");
   }
   if (gate.status === 401) {
-    redirect("/auth/sign-in");
+    redirect(AUTH_SIGN_IN_PATH);
   }
   if (gate.status === 503) {
     throw new MembershipStoreUnavailableError(gate.message);
@@ -47,12 +46,7 @@ function NotAdmittedBody() {
           in with the invited email.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Link
-            href="/auth/sign-out"
-            className={cn(buttonVariants({ size: "lg" }), "rounded-full")}
-          >
-            Sign out
-          </Link>
+          <SignOutButton />
         </div>
       </div>
     </div>

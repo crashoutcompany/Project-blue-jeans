@@ -83,7 +83,7 @@ const deleteBodySchema = z.object({
 
 /**
  * Persists UploadThing-backed closet rows. Uses JSON instead of a server action
- * so saves still work when Neon Auth refreshes the session concurrently with
+ * so saves still work when auth refreshes the session concurrently with
  * UploadThing (which otherwise breaks `fetchServerAction`).
  */
 export async function POST(request: Request) {
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
 }
 
 /**
- * Update one closet garment. Same JSON rationale as POST — avoid Neon Auth
+ * Update one closet garment. Same JSON rationale as POST — avoid auth
  * races that break server-action `fetchServerAction`.
  */
 export async function PATCH(request: Request) {
@@ -162,7 +162,7 @@ export async function PATCH(request: Request) {
 
 /**
  * Remove one closet garment and its UploadThing file. Same JSON rationale as
- * POST/PATCH — avoid Neon Auth races that break server-action fetch.
+ * POST/PATCH — avoid auth races that break server-action fetch.
  */
 export async function DELETE(request: Request) {
   await connection();

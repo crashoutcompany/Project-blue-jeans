@@ -11,6 +11,7 @@ export async function getWearerUserId(): Promise<string | null> {
   await connection();
   noStore();
   const { data } = await auth.getSession();
-  const id = typeof data?.user?.id === "string" ? data.user.id.trim() : "";
+  const id =
+    typeof data?.user?.id === "string" ? data.user.id.trim() : "";
   return id || null;
 }

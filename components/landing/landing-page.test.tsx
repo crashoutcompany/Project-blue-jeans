@@ -18,10 +18,10 @@ describe("LandingPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Get started" }),
-    ).toHaveAttribute("href", "/auth/sign-in");
+    ).toHaveAttribute("href", "/signin");
     const signInLinks = screen.getAllByRole("link", { name: "Sign in" });
     expect(signInLinks.length).toBeGreaterThanOrEqual(1);
-    expect(signInLinks[0]).toHaveAttribute("href", "/auth/sign-in");
+    expect(signInLinks[0]).toHaveAttribute("href", "/signin");
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute(
       "href",
       "/privacy",

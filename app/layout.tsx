@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Geist_Mono, Manrope, Noto_Serif } from "next/font/google";
 
-import { NeonAuthProvider } from "@/components/auth/neon-auth-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -40,13 +39,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
-        <NeonAuthProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <Suspense fallback={<div className="min-h-svh bg-background" />}>
-              <TooltipProvider>{children}</TooltipProvider>
-            </Suspense>
-          </ThemeProvider>
-        </NeonAuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <Suspense fallback={<div className="min-h-svh bg-background" />}>
+            <TooltipProvider>{children}</TooltipProvider>
+          </Suspense>
+        </ThemeProvider>
       </body>
     </html>
   );

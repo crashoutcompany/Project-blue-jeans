@@ -196,11 +196,11 @@ describe("pending invite redirect cookies", () => {
   it("sets the pending invite on the redirect response", () => {
     const response = redirectWithPendingInvite(
       request,
-      "/auth/sign-in",
+      "/signin",
       "invite-token",
     );
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://jeans.test/auth/sign-in");
+    expect(response.headers.get("location")).toBe("https://jeans.test/signin");
     expect(response.cookies.get(PENDING_INVITE_COOKIE)?.value).toBe(
       "invite-token",
     );

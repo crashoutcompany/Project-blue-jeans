@@ -12,6 +12,7 @@ import {
   getMembershipPolicyForUser,
   requireAdmittedAccess,
 } from "@/lib/auth/admitted";
+import { AUTH_SIGN_IN_PATH } from "@/lib/auth/config";
 import { getWearerUserId } from "@/lib/auth/wearer";
 import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
 import { getUploadThingSettings } from "@/lib/credentials/uploadthing";
@@ -65,7 +66,7 @@ async function SettingsContent() {
   await requireAdmittedAccess();
   const userId = await getWearerUserId();
   if (!userId) {
-    redirect("/auth/sign-in");
+    redirect(AUTH_SIGN_IN_PATH);
   }
 
   const sessionPromise = auth.getSession();
