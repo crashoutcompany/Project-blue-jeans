@@ -119,7 +119,7 @@ test.describe("instant initial load", () => {
   });
 
   test("auth shell is served", async ({ page }) => {
-    const url = `${BASE}/auth/sign-in`;
+    const url = `${BASE}/signin`;
     await instant(
       page,
       async () => {
