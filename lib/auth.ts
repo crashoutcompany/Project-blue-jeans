@@ -37,10 +37,11 @@ export const auth = createAuth({
   previewOrigin: AUTH_PREVIEW_ORIGIN,
 });
 
-/** Real Better Auth session — E2E uses POST /api/test-auth/login, not a stub. */
+/** RSC-safe session read — never refreshes cookies (see proxy /auth routes). */
 export async function getSession(requestHeaders?: Headers) {
   return auth.api.getSession({
     headers: requestHeaders ?? (await headers()),
+    query: { disableRefresh: true },
   });
 }
 

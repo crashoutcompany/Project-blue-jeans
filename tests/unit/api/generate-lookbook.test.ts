@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server", () => ({
   auth: {
+    getAuthoritativeSession: vi.fn(),
     getSession: vi.fn(),
   },
 }));
@@ -20,7 +21,7 @@ import { getSql } from "@/lib/db";
 import { generateLookbook } from "@/lib/lookbook/generate-lookbook";
 import { POST } from "@/app/api/generate-lookbook/route";
 
-const getSession = vi.mocked(auth.getSession);
+const getSession = vi.mocked(auth.getAuthoritativeSession);
 const getSqlMock = vi.mocked(getSql);
 const generateLookbookMock = vi.mocked(generateLookbook);
 

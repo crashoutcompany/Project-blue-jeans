@@ -6,7 +6,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/auth/server", () => ({
-  auth: { getSession: vi.fn() },
+  auth: { getAuthoritativeSession: vi.fn(), getSession: vi.fn() },
 }));
 
 import { redirect } from "next/navigation";
@@ -21,7 +21,7 @@ import { auth } from "@/lib/auth/server";
 import { getSql } from "@/lib/db";
 
 const getSqlMock = vi.mocked(getSql);
-const getSession = vi.mocked(auth.getSession);
+const getSession = vi.mocked(auth.getAuthoritativeSession);
 
 function emptySql() {
   return vi.fn().mockResolvedValue([]) as never;

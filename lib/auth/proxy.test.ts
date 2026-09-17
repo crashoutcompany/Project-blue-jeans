@@ -3,9 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createAuthProxy, resolvePathAccess } from "./proxy";
 
-function request(pathname: string) {
+function request(pathname: string, cookie?: string) {
   return new NextRequest(`https://example.com${pathname}`, {
-    headers: { "x-request-id": "request-1" },
+    headers: {
+      "x-request-id": "request-1",
+      ...(cookie ? { cookie } : {}),
+    },
   });
 }
 
@@ -39,7 +42,7 @@ describe("resolvePathAccess", () => {
 });
 
 describe("createAuthProxy", () => {
-  it("does not fetch a session for ungated or public paths", async () => {
+  it("does not fetch a session for ungated or public paths without cookies", async () => {
     const getSession = vi.fn();
     const proxy = createAuthProxy({
       auth: { api: { getSession } },
@@ -54,8 +57,38 @@ describe("createAuthProxy", () => {
     expect(getSession).not.toHaveBeenCalled();
   });
 
+  it("refreshes session cookies on public paths when a session cookie exists", async () => {
+    const getSession = vi.fn().mockResolvedValue({
+      headers: new Headers({
+        "set-cookie": "better-auth.session_token=refreshed; Path=/; HttpOnly",
+      }),
+      response: { user: { id: "u1" } },
+    });
+    const proxy = createAuthProxy({
+      auth: { api: { getSession } },
+      publicPaths: ["/"],
+      rules: [{ path: "*", access: "session" }],
+      signInPath: "/signin",
+    });
+
+    const response = await proxy(
+      request("/", "better-auth.session_token=old"),
+    );
+
+    expect(getSession).toHaveBeenCalledWith({
+      headers: expect.any(Headers),
+      returnHeaders: true,
+    });
+    expect(response.cookies.get("better-auth.session_token")?.value).toBe(
+      "refreshed",
+    );
+  });
+
   it("passes request headers and redirects guests from gated paths", async () => {
-    const getSession = vi.fn().mockResolvedValue(null);
+    const getSession = vi.fn().mockResolvedValue({
+      headers: new Headers(),
+      response: null,
+    });
     const proxy = createAuthProxy({
       auth: { api: { getSession } },
       rules: [{ path: "*", access: "session" }],
@@ -65,12 +98,18 @@ describe("createAuthProxy", () => {
 
     const response = await proxy(incoming);
 
-    expect(getSession).toHaveBeenCalledWith({ headers: incoming.headers });
+    expect(getSession).toHaveBeenCalledWith({
+      headers: incoming.headers,
+      returnHeaders: true,
+    });
     expect(response.headers.get("location")).toBe("https://example.com/signin");
   });
 
   it("redirects signed-in users away from sign-in", async () => {
-    const getSession = vi.fn().mockResolvedValue({ user: {} });
+    const getSession = vi.fn().mockResolvedValue({
+      headers: new Headers(),
+      response: { user: {} },
+    });
     const proxy = createAuthProxy({
       auth: { api: { getSession } },
       publicPaths: ["/signin"],
@@ -88,7 +127,10 @@ describe("createAuthProxy", () => {
     const proxy = createAuthProxy({
       auth: {
         api: {
-          getSession: vi.fn().mockResolvedValue({ user: { role: "member" } }),
+          getSession: vi.fn().mockResolvedValue({
+            headers: new Headers(),
+            response: { user: { role: "member" } },
+          }),
         },
       },
       rules: [{ path: "/admin/*", access: "role:admin" }],
