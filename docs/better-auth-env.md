@@ -39,6 +39,8 @@ Trusted origins also include the production host and `https://*-crashoutcos-proj
 
 Without `NEON_API_KEY`, Actions e2e and the Neon preview-branch workflow cannot create branches — that is an ops/secrets gap, not an app code defect. Local Cloud Agent e2e can use `.cursor/dev/neon-local-proxy.mjs` instead.
 
+CI e2e (and preview Neon branches) also need the target database to have the full schema, including Better Auth tables (`db/migrate-better-auth.sql`) and app tables such as `wearer_preferences` (`db/migrate-garment-categories-location.sql` / `db/schema.sql`). Missing relations surface as runtime SQL errors during Playwright, not as install failures.
+
 ## Owner bootstrap
 
 `APP_OWNER_USER_ID` must match the Better Auth user id for the sole platform-funded owner. Neon Auth `role=admin` / `APP_ADMIN_EMAILS` do **not** admit accounts.
