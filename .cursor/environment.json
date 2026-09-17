@@ -4,7 +4,7 @@
   "terminals": [
     {
       "name": "next-dev",
-      "command": ": \"${NEON_AUTH_BASE_URL:=https://example.invalid}\"; : \"${NEON_AUTH_COOKIE_SECRET:=01234567890123456789012345678901}\"; export NEON_AUTH_BASE_URL NEON_AUTH_COOKIE_SECRET; npm run dev"
+      "command": "npm run dev"
     }
   ]
 }

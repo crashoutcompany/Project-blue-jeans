@@ -75,8 +75,7 @@ export function isPlatformFundedOwner(
 /**
  * Only the active owner may charge `GOOGLE_GENERATIVE_AI_API_KEY` /
  * `UPLOADTHING_TOKEN`. The membership must belong to `userId`. When
- * `APP_OWNER_USER_ID` is set in production it must match; Playwright
- * (`E2E_PLAYWRIGHT=1`) may still bootstrap its harness owner.
+ * `APP_OWNER_USER_ID` is set it must match.
  */
 export function membershipAllowsPlatformCredentials(
   membership: MembershipPolicy | null | undefined,
@@ -88,7 +87,7 @@ export function membershipAllowsPlatformCredentials(
   }
 
   const configuredOwner = ownerBootstrapUserId();
-  if (configuredOwner && process.env.E2E_PLAYWRIGHT !== "1") {
+  if (configuredOwner) {
     return configuredOwner === userId;
   }
   return true;

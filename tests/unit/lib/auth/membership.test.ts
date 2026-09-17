@@ -201,11 +201,9 @@ describe("membershipFromRow", () => {
 
 describe("membershipAllowsPlatformCredentials", () => {
   const originalOwnerId = process.env.APP_OWNER_USER_ID;
-  const originalE2e = process.env.E2E_PLAYWRIGHT;
 
   beforeEach(() => {
     delete process.env.APP_OWNER_USER_ID;
-    delete process.env.E2E_PLAYWRIGHT;
   });
 
   afterEach(() => {
@@ -213,11 +211,6 @@ describe("membershipAllowsPlatformCredentials", () => {
       delete process.env.APP_OWNER_USER_ID;
     } else {
       process.env.APP_OWNER_USER_ID = originalOwnerId;
-    }
-    if (originalE2e === undefined) {
-      delete process.env.E2E_PLAYWRIGHT;
-    } else {
-      process.env.E2E_PLAYWRIGHT = originalE2e;
     }
   });
 
@@ -257,14 +250,13 @@ describe("membershipAllowsPlatformCredentials", () => {
     ).toBe(false);
   });
 
-  it("lets the Playwright harness owner use platform keys", () => {
+  it("does not let a test wearer use platform keys", () => {
     process.env.APP_OWNER_USER_ID = "owner-1";
-    process.env.E2E_PLAYWRIGHT = "1";
     expect(
       membershipAllowsPlatformCredentials(
         { ...owner, userId: "e2e-admin" },
         "e2e-admin",
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

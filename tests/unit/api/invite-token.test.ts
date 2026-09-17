@@ -48,7 +48,7 @@ describe("GET /invite/[token]", () => {
     });
 
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("https://jeans.test/auth/sign-in");
+    expect(res.headers.get("location")).toBe("https://jeans.test/signin");
     expect(res.cookies.get(PENDING_INVITE_COOKIE)?.value).toBe("tok-1");
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     expect(res.headers.get("cache-control")).toBe("no-store");

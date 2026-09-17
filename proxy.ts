@@ -1,84 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { nextRequestWithMergedCookieHeader } from "@/lib/auth/neon-dev-request-cookies";
-import { auth } from "@/lib/auth/server";
+import { auth } from "@/lib/auth";
+import { AUTH_SIGN_IN_PATH } from "@/lib/auth/config";
 
-/**
- * Neon Auth middleware — see:
- * https://neon.com/docs/auth/reference/nextjs-server#authmiddleware
- *
- * Next.js 16 uses `proxy.ts` + named export `proxy`.
- */
-const neonAuthMiddleware = auth.middleware({
-  loginUrl: "/auth/sign-in",
-});
+const PUBLIC_PATHS = new Set([
+  "/",
+  AUTH_SIGN_IN_PATH,
+  "/auth/sign-in",
+  "/auth/sign-out",
+  "/auth/not-admitted",
+  "/auth/not-admin",
+  "/auth/accept-invite",
+  "/privacy",
+  "/terms",
+]);
 
-function redirectToLocalhostInDev(request: NextRequest): NextResponse | null {
-  // Playwright targets 127.0.0.1; keep that host when the E2E auth stub is active.
-  if (process.env.E2E_PLAYWRIGHT === "1") return null;
-  if (process.env.NODE_ENV !== "development") return null;
-  const host = request.headers.get("host") ?? "";
-  const lower = host.toLowerCase();
-  const isLoopbackIp =
-    lower.startsWith("127.0.0.1:") ||
-    lower === "127.0.0.1" ||
-    lower.startsWith("[::1]:") ||
-    lower === "[::1]";
-  if (!isLoopbackIp) return null;
-  const url = request.nextUrl.clone();
-  url.hostname = "localhost";
-  return NextResponse.redirect(url);
+function isPublicPath(pathname: string) {
+  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/invite/");
+}
+
+function e2eRole(request: NextRequest): "anon" | "admin" | "non-admin" | null {
+  if (process.env.E2E_PLAYWRIGHT !== "1") return null;
+  const role = request.cookies.get("e2e-role")?.value;
+  if (role === "admin" || role === "non-admin" || role === "anon") return role;
+  return "anon";
+}
+
+async function loadSession(request: NextRequest) {
+  const role = e2eRole(request);
+  if (role !== null) {
+    if (role === "anon") return null;
+    return { user: { id: role === "admin" ? "e2e-admin" : "e2e-non-admin" } };
+  }
+
+  try {
+    return await auth.api.getSession({ headers: request.headers });
+  } catch {
+    return null;
+  }
 }
 
 export async function proxy(request: NextRequest) {
-  const devLocalhostRedirect = redirectToLocalhostInDev(request);
-  if (devLocalhostRedirect) return devLocalhostRedirect;
-
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/" || pathname.startsWith("/invite/")) {
-    /**
-     * The landing page is publicly accessible (no auth required), but we still
-     * need to let Neon Auth middleware run so it can refresh the session cookie
-     * for signed-in visitors. If the middleware would redirect an unauthenticated
-     * user to /auth/sign-in, we convert that to a pass-through instead — the page
-     * itself renders the landing shell for signed-out users.
-     *
-     * Without this, auth.getSession() inside the RSC (HomeContent) attempts to
-     * write the refreshed Set-Cookie header during render, which Next.js forbids
-     * ("Cookies can only be modified in a Server Action or Route Handler").
-     */
-    const mergedReq = nextRequestWithMergedCookieHeader(request);
-    const authResponse = await neonAuthMiddleware(mergedReq);
-    // If Neon would redirect (unauthenticated user → /auth/sign-in), let the
-    // page through anyway — the RSC handles the signed-out landing render.
-    if (authResponse.status >= 300 && authResponse.status < 400) {
-      return NextResponse.next();
-    }
-    return authResponse;
+  if (pathname === AUTH_SIGN_IN_PATH || pathname === "/auth/sign-in") {
+    const session = await loadSession(request);
+    return session
+      ? NextResponse.redirect(new URL("/", request.url))
+      : NextResponse.next();
   }
 
-  /**
-   * Route handlers under `/api/*` must receive the request directly. If Neon
-   * `auth.middleware()` redirects unauthenticated users to `/auth/sign-in`, the
-   * browser's `fetch()` follows that redirect and ends up with **200 HTML** —
-   * JSON.parse then fails with "Unrecognized token '<'".
-   *
-   * APIs enforce auth themselves (e.g. 401 JSON from `/api/generate-lookbook`).
-   */
-  if (pathname.startsWith("/api/")) {
-    const merged = nextRequestWithMergedCookieHeader(request);
-    return NextResponse.next({
-      request: { headers: merged.headers },
-    });
+  if (isPublicPath(pathname)) return NextResponse.next();
+
+  const session = await loadSession(request);
+  if (!session) {
+    return NextResponse.redirect(new URL(AUTH_SIGN_IN_PATH, request.url));
   }
 
-  const mergedReq = nextRequestWithMergedCookieHeader(request);
-  return neonAuthMiddleware(mergedReq);
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api(?:/|$)|_next(?:/|$)|favicon\\.ico$|.*\\.(?:avif|gif|ico|jpe?g|png|svg|webp)$).*)",
   ],
 };

@@ -29,12 +29,10 @@ function emptySql() {
 
 describe("getMembershipPolicyForUser", () => {
   const originalOwnerId = process.env.APP_OWNER_USER_ID;
-  const originalE2e = process.env.E2E_PLAYWRIGHT;
 
   beforeEach(() => {
     getSqlMock.mockReset();
     delete process.env.APP_OWNER_USER_ID;
-    delete process.env.E2E_PLAYWRIGHT;
   });
 
   afterEach(() => {
@@ -42,11 +40,6 @@ describe("getMembershipPolicyForUser", () => {
       delete process.env.APP_OWNER_USER_ID;
     } else {
       process.env.APP_OWNER_USER_ID = originalOwnerId;
-    }
-    if (originalE2e === undefined) {
-      delete process.env.E2E_PLAYWRIGHT;
-    } else {
-      process.env.E2E_PLAYWRIGHT = originalE2e;
     }
   });
 
@@ -74,21 +67,6 @@ describe("getMembershipPolicyForUser", () => {
     await expect(
       getMembershipPolicyForUser({ id: "admin-1", role: "admin" }),
     ).resolves.toBeNull();
-  });
-
-  it("lets the Playwright admin cookie bootstrap while E2E_PLAYWRIGHT=1", async () => {
-    process.env.E2E_PLAYWRIGHT = "1";
-    getSqlMock.mockReturnValue(emptySql());
-
-    await expect(
-      getMembershipPolicyForUser({ id: "e2e-admin", role: "admin" }),
-    ).resolves.toEqual({
-      userId: "e2e-admin",
-      accessRole: "owner",
-      credentialSource: "platform_env",
-      status: "active",
-      persisted: false,
-    });
   });
 
   it("does not admit a non-admin without a membership row", async () => {
@@ -125,14 +103,12 @@ describe("getMembershipPolicyForUser", () => {
 
 describe("assertAdmittedForServerAction", () => {
   const originalOwnerId = process.env.APP_OWNER_USER_ID;
-  const originalE2e = process.env.E2E_PLAYWRIGHT;
 
   beforeEach(() => {
     getSession.mockReset();
     getSqlMock.mockReset();
     getSqlMock.mockReturnValue(undefined);
     delete process.env.APP_OWNER_USER_ID;
-    delete process.env.E2E_PLAYWRIGHT;
   });
 
   afterEach(() => {
@@ -140,11 +116,6 @@ describe("assertAdmittedForServerAction", () => {
       delete process.env.APP_OWNER_USER_ID;
     } else {
       process.env.APP_OWNER_USER_ID = originalOwnerId;
-    }
-    if (originalE2e === undefined) {
-      delete process.env.E2E_PLAYWRIGHT;
-    } else {
-      process.env.E2E_PLAYWRIGHT = originalE2e;
     }
   });
 
@@ -208,7 +179,6 @@ describe("assertAdmittedForServerAction", () => {
 
 describe("requireAdmittedAccess", () => {
   const originalOwnerId = process.env.APP_OWNER_USER_ID;
-  const originalE2e = process.env.E2E_PLAYWRIGHT;
 
   beforeEach(() => {
     getSession.mockReset();
@@ -216,7 +186,6 @@ describe("requireAdmittedAccess", () => {
     getSqlMock.mockReturnValue(undefined);
     vi.mocked(redirect).mockClear();
     delete process.env.APP_OWNER_USER_ID;
-    delete process.env.E2E_PLAYWRIGHT;
   });
 
   afterEach(() => {
@@ -225,17 +194,12 @@ describe("requireAdmittedAccess", () => {
     } else {
       process.env.APP_OWNER_USER_ID = originalOwnerId;
     }
-    if (originalE2e === undefined) {
-      delete process.env.E2E_PLAYWRIGHT;
-    } else {
-      process.env.E2E_PLAYWRIGHT = originalE2e;
-    }
   });
 
   it("redirects to sign-in when no user", async () => {
     getSession.mockResolvedValue({ data: null });
     await expect(requireAdmittedAccess()).rejects.toThrowError(
-      /REDIRECT:\/auth\/sign-in/,
+      /REDIRECT:\/signin/,
     );
   });
 

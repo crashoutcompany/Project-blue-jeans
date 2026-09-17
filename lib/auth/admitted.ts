@@ -4,7 +4,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 
-import { isAdminUser } from "@/lib/auth/admin";
+import { AUTH_SIGN_IN_PATH } from "@/lib/auth/config";
 import { auth } from "@/lib/auth/server";
 import {
   getMembershipPolicy,
@@ -19,16 +19,14 @@ export type AdmittedSession =
   | { ok: false; status: 401 | 403 | 503; message: string };
 
 function canBootstrapOwnerFromSession(user: object, userId: string): boolean {
-  if (ownerBootstrapUserId() === userId) {
-    return true;
-  }
-  return process.env.E2E_PLAYWRIGHT === "1" && isAdminUser(user);
+  void user;
+  return ownerBootstrapUserId() === userId;
 }
 
 /**
- * Session-aware lookup: production bootstraps only the configured
- * `APP_OWNER_USER_ID`. Playwright's admin cookie may bootstrap while
- * `E2E_PLAYWRIGHT=1`.
+ * Session-aware lookup: only the configured `APP_OWNER_USER_ID` may bootstrap
+ * an owner. Test users are admitted through a real, test-environment-only
+ * membership row.
  */
 export async function getMembershipPolicyForUser(
   user: object,
@@ -114,7 +112,7 @@ export async function requireAdmittedAccess(): Promise<void> {
   const gate = await assertAdmittedSession();
   if (gate.ok) return;
   if (gate.status === 401) {
-    redirect("/auth/sign-in");
+    redirect(AUTH_SIGN_IN_PATH);
   }
   if (gate.status === 503) {
     throw new MembershipStoreUnavailableError(gate.message);
