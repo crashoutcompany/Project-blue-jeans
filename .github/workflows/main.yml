@@ -104,7 +104,7 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
-      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET != '' && secrets.BETTER_AUTH_SECRET || 'test-better-auth-secret-at-least-32-characters' }}
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
       NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}
       NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -162,26 +162,8 @@ jobs:
           node-version: "24"
           cache: pnpm
 
-      - name: Resolve E2E database strategy
-        if: env.HAS_E2E == 'true'
-        id: dbplan
-        env:
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
-          FALLBACK_DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          if [ -n "$NEON_API_KEY" ] && [ -n "$NEON_PROJECT_ID" ]; then
-            echo "mode=neon" >> "$GITHUB_OUTPUT"
-          elif [ -n "$FALLBACK_DATABASE_URL" ]; then
-            echo "::warning::NEON_API_KEY/NEON_PROJECT_ID missing — falling back to secrets.DATABASE_URL for e2e. Configure Neon branch create for isolated CI DBs. See docs/better-auth-env.md."
-            echo "mode=fallback" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::E2E needs either NEON_API_KEY + vars.NEON_PROJECT_ID (preferred) or secrets.DATABASE_URL. Ops/secrets gap — see docs/better-auth-env.md."
-            exit 1
-          fi
-
       - name: Resolve Neon branch
-        if: env.HAS_E2E == 'true' && steps.dbplan.outputs.mode == 'neon'
+        if: env.HAS_E2E == 'true'
         id: neon
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -199,7 +181,7 @@ jobs:
           fi
 
       - name: Create or reuse Neon branch
-        if: env.HAS_E2E == 'true' && steps.dbplan.outputs.mode == 'neon'
+        if: env.HAS_E2E == 'true'
         id: database
         uses: neondatabase/create-branch-action@v6
         with:
@@ -213,8 +195,8 @@ jobs:
       - name: Install dependencies
         if: env.HAS_E2E == 'true'
         env:
-          DATABASE_URL: ${{ steps.dbplan.outputs.mode == 'neon' && steps.database.outputs.db_url_pooled || secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ steps.dbplan.outputs.mode == 'neon' && steps.database.outputs.db_url || secrets.DIRECT_URL || secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ steps.database.outputs.db_url_pooled }}
+          DIRECT_URL: ${{ steps.database.outputs.db_url }}
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
@@ -224,13 +206,13 @@ jobs:
       - name: Run authenticated E2E
         if: env.HAS_E2E == 'true'
         env:
-          DATABASE_URL: ${{ steps.dbplan.outputs.mode == 'neon' && steps.database.outputs.db_url_pooled || secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ steps.dbplan.outputs.mode == 'neon' && steps.database.outputs.db_url || secrets.DIRECT_URL || secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ steps.database.outputs.db_url_pooled }}
+          DIRECT_URL: ${{ steps.database.outputs.db_url }}
           EXPOSE_TESTING_API: "1"
         run: pnpm test:e2e
 
       - name: Delete ephemeral Neon branch
-        if: always() && env.HAS_E2E == 'true' && steps.dbplan.outputs.mode == 'neon' && steps.neon.outputs.ephemeral == 'true' && steps.database.outcome == 'success'
+        if: always() && env.HAS_E2E == 'true' && steps.neon.outputs.ephemeral == 'true' && steps.database.outcome == 'success'
         uses: neondatabase/delete-branch-action@v3
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
