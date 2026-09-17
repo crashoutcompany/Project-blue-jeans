@@ -1,51 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
-
 import { auth } from "@/lib/auth";
 import { AUTH_SIGN_IN_PATH } from "@/lib/auth/config";
+import { createAuthProxy } from "@/lib/auth/proxy";
 
-const PUBLIC_PATHS = new Set([
-  "/",
-  AUTH_SIGN_IN_PATH,
-  "/auth/sign-in",
-  "/auth/sign-out",
-  "/auth/not-admitted",
-  "/auth/not-admin",
-  "/auth/accept-invite",
-  "/privacy",
-  "/terms",
-]);
+const authProxy = createAuthProxy({
+  auth,
+  publicPaths: [
+    "/",
+    AUTH_SIGN_IN_PATH,
+    "/auth/sign-in",
+    "/auth/sign-out",
+    "/auth/not-admitted",
+    "/auth/not-admin",
+    "/auth/accept-invite",
+    "/privacy",
+    "/terms",
+    "/invite/*",
+  ],
+  rules: [{ path: "*", access: "session" }],
+  signInPath: AUTH_SIGN_IN_PATH,
+});
 
-function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/invite/");
-}
-
-async function loadSession(request: NextRequest) {
-  try {
-    return await auth.api.getSession({ headers: request.headers });
-  } catch {
-    return null;
-  }
-}
-
-export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  if (pathname === AUTH_SIGN_IN_PATH || pathname === "/auth/sign-in") {
-    const session = await loadSession(request);
-    return session
-      ? NextResponse.redirect(new URL("/", request.url))
-      : NextResponse.next();
-  }
-
-  if (isPublicPath(pathname)) return NextResponse.next();
-
-  const session = await loadSession(request);
-  if (!session) {
-    return NextResponse.redirect(new URL(AUTH_SIGN_IN_PATH, request.url));
-  }
-
-  return NextResponse.next();
-}
+export default authProxy;
+export { authProxy as proxy };
 
 export const config = {
   matcher: [

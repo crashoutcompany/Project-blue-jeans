@@ -13,6 +13,11 @@ export default defineConfig({
   resolve,
   test: {
     globals: true,
+    env: {
+      BETTER_AUTH_SECRET:
+        process.env.BETTER_AUTH_SECRET ??
+        "test-better-auth-secret-at-least-32-characters",
+    },
     exclude: [
       "**/node_modules/**",
       "**/.next/**",
@@ -27,7 +32,7 @@ export default defineConfig({
           name: "node",
           environment: "node",
           setupFiles: ["./vitest.setup.node.ts"],
-          include: ["tests/unit/**/*.test.ts"],
+          include: ["tests/unit/**/*.test.ts", "lib/**/*.test.ts"],
         },
       },
       {
