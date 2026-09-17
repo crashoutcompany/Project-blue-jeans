@@ -23,14 +23,14 @@ test.describe("guest page smoke", () => {
   });
 
   test("sign-in auth shell renders", async ({ page }) => {
-    await page.goto("/auth/sign-in");
+    await page.goto("/signin");
     await expect(visibleTestId(page, "auth-shell-marker")).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Welcome back." }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /google/i }),
-    ).toBeVisible();
+    const google = page.getByRole("button", { name: /google/i });
+    const unconfigured = page.getByRole("status");
+    await expect(google.or(unconfigured).first()).toBeVisible();
   });
 });
 

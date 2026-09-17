@@ -29,6 +29,10 @@ export default defineConfig({
       PORT: "3000",
       HOSTNAME: "127.0.0.1",
       EXPOSE_TESTING_API: process.env.EXPOSE_TESTING_API ?? "1",
+      BETTER_AUTH_SECRET:
+        process.env.BETTER_AUTH_SECRET ??
+        "test-better-auth-secret-at-least-32-characters",
+      APP_OWNER_USER_ID: process.env.APP_OWNER_USER_ID ?? "e2e-admin",
       NEON_AUTH_BASE_URL:
         process.env.NEON_AUTH_BASE_URL ?? "https://example.invalid",
       NEON_AUTH_COOKIE_SECRET:
