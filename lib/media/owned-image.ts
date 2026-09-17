@@ -3,6 +3,7 @@ import "server-only";
 import type { MembershipPolicy } from "@/lib/auth/membership";
 import { fetchUrlAsImagePart } from "@/lib/ai/fetch-image-part";
 import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
+import { decodeUploadThingAppId } from "@/lib/credentials/validate-uploadthing";
 import { getOwnedMediaAsset } from "@/lib/media/assets";
 import {
   parseMediaAssetIdFromPath,
@@ -57,6 +58,7 @@ export async function resolveOwnedImageFetchUrl(
       membership,
     );
     if (!resolved.ok) return null;
+    if (!decodeUploadThingAppId(resolved.token)) return null;
     return publicUploadThingFileUrl(resolved.token, asset.providerFileKey);
   }
 
