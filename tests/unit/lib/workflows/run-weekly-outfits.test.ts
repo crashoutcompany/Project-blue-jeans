@@ -21,6 +21,10 @@ vi.mock("@/lib/wearer/profile", () => ({
   getWearerPhoto: vi.fn(),
 }));
 
+vi.mock("@/lib/wearer/preferences", () => ({
+  getWearerLocation: vi.fn(),
+}));
+
 vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
@@ -54,6 +58,7 @@ import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
 import { findExistingOutfitHeroUrls } from "@/lib/outfits/existing-outfit-heroes";
 import { garmentSetKey } from "@/lib/outfits/garment-set-key";
 import { getWearerPhoto } from "@/lib/wearer/profile";
+import { getWearerLocation } from "@/lib/wearer/preferences";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
 
 const resolveGemini = vi.mocked(resolveGeminiApiKey);
@@ -62,6 +67,7 @@ const loadByIds = vi.mocked(loadGarmentsByIds);
 const step1 = vi.mocked(runStep1PlanWithRetry);
 const hero = vi.mocked(runHeroImageStep);
 const wearerPhoto = vi.mocked(getWearerPhoto);
+const wearerLocation = vi.mocked(getWearerLocation);
 const requireSqlMock = vi.mocked(requireSql);
 const loadOutfits = vi.mocked(loadOutfitsInRange);
 const existingHeroes = vi.mocked(findExistingOutfitHeroUrls);
@@ -167,6 +173,7 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     step1.mockReset();
     hero.mockReset();
     wearerPhoto.mockReset();
+    wearerLocation.mockReset();
     requireSqlMock.mockReset();
     loadOutfits.mockReset();
     existingHeroes.mockReset();
@@ -175,6 +182,7 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     loadCatalog.mockResolvedValue(closet);
     loadOutfits.mockResolvedValue([]);
     wearerPhoto.mockResolvedValue(null);
+    wearerLocation.mockResolvedValue(null);
     hero.mockResolvedValue("https://cdn.example.com/hero.jpg");
     loadByIds.mockImplementation(async (_userId, ids) =>
       ids.map((id) => {
@@ -442,5 +450,56 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     const urls = heroUpdates.map((c) => c.values[0]);
     expect(urls).toContain(savedUrl);
     expect(urls).toContain("https://cdn.example.com/hero.jpg");
+  });
+
+  it("does not persist if the first remaining day is not a valid stack", async () => {
+    const calls: SqlCall[] = [];
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    step1.mockResolvedValue({
+      looks: [
+        {
+          title: "Friday commute",
+          description: "d",
+          tags: ["day"],
+          garmentIds: [TOP_A],
+        },
+      ],
+      curatorNote: "",
+    });
+
+    const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toBe("Each look needs a bottom.");
+    expect(
+      calls.some((c) => c.text.includes("INSERT INTO weekly_outfit_plans")),
+    ).toBe(false);
+  });
+
+  it("keeps planned days when remaining days cannot form a look", async () => {
+    const calls: SqlCall[] = [];
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    loadCatalog.mockResolvedValue(closet.filter((g) => g.id !== TOP_B));
+    step1.mockResolvedValue({
+      looks: [
+        {
+          title: "Friday commute",
+          description: "d",
+          tags: ["day"],
+          garmentIds: [TOP_A, BOTTOM_A, SHOE_A],
+        },
+      ],
+      curatorNote: "",
+    });
+
+    const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
+
+    expect(res.ok).toBe(true);
+    expect(step1).toHaveBeenCalledTimes(1);
+    const lookInserts = calls.filter((c) =>
+      c.text.includes("INSERT INTO weekly_plan_looks"),
+    );
+    expect(lookInserts).toHaveLength(1);
+    expect(lookInserts[0]?.values[1]).toBe(5);
   });
 });

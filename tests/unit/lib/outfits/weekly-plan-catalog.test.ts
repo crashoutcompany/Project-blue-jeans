@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CatalogGarment } from "@/lib/ai/lookbook/catalog";
 import {
   availableGarments,
-  lockLookGarments,
+  lockLookTops,
   todaySortOrder,
   weeklyDaysToPlan,
 } from "@/lib/outfits/weekly-plan-catalog";
@@ -52,11 +52,7 @@ describe("weeklyDaysToPlan", () => {
 
 describe("availableGarments", () => {
   it("keeps used bottoms and shoes available", () => {
-    const available = availableGarments(
-      closet,
-      new Set([BOTTOM_A]),
-      new Set([BOTTOM_B, SHOE_A]),
-    );
+    const available = availableGarments(closet, new Set());
 
     expect(available.map((g) => g.id)).toEqual([
       TOP_A,
@@ -69,20 +65,20 @@ describe("availableGarments", () => {
 
   it("never reuses a top", () => {
     const unique = new Set<string>();
-    lockLookGarments([TOP_A, BOTTOM_A, SHOE_A], new Set(), unique);
+    lockLookTops(
+      [TOP_A, BOTTOM_A, SHOE_A],
+      new Map(closet.map((g) => [g.id, g.category])),
+      unique,
+    );
 
-    const available = availableGarments(closet, new Set(), unique);
+    const available = availableGarments(closet, unique);
     expect(available.map((g) => g.id).sort()).toEqual(
       [TOP_B, BOTTOM_A, BOTTOM_B, SHOE_A].sort(),
     );
   });
 
   it("keeps bottoms and shoes available when a committed Outfit used them", () => {
-    const available = availableGarments(
-      closet,
-      new Set([TOP_A, BOTTOM_A, SHOE_A]),
-      new Set(),
-    );
+    const available = availableGarments(closet, new Set([TOP_A]));
 
     expect(available.map((g) => g.id).sort()).toEqual(
       [TOP_B, BOTTOM_A, BOTTOM_B, SHOE_A].sort(),

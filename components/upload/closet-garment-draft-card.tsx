@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 export type GarmentUploadDraft = ClosetPendingLocalImage & {
   displayName: string;
   category: GarmentCategoryDb;
+  categoryTouched: boolean;
   color: string;
   notes: string;
   description: string;
@@ -32,6 +33,7 @@ export function garmentDraftFromLocalPick(
     ...item,
     displayName,
     category: "tops",
+    categoryTouched: false,
     color: "",
     notes: "",
     description: "",
@@ -108,7 +110,9 @@ export function ClosetGarmentDraftCard({
                       size="sm"
                       variant={active ? "default" : "secondary"}
                       disabled={disabled}
-                      onClick={() => onChange({ category: cat })}
+                      onClick={() =>
+                        onChange({ category: cat, categoryTouched: true })
+                      }
                       className={cn(
                         "rounded-full px-3 text-[0.65rem] font-semibold uppercase tracking-[0.12em]",
                         active &&
