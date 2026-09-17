@@ -26,6 +26,7 @@ import {
   garmentDraftFromLocalPick,
   type GarmentUploadDraft,
 } from "@/components/upload/closet-garment-draft-card";
+import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import { useUploadThing } from "@/lib/uploadthing";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 import type { ClothingCardData } from "@/lib/garments/types";
@@ -52,6 +53,9 @@ import { formatProductWornOn } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 
 type ClosetMode = "pieces" | "outfits";
+
+/** Match persist-time Gemini describe concurrency so a large paste does not burst. */
+const SUGGEST_CATEGORY_CONCURRENCY = 3;
 
 function optimisticGarmentFromDraft(
   draft: GarmentUploadDraft,
@@ -181,36 +185,34 @@ export function ClosetView({
     for (const item of items) previewUrlsRef.current.add(item.previewUrl);
     const drafts = items.map(garmentDraftFromLocalPick);
     setPendingDrafts((prev) => [...prev, ...drafts]);
-    void Promise.all(
-      drafts.map(async (draft) => {
-        try {
-          const body = new FormData();
-          body.append("image", draft.file);
-          const res = await fetch("/api/closet/suggest-category", {
-            method: "POST",
-            credentials: "same-origin",
-            body,
-          });
-          if (!res.ok) return;
-          const json = (await res.json()) as {
-            ok?: boolean;
-            category?: GarmentUploadDraft["category"];
-          };
-          if (!json.ok || !json.category) return;
-          setPendingDrafts((prev) =>
-            prev.map((d) =>
-              d.clientKey === draft.clientKey &&
-              d.category === "tops" &&
-              !d.categoryTouched
-                ? { ...d, category: json.category! }
-                : d,
-            ),
-          );
-        } catch {
-          // Suggestion is optional; wearer can pick a category by hand.
-        }
-      }),
-    );
+    void mapWithConcurrency(drafts, SUGGEST_CATEGORY_CONCURRENCY, async (draft) => {
+      try {
+        const body = new FormData();
+        body.append("image", draft.file);
+        const res = await fetch("/api/closet/suggest-category", {
+          method: "POST",
+          credentials: "same-origin",
+          body,
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          ok?: boolean;
+          category?: GarmentUploadDraft["category"];
+        };
+        if (!json.ok || !json.category) return;
+        setPendingDrafts((prev) =>
+          prev.map((d) =>
+            d.clientKey === draft.clientKey &&
+            d.category === "tops" &&
+            !d.categoryTouched
+              ? { ...d, category: json.category! }
+              : d,
+          ),
+        );
+      } catch {
+        // Suggestion is optional; wearer can pick a category by hand.
+      }
+    });
   }, []);
 
   async function handleSavePendingToCloset() {

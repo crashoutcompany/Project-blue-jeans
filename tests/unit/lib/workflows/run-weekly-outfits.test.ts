@@ -476,6 +476,18 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     ).toBe(false);
   });
 
+  it("does not plan when this week's Outfits cannot be loaded", async () => {
+    const calls: SqlCall[] = [];
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    loadOutfits.mockRejectedValue(new Error("db down"));
+
+    const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/Weekly outfits job failed/i);
+    expect(step1).not.toHaveBeenCalled();
+  });
+
   it("keeps planned days when remaining days cannot form a look", async () => {
     const calls: SqlCall[] = [];
     requireSqlMock.mockReturnValue(mockSql({ calls }) as never);

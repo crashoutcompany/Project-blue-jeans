@@ -68,7 +68,7 @@ describe("GeneratorView", () => {
       expect(screen.getByRole("heading", { name: "Look" })).toBeInTheDocument();
     });
     expect(screen.getByText("Your look includes:")).toBeInTheDocument();
-    expect(screen.getAllByText("Tee").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Tee").length).toBeGreaterThan(1);
   });
 
   it("starts generation from an empty-state starter", async () => {

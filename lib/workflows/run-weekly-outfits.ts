@@ -145,11 +145,21 @@ export async function runWeeklyOutfitsJob(
   const existingParsed = z.array(planStatusRowSchema).safeParse(existingRaw);
   const row = existingParsed.success ? existingParsed.data[0] : undefined;
 
-  const outfitRows = await loadOutfitsInRange(
-    input.userId,
-    input.weekStart,
-    weekEnd,
-  );
+  let outfitRows: Awaited<ReturnType<typeof loadOutfitsInRange>>;
+  try {
+    outfitRows = await loadOutfitsInRange(
+      input.userId,
+      input.weekStart,
+      weekEnd,
+      { onError: "throw" },
+    );
+  } catch {
+    return {
+      ok: false,
+      error: WEEKLY_JOB_FAILED_PUBLIC,
+      planId: row?.id,
+    };
+  }
   const outfitWornOn = new Set(outfitRows.map((r) => r.wornOn));
 
   const daysToPlan = weeklyDaysToPlan(
@@ -225,7 +235,9 @@ export async function runWeeklyOutfitsJob(
   }
 
   const location = resolveOutfitLocation(
-    input.location ?? (await getWearerLocation(input.userId)),
+    input.location?.trim()
+      ? input.location
+      : await getWearerLocation(input.userId),
   );
 
   try {

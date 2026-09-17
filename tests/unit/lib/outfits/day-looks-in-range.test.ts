@@ -89,4 +89,16 @@ describe("loadOutfitsInRange / loadFitsInRange", () => {
     const rows = await loadFitsInRange(USER_ID, "2026-08-09", "2026-08-15");
     expect(rows).toEqual([]);
   });
+
+  it("rethrows Outfit read failures when onError is throw", async () => {
+    getSqlMock.mockReturnValue(
+      vi.fn(() => Promise.reject(new Error("db down"))) as never,
+    );
+
+    await expect(
+      loadOutfitsInRange(USER_ID, "2026-08-09", "2026-08-15", {
+        onError: "throw",
+      }),
+    ).rejects.toThrow("db down");
+  });
 });
