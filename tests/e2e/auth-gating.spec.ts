@@ -3,17 +3,17 @@ import { test, expect } from "@playwright/test";
 test.describe("guest (no cookies)", () => {
   test("redirects /closet to sign-in", async ({ page }) => {
     await page.goto("/closet");
-    await expect(page).toHaveURL(/\/auth\/sign-in/);
+    await expect(page).toHaveURL(/\/signin/);
   });
 
   test("redirects /calendar to sign-in", async ({ page }) => {
     await page.goto("/calendar");
-    await expect(page).toHaveURL(/\/auth\/sign-in/);
+    await expect(page).toHaveURL(/\/signin/);
   });
 
   test("redirects /settings to sign-in", async ({ page }) => {
     await page.goto("/settings");
-    await expect(page).toHaveURL(/\/auth\/sign-in/);
+    await expect(page).toHaveURL(/\/signin/);
   });
 });
 

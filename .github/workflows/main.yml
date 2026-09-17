@@ -95,6 +95,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      BETTER_AUTH_SECRET: test-better-auth-secret-at-least-32-characters
+      TEST_AUTH_SECRET: test-auth-secret
+      APP_OWNER_USER_ID: e2e-admin
+      EXPOSE_TESTING_API: "1"
+      E2E_PLAYWRIGHT: "1"
+      # Legacy Neon Auth stubs kept so older import paths do not crash at build.
       NEON_AUTH_BASE_URL: https://example.invalid
       NEON_AUTH_COOKIE_SECRET: "01234567890123456789012345678901"
     steps:
@@ -114,6 +120,9 @@ jobs:
         run: npm run build:instant
         env:
           E2E_PLAYWRIGHT: "1"
+          EXPOSE_TESTING_API: "1"
+          BETTER_AUTH_SECRET: test-better-auth-secret-at-least-32-characters
+          APP_OWNER_USER_ID: e2e-admin
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
@@ -123,4 +132,7 @@ jobs:
         env:
           E2E_PLAYWRIGHT: "1"
           EXPOSE_TESTING_API: "1"
+          BETTER_AUTH_SECRET: test-better-auth-secret-at-least-32-characters
+          TEST_AUTH_SECRET: test-auth-secret
+          APP_OWNER_USER_ID: e2e-admin
           CI: "true"
