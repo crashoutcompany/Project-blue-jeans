@@ -1,10 +1,10 @@
 {
   "name": "project-blue-jeans",
-  "install": "npm ci && npx playwright install --with-deps chromium",
+  "install": "pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium",
   "terminals": [
     {
       "name": "next-dev",
-      "command": "npm run dev"
+      "command": "pnpm dev"
     }
   ]
 }
