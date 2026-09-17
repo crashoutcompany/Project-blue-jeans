@@ -159,7 +159,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS provider_credentials_active_connection_uidx
   ON provider_credentials (connection_id)
   WHERE revoked_at IS NULL;
 
--- Private UploadThing objects. Display uses /api/media/{id}, never a durable public CDN URL.
+-- UploadThing objects. Display uses /api/media/{id}; the CDN object itself is public-read.
 CREATE TABLE IF NOT EXISTS media_assets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id text NOT NULL,

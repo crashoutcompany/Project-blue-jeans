@@ -64,21 +64,21 @@ export function UploadThingCard({
       {connected ? (
         <p className="text-sm text-muted-foreground">
           Connected{hint ? ` (${hint})` : ""}. Closet photos stay in your
-          UploadThing app and are shown only to you.
+          UploadThing app.
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
           Blue Jeans stores this token encrypted and uses it only for your
-          photos. Create an app in{" "}
+          photos. Create an app in the{" "}
           <a
             href="https://uploadthing.com/dashboard"
             className="underline underline-offset-4"
             target="_blank"
             rel="noreferrer"
           >
-            UploadThing
+            UploadThing dashboard
           </a>
-          {" "}and enable private files (ACL) for that app.
+          .
         </p>
       )}
 

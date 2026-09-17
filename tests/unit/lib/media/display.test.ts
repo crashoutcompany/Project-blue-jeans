@@ -13,7 +13,7 @@ describe("media display helpers", () => {
     expect(parseMediaAssetIdFromPath(`/api/media/${id}`)).toBe(id);
   });
 
-  it("bypasses the image optimizer for private media paths", () => {
+  it("bypasses the image optimizer for cookie-gated media paths", () => {
     expect(
       shouldBypassImageOptimizer(
         "/api/media/f47ac10b-58cc-4372-a567-0e02b2c3d479",
