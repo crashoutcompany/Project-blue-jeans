@@ -28,12 +28,16 @@ test.describe("guest page smoke", () => {
     await expect(
       page.getByRole("heading", { name: "Welcome back." }),
     ).toBeVisible();
+    // OAuth buttons only appear when AUTH_* credentials are set; otherwise
+    // SignInButtons shows the shared "not configured" status (no invented tokens).
     const google = page.getByRole("button", { name: /google/i });
-    const unconfigured = page.getByRole("status");
-    await expect(google.or(unconfigured).first()).toBeVisible();
+    const github = page.getByRole("button", { name: /github/i });
+    const unconfigured = page.getByRole("status").filter({
+      hasText: /no social sign-in providers/i,
+    });
+    await expect(google.or(github).or(unconfigured).first()).toBeVisible();
   });
 });
-
 test.describe("admin page smoke", () => {
   test.use({ storageState: "e2e/.auth/admin.json" });
 
