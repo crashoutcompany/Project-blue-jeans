@@ -27,12 +27,15 @@ Trusted origins also include the production host and `https://*-crashoutcos-proj
 
 `createAuth` / `getEnabledSocialProviders` register a provider only when **both** id and secret are set. Sign-in renders `SignInButtons` for `enabledSocialProviders`; if none are configured, the page shows a status message (no invented tokens).
 
-## CI / Playwright only
+## CI / Playwright only (`shared:test-auth v2` — CrashOutCo golden)
+
+Copy this policy to Z / RDC. App-specific `createTestSession` bodies may differ; the gate must not.
 
 | Variable | Description |
 | --- | --- |
-| `TEST_AUTH_SECRET` | Shared secret for `POST /api/test-auth/login`. Sent as header `x-test-auth-secret`. |
-| `EXPOSE_TESTING_API` | Must be `1` for the test-login route to be enabled (`shared:test-auth v2`). Never set on real Vercel production (`VERCEL=1` / `VERCEL_ENV=production` always 404). Do **not** rely on `NODE_ENV=development` alone. |
+| `TEST_AUTH_SECRET` | **Required** non-empty secret for `POST /api/test-auth/login`. Sent as header `x-test-auth-secret`. Missing secret → route disabled (404). |
+| `EXPOSE_TESTING_API` | Must be `1` to enable test-login. Do **not** auto-enable from `NODE_ENV=development` or Vercel preview alone. |
+| Production deny | When `VERCEL_ENV=production`, test-auth is always off (404) even if the vars above are set. |
 | `NEON_API_KEY` | GitHub Actions secret for ephemeral Neon branches (`neondatabase/create-branch-action`). |
 | `NEON_DATABASE` / `NEON_ROLE` | Neon database + role names for branch create. |
 | `NEON_PROJECT_ID` | GitHub Actions **variable** (`vars.NEON_PROJECT_ID`). |

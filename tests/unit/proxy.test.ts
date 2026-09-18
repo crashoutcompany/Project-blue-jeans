@@ -41,6 +41,7 @@ describe("proxy", () => {
     expect(getSession).toHaveBeenCalledWith({
       headers: request.headers,
       returnHeaders: true,
+      method: "GET",
     });
   });
 
@@ -55,6 +56,7 @@ describe("proxy", () => {
     expect(getSession).toHaveBeenCalledWith({
       headers: request.headers,
       returnHeaders: true,
+      method: "GET",
     });
     expect(response.headers.get("location")).toBe("https://example.com/");
   });
@@ -70,6 +72,7 @@ describe("proxy", () => {
     expect(getSession).toHaveBeenCalledWith({
       headers: request.headers,
       returnHeaders: true,
+      method: "GET",
     });
     expect(response.headers.get("location")).toBe(
       "https://example.com/signin",

@@ -1,4 +1,10 @@
 // shared:test-auth v2
+//
+// CrashOutCo AUTH GOLDEN (copy to Z / RDC / siblings):
+//   1. Deny whenever VERCEL_ENV=production (never enable test-login on prod).
+//   2. Require EXPOSE_TESTING_API=1 — do not auto-enable from NODE_ENV or preview.
+//   3. Require a non-empty TEST_AUTH_SECRET; clients send it as x-test-auth-secret.
+// App-specific createTestSession bodies may differ; the gate above must not.
 import { constantTimeEqual, makeSignature } from "better-auth/crypto";
 
 import { auth } from "@/lib/auth";
@@ -55,9 +61,9 @@ export function readTestAuthSecret(request: Request): string | null {
 }
 
 /**
- * RDC-strict gate: require EXPOSE_TESTING_API=1 and never enable on Vercel
- * production. Do not auto-enable from NODE_ENV=development or Vercel preview
- * alone.
+ * Golden gate (Z/RDC must match): EXPOSE_TESTING_API=1 + TEST_AUTH_SECRET set,
+ * and never when VERCEL_ENV=production. Do not auto-enable from NODE_ENV or
+ * Vercel preview alone.
  */
 export function isTestAuthEnabled(
   env: TestAuthEnv = currentTestAuthEnv(),
