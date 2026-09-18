@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server", () => ({
   auth: {
+    getAuthoritativeSession: vi.fn(),
     getSession: vi.fn(),
   },
 }));
@@ -30,7 +31,7 @@ import { getSql } from "@/lib/db";
 import { executeApproveGeneratorOutfit } from "@/lib/outfits/persist-generator-outfit";
 import { POST } from "@/app/api/outfits/approve-generator/route";
 
-const getSession = vi.mocked(auth.getSession);
+const getSession = vi.mocked(auth.getAuthoritativeSession);
 const getSqlMock = vi.mocked(getSql);
 const approveMock = vi.mocked(executeApproveGeneratorOutfit);
 

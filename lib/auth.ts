@@ -37,18 +37,11 @@ export const auth = createAuth({
   previewOrigin: AUTH_PREVIEW_ORIGIN,
 });
 
+/** RSC-safe session read — never refreshes cookies (see proxy /auth routes). */
 export async function getSession(requestHeaders?: Headers) {
-  if (process.env.E2E_PLAYWRIGHT === "1") {
-    const { createE2ePlaywrightAuth } = await import(
-      "@/lib/auth/e2e-playwright-auth"
-    );
-    const { data } = await createE2ePlaywrightAuth().getSession();
-    if (!data?.user) return null;
-    return { user: data.user, session: { id: "e2e-session" } };
-  }
-
   return auth.api.getSession({
     headers: requestHeaders ?? (await headers()),
+    query: { disableRefresh: true },
   });
 }
 

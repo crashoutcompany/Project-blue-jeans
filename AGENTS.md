@@ -9,7 +9,7 @@
 There is one local process — the **Next.js dev server**. Everything else is a hosted integration reached via env vars (no local database, workers, or queues):
 
 - **Neon Postgres** (`DATABASE_URL`) — persists garments / outfits. Serverless HTTP driver; no local Postgres.
-- **Better Auth** (`BETTER_AUTH_SECRET`, optional `BETTER_AUTH_URL`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`) — self-hosted sessions and Google OAuth in the same Neon database.
+- **Better Auth** (`BETTER_AUTH_SECRET`, optional `BETTER_AUTH_URL`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`) — self-hosted sessions and social OAuth in the same Neon database. See `docs/better-auth-env.md` (includes CI `NEON_API_KEY` / `TEST_AUTH_SECRET` / `EXPOSE_TESTING_API=1` strict test-auth gate / header `x-test-auth-secret`).
 - **UploadThing** (`UPLOADTHING_TOKEN`) — image hosting for closet uploads.
 - **Google AI Studio / Gemini Developer API** (`GOOGLE_GENERATIVE_AI_API_KEY`) — powers outfit generation, hero images, and auto garment descriptions. See `docs/gemini-ai-studio-env.md`.
 - **Vercel Cron** (`CRON_SECRET`) — Bearer token for `GET /api/cron/purge-stale-fits` (Mondays 08:00 UTC). Deletes leftover Weekly Fits from previous Sunday-start weeks; committed Outfits are kept. Store the value raw.

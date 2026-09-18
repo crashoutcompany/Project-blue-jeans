@@ -1,4 +1,4 @@
-// shared:create-auth v1
+// shared:create-auth v2
 
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
@@ -134,6 +134,8 @@ export function createAuth({
     socialProviders,
     session: {
       ...(sessionModelName ? { modelName: sessionModelName } : {}),
+      // Refresh only via proxy / route handlers / client POST — never from RSC GET.
+      deferSessionRefresh: true,
       cookieCache: {
         enabled: true,
         maxAge: 300,

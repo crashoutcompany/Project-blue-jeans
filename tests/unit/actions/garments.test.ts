@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/server", () => ({
   auth: {
+    getAuthoritativeSession: vi.fn(),
     getSession: vi.fn(),
   },
 }));
@@ -15,7 +16,7 @@ import { auth } from "@/lib/auth/server";
 import { getSql, requireSql } from "@/lib/db";
 import { toggleGarmentFavorite } from "@/app/actions/garments";
 
-const getSession = vi.mocked(auth.getSession);
+const getSession = vi.mocked(auth.getAuthoritativeSession);
 const requireSqlMock = vi.mocked(requireSql);
 
 describe("toggleGarmentFavorite", () => {
