@@ -1,4 +1,9 @@
-# shared:ci-main v1
+# shared:ci-main v2
+# Skeleton aligned with View/Z/RDC ci-main. Blue intentional knobs:
+#   USE_PRISMA_NEON=false — Neon Pool / SQL driver (no Prisma URL shaping)
+#   NEEDS_PRISMA=false    — no prisma db push in lint/test
+#   TEST_SCRIPT=test     — Vitest unit suite (no coverage gate in CI)
+#   HAS_E2E=true         — Playwright + Neon create-branch-action
 name: CI
 
 on:
@@ -22,6 +27,9 @@ env:
   USE_PRISMA_NEON: "false"
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ci?schema=public
   DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/ci?schema=public
+  # Workflow fixtures for lint/test and as CI fallbacks when Actions secrets
+  # are unset. Empty `${{ secrets.* }}` overrides blank these — never leave
+  # build/e2e with a blank BETTER_AUTH_SECRET / TEST_AUTH_SECRET.
   BETTER_AUTH_SECRET: test-better-auth-secret-at-least-32-characters
   TEST_AUTH_SECRET: test-auth-secret
 
@@ -104,12 +112,16 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
-      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+      # Prefer Actions secret when set; otherwise keep workflow fixture (empty
+      # secret expressions would otherwise blank the env and break next build).
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET || 'test-better-auth-secret-at-least-32-characters' }}
       NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}
       NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
       AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
+      AUTH_GITHUB_ID: ${{ secrets.AUTH_GITHUB_ID }}
+      AUTH_GITHUB_SECRET: ${{ secrets.AUTH_GITHUB_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -140,10 +152,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      # Prefer repo secrets when set; keep workflow-level CI defaults otherwise
-      # (empty secret overrides would wipe BETTER_AUTH_SECRET / TEST_AUTH_SECRET).
-      TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET != '' && secrets.TEST_AUTH_SECRET || 'test-auth-secret' }}
-      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET != '' && secrets.BETTER_AUTH_SECRET || 'test-better-auth-secret-at-least-32-characters' }}
+      # Prefer Actions secrets when set; fixture keeps Playwright auth working
+      # when the secret is unset. Ops should still add the real secret.
+      TEST_AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET || 'test-auth-secret' }}
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET || 'test-better-auth-secret-at-least-32-characters' }}
       NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}
       NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
