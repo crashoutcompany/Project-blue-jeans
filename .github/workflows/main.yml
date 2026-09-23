@@ -4,6 +4,8 @@
 #   NEEDS_PRISMA=false    — no prisma db push in lint/test
 #   TEST_SCRIPT=test     — Vitest unit suite (no coverage gate in CI)
 #   HAS_E2E=true         — Playwright + Neon create-branch-action
+#   APPLY_SQL_SCHEMA=true — e2e applies db/schema.sql (Better Auth + closet)
+#     Parent Neon may lack auth tables; branch copy alone is not enough.
 name: CI
 
 on:
@@ -212,6 +214,18 @@ jobs:
           DATABASE_URL: ${{ steps.database.outputs.db_url_pooled }}
           DIRECT_URL: ${{ steps.database.outputs.db_url }}
         run: pnpm install --frozen-lockfile
+
+      # Blue has no Prisma: Neon preview/ephemeral branches may be missing
+      # Better Auth `user`/`session`/`account`/`verification` (SCHEMA_MISMATCH).
+      # Apply the full idempotent dump before Playwright global-setup login.
+      - name: Apply database schema
+        if: env.HAS_E2E == 'true'
+        env:
+          DATABASE_URL: ${{ steps.database.outputs.db_url }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          pnpm db:apply
 
       - name: Install Playwright Chromium
         if: env.HAS_E2E == 'true'

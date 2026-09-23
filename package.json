@@ -18,6 +18,7 @@
     "test:e2e": "pnpm build:e2e && playwright test",
     "test:e2e:ui": "pnpm build:e2e && playwright test --ui",
     "build:e2e": "EXPOSE_TESTING_API=1 next build",
+    "db:apply": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/schema.sql",
     "test:instant": "playwright test e2e/instant-nav.spec.ts"
   },
   "dependencies": {
