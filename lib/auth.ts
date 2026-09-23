@@ -55,16 +55,8 @@ export const auth = betterAuth({
   plugins: [nextCookies()],
 });
 
+/** Real Better Auth session — E2E uses POST /api/test-auth/login, not a stub. */
 export async function getSession(requestHeaders?: Headers) {
-  if (process.env.E2E_PLAYWRIGHT === "1") {
-    const { createE2ePlaywrightAuth } = await import(
-      "@/lib/auth/e2e-playwright-auth"
-    );
-    const { data } = await createE2ePlaywrightAuth().getSession();
-    if (!data?.user) return null;
-    return { user: data.user, session: { id: "e2e-session" } };
-  }
-
   return auth.api.getSession({
     headers: requestHeaders ?? (await headers()),
   });
