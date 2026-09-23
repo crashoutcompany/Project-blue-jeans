@@ -42,7 +42,7 @@ Copy this policy to Z / RDC. App-specific `createTestSession` bodies may differ;
 
 Actions e2e and the Neon preview-branch workflow require `NEON_API_KEY` (secret) plus `NEON_PROJECT_ID` (variable), `NEON_DATABASE`, and `NEON_ROLE`. Local Cloud Agent e2e can use `.cursor/dev/neon-local-proxy.mjs` instead of Actions Neon branching.
 
-CI e2e / preview Neon DBs also need the full app schema applied, including Better Auth tables (`db/migrate-better-auth.sql`) and `wearer_preferences` (`db/migrate-garment-categories-location.sql` / `db/schema.sql`).
+CI e2e applies `db/schema.sql` automatically (`pnpm db:apply` against the Neon branch direct URL) so Better Auth tables (`user` / `session` / `account` / `verification`) and closet tables exist even when the parent Neon branch is behind. Existing non-CI databases still need a one-shot `db/migrate-better-auth.sql` (or full `db/schema.sql`) in the Neon SQL editor.
 
 ### Env lock (copy checklist)
 
