@@ -116,7 +116,7 @@ jobs:
         id: database
         uses: neondatabase/create-branch-action@v6
         with:
-          project_id: ${{ vars.NEON_PROJECT_ID }}
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
           branch_name: ${{ steps.neon.outputs.name }}
           api_key: ${{ secrets.NEON_API_KEY }}
           database: ${{ secrets.NEON_DATABASE }}
@@ -146,6 +146,6 @@ jobs:
         if: always() && steps.neon.outputs.ephemeral == 'true' && steps.database.outcome == 'success'
         uses: neondatabase/delete-branch-action@v3
         with:
-          project_id: ${{ vars.NEON_PROJECT_ID }}
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
           branch: ${{ steps.database.outputs.branch_id }}
           api_key: ${{ secrets.NEON_API_KEY }}
