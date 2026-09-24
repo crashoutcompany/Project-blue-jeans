@@ -117,7 +117,7 @@ describe("GeneratorIncludeAvoidPicker", () => {
     expect(screen.queryByLabelText("Bottoms selections")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Shoes selections")).not.toBeInTheDocument();
 
-    await user.click(screen.getAllByRole("button", { name: "Clear" })[0]!);
+    await user.click(screen.getByRole("button", { name: "Clear Tops" }));
     expect(screen.queryByText("Included t1")).not.toBeInTheDocument();
     expect(screen.queryByText("Ignored t2")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tops" })).toHaveAttribute(
@@ -152,6 +152,71 @@ describe("GeneratorIncludeAvoidPicker", () => {
     expect(screen.queryByText("Included e")).not.toBeInTheDocument();
     expect(screen.queryByText("Included f")).not.toBeInTheDocument();
     expect(screen.getByText("+2")).toBeInTheDocument();
+  });
+
+  it("keeps a single category open so the chat keeps the sheet", async () => {
+    const user = userEvent.setup();
+    render(
+      <GeneratorIncludeAvoidPicker
+        closetGarments={mixedGarments}
+        omittedIds={new Set()}
+        marks={{}}
+        onChange={() => {}}
+        pending={false}
+      />,
+    );
+
+    await expandSection(user, "Tops");
+    await expandSection(user, "Shoes");
+    expect(screen.getByRole("button", { name: "Shoes" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Tops" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(
+      screen.queryByRole("button", { name: /include t1/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /include boot/i })).toBeEnabled();
+  });
+
+  it("closes an open category when suggestions arrive", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <GeneratorIncludeAvoidPicker
+        closetGarments={garments}
+        omittedIds={new Set()}
+        marks={{}}
+        onChange={() => {}}
+        pending={false}
+        chatActive={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Tops" }));
+    expect(screen.getByRole("button", { name: "Tops" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    rerender(
+      <GeneratorIncludeAvoidPicker
+        closetGarments={garments}
+        omittedIds={new Set()}
+        marks={{}}
+        onChange={() => {}}
+        pending={false}
+        chatActive
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Tops" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(
+      screen.queryByRole("button", { name: /include t1/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not count omitted Include marks toward the cap", async () => {

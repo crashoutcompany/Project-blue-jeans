@@ -251,7 +251,7 @@ export function GeneratorChatStack({
   return (
     <div className="relative mx-auto w-full max-w-lg">
       {multi ? (
-        <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <LayoutGrid className="size-3.5" aria-hidden />
           <span>
             {slice.length} {slice.length === 1 ? "Photo" : "Photos"}
@@ -428,8 +428,8 @@ function LookCardFace({
   onRemix: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-4 p-3 pb-4 sm:p-4">
-      <div className="relative aspect-[4/5] max-h-[min(20rem,46svh)] w-full overflow-hidden rounded-[1.35rem] bg-muted">
+    <div className="flex flex-col gap-2.5 p-3">
+      <div className="relative aspect-[3/2] max-h-[min(10.5rem,32svh)] w-full overflow-hidden rounded-[1.15rem] bg-muted sm:max-h-[min(16rem,36svh)]">
         {look.imageDataUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -448,27 +448,27 @@ function LookCardFace({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 px-1">
-        <h3 className="font-serif text-lg leading-tight text-foreground underline decoration-foreground/25 underline-offset-[5px]">
+      <div className="flex min-w-0 flex-col gap-2 px-0.5">
+        <h3 className="text-pretty font-serif text-lg leading-tight text-foreground underline decoration-foreground/25 underline-offset-[5px]">
           {look.title}
         </h3>
 
         {pieces.length > 0 ? (
-          <div className="flex flex-col gap-2.5">
-            <p className="text-sm font-semibold text-foreground">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <p className="text-xs font-semibold text-foreground">
               Your look includes:
             </p>
-            <ul className="flex flex-col gap-2.5">
+            <ul className="flex gap-2 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {pieces.map((piece) => (
-                <li key={piece.id} className="flex items-center gap-3">
-                  <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
+                <li key={piece.id} className="flex w-16 shrink-0 flex-col gap-1">
+                  <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
                     {piece.imageUrl ? (
                       <Image
                         src={piece.imageUrl}
                         alt=""
                         fill
                         className="object-cover"
-                        sizes="56px"
+                        sizes="64px"
                         unoptimized={shouldBypassImageOptimizer(piece.imageUrl)}
                       />
                     ) : (
@@ -480,7 +480,7 @@ function LookCardFace({
                       />
                     )}
                   </div>
-                  <p className="min-w-0 flex-1 text-sm leading-snug text-foreground">
+                  <p className="truncate text-[0.65rem] leading-tight text-foreground">
                     {piece.name}
                   </p>
                 </li>
@@ -488,7 +488,7 @@ function LookCardFace({
             </ul>
           </div>
         ) : look.description ? (
-          <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+          <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
             {look.description}
           </p>
         ) : null}

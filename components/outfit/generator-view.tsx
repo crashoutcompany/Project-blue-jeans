@@ -372,7 +372,7 @@ export function GeneratorView({
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <div className="shrink-0 px-4 pt-3 sm:px-6">
+      <div className="shrink-0 px-4 pt-2 sm:px-6">
         <GeneratorIncludeAvoidPicker
           key={closetSig}
           closetGarments={closetGarments}
@@ -380,17 +380,18 @@ export function GeneratorView({
           marks={visibleMarks}
           onChange={setMarks}
           pending={pending}
+          chatActive={messages.length > 0}
         />
       </div>
 
       <div
         ref={scrollRef}
-        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-4 sm:px-6"
+        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain px-4 py-3 sm:px-6"
       >
         {showStarters ? (
           <div className="flex flex-col gap-6 pt-2">
             <div className="flex max-w-md flex-col gap-2">
-              <h2 className="font-serif text-2xl tracking-tight text-foreground sm:text-[1.75rem]">
+              <h2 className="text-pretty font-serif text-2xl tracking-tight text-foreground sm:text-[1.75rem]">
                 What are you dressing for?
               </h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
