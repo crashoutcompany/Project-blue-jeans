@@ -68,7 +68,7 @@ describe("GeneratorView", () => {
       expect(screen.getByRole("heading", { name: "Look" })).toBeInTheDocument();
     });
     expect(screen.getByText("Your look includes:")).toBeInTheDocument();
-    expect(screen.getAllByText("Tee").length).toBeGreaterThan(1);
+    expect(screen.getByText("Tee")).toBeInTheDocument();
   });
 
   it("starts generation from an empty-state starter", async () => {
@@ -123,6 +123,7 @@ describe("GeneratorView", () => {
     const { rerender } = render(
       <GeneratorView closetGarments={[...garments, oxford]} />,
     );
+    await user.click(screen.getByRole("button", { name: "Tops" }));
     await user.click(screen.getByRole("button", { name: /include tee/i }));
     rerender(
       <GeneratorView
