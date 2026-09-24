@@ -123,6 +123,7 @@ describe("GeneratorView", () => {
     const { rerender } = render(
       <GeneratorView closetGarments={[...garments, oxford]} />,
     );
+    await user.click(screen.getByRole("button", { name: "Tops" }));
     await user.click(screen.getByRole("button", { name: /include tee/i }));
     rerender(
       <GeneratorView
