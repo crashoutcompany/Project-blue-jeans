@@ -73,6 +73,7 @@ if [ ! -f "$REPO_ROOT/.env" ]; then
 DATABASE_URL="${URL}"
 BETTER_AUTH_SECRET="local-dev-secret-not-for-production-0123456789abcdef"
 TEST_AUTH_SECRET="local-test-auth-secret-not-for-production"
+EXPOSE_TESTING_API="1"
 AUTH_GOOGLE_ID="dev-google-id"
 AUTH_GOOGLE_SECRET="dev-google-secret"
 EOF
@@ -81,6 +82,8 @@ else
     printf '\nTEST_AUTH_SECRET="local-test-auth-secret-not-for-production"\n' >>"$REPO_ROOT/.env"
   grep -q '^BETTER_AUTH_SECRET=' "$REPO_ROOT/.env" || \
     printf '\nBETTER_AUTH_SECRET="local-dev-secret-not-for-production-0123456789abcdef"\n' >>"$REPO_ROOT/.env"
+  grep -q '^EXPOSE_TESTING_API=' "$REPO_ROOT/.env" || \
+    printf 'EXPOSE_TESTING_API="1"\n' >>"$REPO_ROOT/.env"
 fi
 
 echo "==> Installing dependencies"

@@ -1,5 +1,3 @@
-// shared:test-auth v2
-//
 // CrashOutCo AUTH GOLDEN (copy to Z / RDC / siblings):
 //   1. Deny whenever VERCEL_ENV=production (never enable test-login on prod).
 //   2. Require EXPOSE_TESTING_API=1 — do not auto-enable from NODE_ENV or preview.
