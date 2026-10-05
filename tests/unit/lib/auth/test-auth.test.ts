@@ -10,7 +10,7 @@ import {
   TEST_AUTH_HEADER,
 } from "@/lib/auth/test-auth";
 
-describe("test auth guards (shared:test-auth v2)", () => {
+describe("test auth guards", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {

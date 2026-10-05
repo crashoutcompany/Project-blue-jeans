@@ -1,5 +1,3 @@
-// shared:base-url v1
-
 export type AuthBaseUrlEnv = {
   BETTER_AUTH_URL?: string;
   NODE_ENV?: string;
