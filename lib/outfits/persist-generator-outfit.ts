@@ -98,21 +98,13 @@ type Sql = ReturnType<typeof requireSql>;
 
 /**
  * Run statements in one Neon transaction so a failure part-way cannot leave a
- * wear without its last-worn sync or an orphaned Outfit behind. Falls back to
- * sequential awaits for clients without `transaction` (unit-test mocks).
+ * wear without its last-worn sync or an orphaned Outfit behind.
  */
-async function runInTransaction(
+function runInTransaction(
   sql: Sql,
   queries: ReturnType<Sql>[],
 ): Promise<unknown[]> {
-  if (typeof sql.transaction === "function") {
-    return sql.transaction(queries);
-  }
-  const results: unknown[] = [];
-  for (const query of queries) {
-    results.push(await query);
-  }
-  return results;
+  return sql.transaction(queries);
 }
 
 /**
