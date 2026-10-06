@@ -430,10 +430,10 @@ function LookCardFace({
   return (
     <div className="flex flex-col gap-2.5 p-3">
       <div className="relative aspect-[3/2] max-h-[min(10.5rem,32svh)] w-full overflow-hidden rounded-[1.15rem] bg-muted sm:max-h-[min(16rem,36svh)]">
-        {look.imageDataUrl ? (
+        {look.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={look.imageDataUrl}
+            src={look.imageUrl}
             alt={`${look.title} outfit preview`}
             draggable={false}
             className="absolute inset-0 size-full object-cover"

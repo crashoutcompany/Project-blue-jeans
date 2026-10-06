@@ -3,7 +3,7 @@ import "server-only";
 import { requireSql } from "@/lib/db";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 
-export type MediaKind = "closet_image" | "wearer_photo";
+export type MediaKind = "closet_image" | "wearer_photo" | "outfit_hero";
 
 export type OwnedMediaAsset = {
   id: string;

@@ -13,16 +13,16 @@
 
 ## Target
 
-Install the latest compatible Next.js release with npm so `package.json` and `package-lock.json` are updated together.
+Install the latest compatible Next.js release with pnpm so `package.json` and `pnpm-lock.yaml` are updated together.
 
 ## Repo conventions to follow
 
-- Use npm; this repository owns `package-lock.json`.
+- Use pnpm; this repository owns `pnpm-lock.yaml`.
 - Keep React on the version required by the resulting Next.js peer range.
 
 ## Steps
 
-1. Run `npm install next@latest`.
+1. Run `pnpm add next@latest`.
 2. Review package and lockfile changes for unrelated dependency churn.
 3. Run the full lint and production build.
 

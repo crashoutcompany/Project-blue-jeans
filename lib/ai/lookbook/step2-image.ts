@@ -9,7 +9,7 @@ import {
   step2TryOnUserPrompt,
   step2UserPrompt,
 } from "@/lib/ai/lookbook/prompts";
-import { firstImageDataUrl } from "@/lib/ai/lookbook/images";
+import { firstImageFile, type GeneratedImage } from "@/lib/ai/lookbook/images";
 
 export type GarmentImageSource = {
   id: string;
@@ -30,9 +30,10 @@ export type RunHeroImageStepParams = {
   wearerPhotoUrl?: string | null;
 };
 
+/** Raw hero bytes; callers persist them with `createHeroImageStore`. */
 export async function runHeroImageStep(
   params: RunHeroImageStepParams,
-): Promise<string | undefined> {
+): Promise<GeneratedImage | undefined> {
   if (params.garments.length === 0) return undefined;
 
   const garmentSummary = params.garments
@@ -108,5 +109,5 @@ export async function runHeroImageStep(
     },
   });
 
-  return firstImageDataUrl(imageResult.files);
+  return firstImageFile(imageResult.files);
 }

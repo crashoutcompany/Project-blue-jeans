@@ -154,6 +154,7 @@ export async function loadFitsInRange(
   userId: string,
   startIso: string,
   endIso: string,
+  options?: { onError?: "empty" | "throw" },
 ): Promise<FitInRange[]> {
   const sql = getSql();
   if (!sql || !userId) return [];
@@ -180,6 +181,7 @@ export async function loadFitsInRange(
     return parseFitRows(rows);
   } catch (e) {
     console.error("[outfits] loadFitsInRange failed", e);
+    if (options?.onError === "throw") throw e;
     return [];
   }
 }

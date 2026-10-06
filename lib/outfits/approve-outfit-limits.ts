@@ -2,8 +2,7 @@
 export const APPROVE_OUTFIT_MAX_NAME = 200;
 
 /**
- * Max `image_url` length for approve payloads. Generator heroes are
- * `data:image/...;base64,...` and are often 0.5–3M+ characters; the previous
- * 120k cap caused `image_url` to be stored as null.
+ * Max `imageUrl` length for approve payloads. Generator heroes are owned
+ * `/api/media/<id>` paths, so anything longer is not a hero we issued.
  */
-export const APPROVE_OUTFIT_MAX_IMAGE_URL_LEN = 12_000_000;
+export const APPROVE_OUTFIT_MAX_IMAGE_URL_LEN = 2048;

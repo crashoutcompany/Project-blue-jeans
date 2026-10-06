@@ -67,7 +67,8 @@ const createBodySchema = z.object({
 });
 
 const patchBodySchema = z.object({
-  id: z.string().min(1),
+  // A non-uuid would reach Postgres and surface as a generic 422.
+  id: z.string().trim().uuid(),
   name: z.string().max(GARMENT_FIELD_LIMITS.name),
   category: garmentCategorySchema,
   color: z.string().max(GARMENT_FIELD_LIMITS.color),
@@ -78,7 +79,7 @@ const patchBodySchema = z.object({
 });
 
 const deleteBodySchema = z.object({
-  id: z.string().min(1),
+  id: z.string().trim().uuid(),
 });
 
 /**
@@ -182,7 +183,7 @@ export async function DELETE(request: Request) {
 
   const result = await deleteGarment(
     gate.userId,
-    parsed.data.id.trim(),
+    parsed.data.id,
     gate.membership,
   );
   if (!result.ok) {
