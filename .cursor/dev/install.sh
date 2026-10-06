@@ -67,6 +67,16 @@ EXT
   )
 fi
 
+# Set EXPOSE_TESTING_API="1" in an env file when it is absent or empty
+# (e.g. copied from .env.example). Explicit non-empty values are kept.
+ensure_expose_testing_api() {
+  local file="$1"
+  [ -f "$file" ] || return 0
+  grep -Eq '^EXPOSE_TESTING_API=("[^"]+"|[^"[:space:]]+)' "$file" && return 0
+  sed -i '/^EXPOSE_TESTING_API=/d' "$file"
+  printf 'EXPOSE_TESTING_API="1"\n' >>"$file"
+}
+
 URL="$(db_url)"
 if [ ! -f "$REPO_ROOT/.env" ]; then
   cat >"$REPO_ROOT/.env" <<EOF
@@ -82,8 +92,7 @@ else
     printf '\nTEST_AUTH_SECRET="local-test-auth-secret-not-for-production"\n' >>"$REPO_ROOT/.env"
   grep -q '^BETTER_AUTH_SECRET=' "$REPO_ROOT/.env" || \
     printf '\nBETTER_AUTH_SECRET="local-dev-secret-not-for-production-0123456789abcdef"\n' >>"$REPO_ROOT/.env"
-  grep -q '^EXPOSE_TESTING_API=' "$REPO_ROOT/.env" || \
-    printf 'EXPOSE_TESTING_API="1"\n' >>"$REPO_ROOT/.env"
+  ensure_expose_testing_api "$REPO_ROOT/.env"
 fi
 
 echo "==> Installing dependencies"
