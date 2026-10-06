@@ -96,7 +96,8 @@ export async function loadSavedOutfitsForCloset(
       garmentIds: Array.isArray(r.garment_ids) ? r.garment_ids : [],
     }));
   } catch (e) {
+    // Rethrow: an empty result returned here would be cached until revalidation.
     console.error("[outfits] loadSavedOutfitsForCloset failed", e);
-    return [];
+    throw e;
   }
 }

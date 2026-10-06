@@ -76,4 +76,15 @@ describe("loadCalendarMonthData", () => {
       },
     ]);
   });
+
+  it("throws on a database error so an empty month is not cached", async () => {
+    getSqlMock.mockReturnValue(
+      vi.fn(() => Promise.reject(new Error("neon unavailable"))) as never,
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(loadCalendarMonthData(USER_ID, 2026, 8)).rejects.toThrow(
+      "neon unavailable",
+    );
+  });
 });

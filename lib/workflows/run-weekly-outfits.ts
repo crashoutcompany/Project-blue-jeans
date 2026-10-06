@@ -4,6 +4,7 @@ import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
+import { createHeroImageStore } from "@/lib/media/hero-assets";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 import {
   resolveGarmentImageSourcesForAi,
@@ -109,6 +110,55 @@ function garmentNamesForIds(
   return ids.map((id) => byId.get(id)?.name?.trim() || "Untitled");
 }
 
+/** Longer than any run can take, so a crashed run cannot block the week for long. */
+const WEEK_CLAIM_LEASE_SECONDS = 10 * 60;
+
+const WEEK_ALREADY_PLANNING_PUBLIC =
+  "Your week is already being planned. Give it a minute, then refresh.";
+
+/**
+ * Lease (user_id, week_start) so concurrent "Plan my week" calls (double
+ * click, two tabs) cannot both pay for a full Gemini run only for the second
+ * to fail on UNIQUE (user_id, week_start). Returns the claim token, or null
+ * when another run holds an unexpired lease.
+ */
+async function claimWeek(
+  userId: string,
+  weekStart: string,
+): Promise<string | null> {
+  const sql = requireSql();
+  const rows = (await sql`
+    INSERT INTO weekly_plan_claims (user_id, week_start, token, expires_at)
+    VALUES (
+      ${userId},
+      ${weekStart}::date,
+      gen_random_uuid(),
+      now() + make_interval(secs => ${WEEK_CLAIM_LEASE_SECONDS}::double precision)
+    )
+    ON CONFLICT (user_id, week_start) DO UPDATE SET
+      token = EXCLUDED.token,
+      expires_at = EXCLUDED.expires_at
+    WHERE weekly_plan_claims.expires_at <= now()
+    RETURNING token::text AS token
+  `) as Array<{ token: string }>;
+  return rows[0]?.token ?? null;
+}
+
+/** Release only our own claim; an expired lease may already belong to a newer run. */
+async function releaseWeek(
+  userId: string,
+  weekStart: string,
+  token: string,
+): Promise<void> {
+  const sql = requireSql();
+  await sql`
+    DELETE FROM weekly_plan_claims
+    WHERE user_id = ${userId}
+      AND week_start = ${weekStart}::date
+      AND token = ${token}::uuid
+  `;
+}
+
 /**
  * Plan my week: sequential step-1 (tops stay unique; bottoms, shoes,
  * repeat), then bounded hero-image calls. Looks whose garment set already has
@@ -118,16 +168,34 @@ export async function runWeeklyOutfitsJob(
   input: WeeklyOutfitsInput,
   now = new Date(),
 ): Promise<WeeklyOutfitsJobResult> {
+  if (!input.userId) {
+    return { ok: false, error: "Missing user id." };
+  }
+
+  const token = await claimWeek(input.userId, input.weekStart);
+  if (!token) {
+    return { ok: false, error: WEEK_ALREADY_PLANNING_PUBLIC };
+  }
+
+  try {
+    return await planClaimedWeek(input, now);
+  } finally {
+    await releaseWeek(input.userId, input.weekStart, token).catch((e) => {
+      logServerError("runWeeklyOutfitsJob release", e);
+    });
+  }
+}
+
+async function planClaimedWeek(
+  input: WeeklyOutfitsInput,
+  now: Date,
+): Promise<WeeklyOutfitsJobResult> {
   const narrative = input.narrative.trim().slice(0, MAX_NARRATIVE);
   const climate = input.climate.trim().slice(0, 80);
   const context = input.context.trim().slice(0, 80);
 
   if (!climate || !context) {
     return { ok: false, error: "Climate and context are required." };
-  }
-
-  if (!input.userId) {
-    return { ok: false, error: "Missing user id." };
   }
 
   const sql = requireSql();
@@ -385,6 +453,10 @@ export async function runWeeklyOutfitsJob(
         !existingHeroForGarments(existingHeroes, look.garmentIds),
     );
     const wearer = needsGeneratedHero ? wearerPhoto : null;
+    const storeHeroImage = createHeroImageStore(
+      input.userId,
+      input.membership,
+    );
     const heroOutcomes = await mapWithConcurrency(
       looksForDb,
       HERO_IMAGE_CONCURRENCY,
@@ -445,7 +517,7 @@ export async function runWeeklyOutfitsJob(
           });
           return {
             sortOrder: look.sortOrder,
-            url: heroImage ?? null,
+            url: heroImage ? await storeHeroImage(heroImage) : null,
             missingGarments: false as const,
           };
         } catch {

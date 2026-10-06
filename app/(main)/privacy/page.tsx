@@ -28,8 +28,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           Uploads are hosted with our storage provider; generation uses Google
-          Gemini via Google AI Studio under our project configuration. Access is
-          limited to your signed-in Wearer session.
+          Gemini via Google AI Studio under our project configuration. The app
+          only shows your photos inside your signed-in Wearer session, but the
+          stored image files are not private: each one sits at a hard-to-guess
+          link, and anyone who has that link can open the image without signing
+          in. Don&apos;t share photo links you want to keep private.
         </p>
       </div>
       <div className="mt-8 text-center">

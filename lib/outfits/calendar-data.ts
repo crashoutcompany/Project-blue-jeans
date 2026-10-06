@@ -86,8 +86,11 @@ export async function loadCalendarMonthData(
 
   try {
     const [outfitRows, fitRows] = await Promise.all([
-      loadOutfitsInRange(userId, start, end, { order: "asc" }),
-      loadFitsInRange(userId, start, end),
+      loadOutfitsInRange(userId, start, end, {
+        order: "asc",
+        onError: "throw",
+      }),
+      loadFitsInRange(userId, start, end, { onError: "throw" }),
     ]);
 
     const savedDrafts = outfitRows.map((r) => ({
@@ -160,7 +163,8 @@ export async function loadCalendarMonthData(
 
     return { saved, weeklyDrafts };
   } catch (e) {
+    // Rethrow: an empty result returned here would be cached until revalidation.
     console.error("[outfits] loadCalendarMonthData failed", e);
-    return { saved: [], weeklyDrafts: [] };
+    throw e;
   }
 }

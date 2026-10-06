@@ -17,6 +17,11 @@ vi.mock("@/lib/ai/lookbook/step2-image", () => ({
   runHeroImageStep: vi.fn(),
 }));
 
+const { storeHeroImage } = vi.hoisted(() => ({ storeHeroImage: vi.fn() }));
+vi.mock("@/lib/media/hero-assets", () => ({
+  createHeroImageStore: () => storeHeroImage,
+}));
+
 vi.mock("@/lib/wearer/profile", () => ({
   getWearerPhoto: vi.fn(),
 }));
@@ -78,6 +83,7 @@ const BOTTOM_A = "c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33";
 const BOTTOM_B = "d3eebc99-9c0b-4ef8-bb6d-6bb9bd380a44";
 const SHOE_A = "e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55";
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
+const CLAIM_TOKEN = "22222222-2222-4222-8222-222222222222";
 const USER_ID = "user-1";
 const WEEK_START = "2026-08-09";
 const FRIDAY_NOON_UTC = new Date("2026-08-14T16:00:00.000Z");
@@ -140,10 +146,15 @@ function mockSql(state: {
     garment_ids: string[];
   }[];
   calls: SqlCall[];
+  /** Another run already holds the week's lease. */
+  claimHeld?: boolean;
 }) {
   return vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = sqlText(strings);
     state.calls.push({ text, values });
+    if (text.includes("INSERT INTO weekly_plan_claims")) {
+      return Promise.resolve(state.claimHeld ? [] : [{ token: CLAIM_TOKEN }]);
+    }
     if (text.includes("FROM weekly_outfit_plans")) {
       return Promise.resolve(state.planRows ?? []);
     }
@@ -172,6 +183,8 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     loadByIds.mockReset();
     step1.mockReset();
     hero.mockReset();
+    storeHeroImage.mockReset();
+    storeHeroImage.mockResolvedValue("https://cdn.example.com/hero.jpg");
     wearerPhoto.mockReset();
     wearerLocation.mockReset();
     requireSqlMock.mockReset();
@@ -183,7 +196,10 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     loadOutfits.mockResolvedValue([]);
     wearerPhoto.mockResolvedValue(null);
     wearerLocation.mockResolvedValue(null);
-    hero.mockResolvedValue("https://cdn.example.com/hero.jpg");
+    hero.mockResolvedValue({
+      mediaType: "image/png",
+      bytes: new Uint8Array([1]),
+    });
     loadByIds.mockImplementation(async (_userId, ids) =>
       ids.map((id) => {
         const g = closet.find((c) => c.id === id)!;
@@ -513,5 +529,38 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     );
     expect(lookInserts).toHaveLength(1);
     expect(lookInserts[0]?.values[1]).toBe(5);
+  });
+
+  it("does not call Gemini while another run holds the week", async () => {
+    const calls: SqlCall[] = [];
+    requireSqlMock.mockReturnValue(
+      mockSql({ calls, claimHeld: true }) as never,
+    );
+
+    const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
+
+    expect(res).toEqual({
+      ok: false,
+      error: expect.stringMatching(/already being planned/i),
+    });
+    expect(step1).not.toHaveBeenCalled();
+    expect(hero).not.toHaveBeenCalled();
+    expect(
+      calls.some((c) => c.text.includes("DELETE FROM weekly_plan_claims")),
+    ).toBe(false);
+  });
+
+  it("releases its claim even when planning fails", async () => {
+    const calls: SqlCall[] = [];
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    step1.mockRejectedValueOnce(new Error("model down"));
+
+    const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
+
+    expect(res.ok).toBe(false);
+    const release = calls.find((c) =>
+      c.text.includes("DELETE FROM weekly_plan_claims"),
+    );
+    expect(release?.values).toEqual([USER_ID, WEEK_START, CLAIM_TOKEN]);
   });
 });

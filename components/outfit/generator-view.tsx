@@ -15,7 +15,7 @@ import { SendHorizontal, Sparkles } from "lucide-react";
 import type { ClothingCardData } from "@/lib/garments/types";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import type { GenerateLookbookResult } from "@/lib/lookbook/generate-lookbook";
-import { APPROVE_OUTFIT_MAX_IMAGE_URL_LEN } from "@/lib/outfits/approve-outfit-limits";
+import { MEDIA_ASSET_PATH_PREFIX } from "@/lib/media/display";
 import type { ApproveOutfitResult } from "@/lib/outfits/persist-generator-outfit";
 import {
   generateLookbookResultSchema,
@@ -159,11 +159,11 @@ export function GeneratorView({
       approveInFlightRef.current = true;
       setError(null);
       setApproveSavingLookId(look.id);
-      const imageUrl =
-        look.imageDataUrl &&
-        look.imageDataUrl.length <= APPROVE_OUTFIT_MAX_IMAGE_URL_LEN
-          ? look.imageDataUrl
-          : null;
+      // Only generated heroes (owned media paths) are sent; a legacy data URL
+      // would be megabytes and the server drops it anyway.
+      const imageUrl = look.imageUrl?.startsWith(MEDIA_ASSET_PATH_PREFIX)
+        ? look.imageUrl
+        : null;
       try {
         const res = await fetch("/api/outfits/approve-generator", {
           method: "POST",

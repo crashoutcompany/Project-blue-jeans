@@ -127,10 +127,13 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE media_kind AS ENUM ('closet_image', 'wearer_photo');
+  CREATE TYPE media_kind AS ENUM ('closet_image', 'wearer_photo', 'outfit_hero');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
+
+-- Generated outfit heroes (see db/migrate-outfit-hero-media.sql).
+ALTER TYPE media_kind ADD VALUE IF NOT EXISTS 'outfit_hero';
 
 -- Admission, authorization, and provider funding are separate account policies.
 CREATE TABLE IF NOT EXISTS wearer_invitations (
@@ -357,6 +360,15 @@ CREATE TABLE IF NOT EXISTS weekly_outfit_plans (
   error_message text,
   user_id text NOT NULL,
   UNIQUE (user_id, week_start)
+);
+
+-- Lease so only one "Plan my week" run per (user, week) pays for Gemini.
+CREATE TABLE IF NOT EXISTS weekly_plan_claims (
+  user_id text NOT NULL,
+  week_start date NOT NULL,
+  token uuid NOT NULL,
+  expires_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, week_start)
 );
 
 CREATE INDEX IF NOT EXISTS weekly_outfit_plans_week_start_idx ON weekly_outfit_plans (week_start DESC);
