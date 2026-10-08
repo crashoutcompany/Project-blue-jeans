@@ -10,7 +10,6 @@ const authProxy = createAuthProxy({
     "/auth/sign-in",
     "/auth/sign-out",
     "/auth/not-admitted",
-    "/auth/not-admin",
     "/auth/accept-invite",
     "/privacy",
     "/terms",

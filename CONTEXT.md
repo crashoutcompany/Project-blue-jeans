@@ -50,11 +50,11 @@ _Avoid_: Shared household closet as the default; multi-profile under one login (
 
 **Admitted Wearer**:
 A **Wearer account** with an active membership (the platform-funded owner, or someone who accepted an **Invitation**). Product surfaces require admission.
-_Avoid_: Treating Neon `admin` role as product access; silent public signup; falling back to platform keys for invited Wearers
+_Avoid_: Treating an auth-provider admin role as product access; silent public signup; falling back to platform keys for invited Wearers
 
 **Invitation**:
 An owner-issued, one-time email invite (7-day expiry) that binds a Wearer id on accept. The owner copies the link; there is no mailer in this slice.
-_Avoid_: `APP_ADMIN_EMAILS` as the Wearer roster; reusable or open invites
+_Avoid_: Reusable or open invites
 
 **Calendar**:
 The week/month map of **Fits** and **Outfits** — browse and open days; not the primary commit surface and not the default home.
