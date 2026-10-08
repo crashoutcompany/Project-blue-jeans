@@ -37,7 +37,7 @@ Set these Vercel environment variables only in production:
 
 - `APP_OWNER_USER_ID`: the same stable Better Auth id as the owner membership.
   Production owner bootstrap uses this exact id only. Auth provider identity
-  and `APP_ADMIN_EMAILS` do not grant product admission. The Playwright
+  does not grant product admission. The Playwright
   test-login route may create an admitted Wearer only outside production.
 - `PROVIDER_CREDENTIAL_KEY_VERSION=1`
 - `PROVIDER_CREDENTIAL_KEY_V1`: a base64-encoded 32-byte key generated with
