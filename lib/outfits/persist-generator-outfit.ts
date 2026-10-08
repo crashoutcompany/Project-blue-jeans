@@ -132,7 +132,7 @@ async function wornOutfitIdForDay(
 
 /**
  * Point (user_id, worn_on) at an Outfit. Relies on UNIQUE (user_id, worn_on);
- * see db/migrate-outfit-wears-unique.sql.
+ * see db/schema.sql.
  */
 function upsertWearQuery(
   sql: Sql,
