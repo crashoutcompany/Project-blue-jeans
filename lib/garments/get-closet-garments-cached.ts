@@ -45,7 +45,7 @@ export async function getAllGarmentRowsCached(
   } catch (e) {
     // Rethrow: a `[]` returned here would be cached as an empty closet.
     console.error(
-      "[garments] getAllGarmentRowsCached failed — did you run db/schema.sql / migrate-per-account.sql in Neon?",
+      "[garments] getAllGarmentRowsCached failed — is db/schema.sql applied to this Neon branch?",
       e,
     );
     throw e;

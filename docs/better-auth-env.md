@@ -7,7 +7,7 @@ Configure these for **local**, **preview**, **production**, and **CI**.
 
 | Variable | Description |
 | --- | --- |
-| `DATABASE_URL` | Neon pooled connection string. Auth tables live in the public schema (`user`, `session`, `account`, `verification`). Apply `db/migrate-better-auth.sql` once before cutover. |
+| `DATABASE_URL` | Neon pooled connection string. Auth tables live in the public schema (`user`, `session`, `account`, `verification`). They are created by `db/schema.sql`. |
 | `BETTER_AUTH_SECRET` | Session signing secret (≥32 chars). Store **raw** — no surrounding quotes. |
 
 ## Optional URL override
@@ -41,7 +41,7 @@ Copy this policy to Z / RDC. App-specific `createTestSession` bodies may differ;
 
 Actions e2e and the Neon preview-branch workflow (shared workflows in `crashoutcompany/.github`) require `NEON_API_KEY` (secret) plus `NEON_PROJECT_ID`. CI e2e uses fixture `TEST_AUTH_SECRET` / `BETTER_AUTH_SECRET` values, so neither needs to be a GitHub secret. Local Cloud Agent e2e can use `.cursor/dev/neon-local-proxy.mjs` instead of Actions Neon branching.
 
-CI e2e / preview Neon DBs also need the full app schema applied, including Better Auth tables (`db/migrate-better-auth.sql`) and `wearer_preferences` (`db/migrate-garment-categories-location.sql` / `db/schema.sql`).
+CI e2e / preview Neon DBs are branches of production, so they inherit its schema. A database created from scratch needs `db/schema.sql`, which includes the Better Auth tables.
 
 ### Env lock (copy checklist)
 

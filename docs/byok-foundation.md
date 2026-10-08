@@ -4,13 +4,11 @@ This slice adds admission-aware provider settings and switches Gemini and
 UploadThing call sites onto per-Wearer credential resolution with media
 provenance.
 
-## Apply the database migrations
+## Database
 
-Run these once in the Neon SQL editor, in order:
-
-1. `db/migrate-byok-foundation.sql`
-2. `db/migrate-byok-uploadthing.sql`
-3. `db/migrate-admission-invites.sql`
+The BYOK tables (`wearer_memberships`, `wearer_invitations`,
+`provider_connections`, `provider_credentials`, `media_assets`,
+`upload_intents`) are part of `db/schema.sql`.
 
 Seed the sole platform-funded owner with the stable Better Auth user id:
 
