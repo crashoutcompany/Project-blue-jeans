@@ -8,6 +8,7 @@ import {
   loadGarmentCatalog,
   loadGarmentsByIds,
 } from "@/lib/garments/load-catalog";
+import { createHeroImageStore } from "@/lib/media/hero-assets";
 import {
   resolveGarmentImageSourcesForAi,
   resolveOwnedImageFetchUrl,
@@ -229,6 +230,7 @@ export async function generateLookbook(
         (look) => !existingHeroForGarments(existingHeroes, look.garmentIds),
       );
       const wearer = needsGeneratedHero ? wearerPhoto : null;
+      const storeHeroImage = createHeroImageStore(input.userId);
 
       const heroImages = await Promise.all(
         looks.map(async (look) => {
@@ -267,7 +269,7 @@ export async function generateLookbook(
                 )
               : null;
 
-            return await runHeroImageStep({
+            const generated = await runHeroImageStep({
               apiKey: gemini.apiKey,
               title: look.title,
               description: look.description,
@@ -277,6 +279,8 @@ export async function generateLookbook(
               garments,
               wearerPhotoUrl,
             });
+            if (!generated) return undefined;
+            return (await storeHeroImage(generated)) ?? undefined;
           } catch {
             // Image is optional per look
             return undefined;
@@ -287,7 +291,7 @@ export async function generateLookbook(
       for (let i = 0; i < looks.length; i++) {
         const image = heroImages[i];
         if (image) {
-          looks[i] = { ...looks[i]!, imageDataUrl: image };
+          looks[i] = { ...looks[i]!, imageUrl: image };
         }
       }
     }

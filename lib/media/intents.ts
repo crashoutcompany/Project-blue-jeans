@@ -38,7 +38,7 @@ export async function createUploadIntent(input: {
   return { intentId };
 }
 
-export type MediaKind = "closet_image" | "wearer_photo";
+export type MediaKind = "closet_image" | "wearer_photo" | "outfit_hero";
 
 export async function getUploadIntentById(intentId: string): Promise<{
   userId: string;
@@ -159,12 +159,19 @@ export async function consumeUploadIntent(input: {
 /** Grace period before an unattached upload is treated as abandoned. */
 const CLEANUP_GRACE_SECONDS = INTENT_TTL_MS / 1000;
 
+/**
+ * Generator previews hold an `outfit_hero` path until the Wearer approves,
+ * which can be well after the upload grace period.
+ */
+const HERO_CLEANUP_GRACE_SECONDS = 24 * 60 * 60;
+
 /** Delete at most this many abandoned files per upload, to bound the sweep. */
 const CLEANUP_BATCH = 50;
 
 /**
- * Delete successful uploads that were never attached to a garment or wearer
- * profile. Called from upload middleware so abandoned files do not linger.
+ * Delete successful uploads that were never attached to a garment, wearer
+ * profile, Outfit hero, or Weekly Fit hero. Called from upload middleware so
+ * abandoned files do not linger.
  *
  * Assets are matched on their own age rather than through
  * `upload_intents.media_asset_id`: that column holds a single id, so a closet
@@ -183,8 +190,13 @@ export async function cleanupExpiredUnclaimedUploads(input: {
       ma.provider_file_key
     FROM media_assets ma
     WHERE ma.user_id = ${input.userId}
-      AND ma.created_at
-          < now() - make_interval(secs => ${CLEANUP_GRACE_SECONDS}::double precision)
+      AND ma.created_at < now() - make_interval(
+        secs => CASE
+          WHEN ma.kind::text = 'outfit_hero'
+            THEN ${HERO_CLEANUP_GRACE_SECONDS}::double precision
+          ELSE ${CLEANUP_GRACE_SECONDS}::double precision
+        END
+      )
       AND NOT EXISTS (
         SELECT 1 FROM garments g
         WHERE g.user_id = ma.user_id
@@ -200,6 +212,18 @@ export async function cleanupExpiredUnclaimedUploads(input: {
             p.media_asset_id = ma.id
             OR p.uploadthing_key = ma.provider_file_key
           )
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM outfits o
+        WHERE o.user_id = ma.user_id
+          AND o.image_url = '/api/media/' || ma.id::text
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM weekly_plan_looks l
+        INNER JOIN weekly_outfit_plans wp ON wp.id = l.plan_id
+        WHERE wp.user_id = ma.user_id
+          AND l.hero_image_url = '/api/media/' || ma.id::text
       )
     ORDER BY ma.created_at
     LIMIT ${CLEANUP_BATCH}

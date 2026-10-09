@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import { requireSql } from "@/lib/db";
+import { getOwnedMediaAsset } from "@/lib/media/assets";
+import {
+  mediaAssetDisplayPath,
+  parseMediaAssetIdFromPath,
+} from "@/lib/media/display";
 import { logServerError } from "@/lib/server/safe-client-error";
 import {
   APPROVE_OUTFIT_MAX_IMAGE_URL_LEN,
@@ -34,16 +39,30 @@ const idRowSchema = z.object({ id: z.string().uuid() });
 const priorWearRowSchema = z.object({
   prior_outfit_id: z.string().uuid(),
 });
-const wearDeleteRowSchema = z.object({
-  outfit_id: z.string().uuid(),
-});
 const countRowSchema = z.object({ n: z.number().int() });
 
+/** Server-trusted hero values (e.g. a stored Weekly Fit); empty → null. */
 export function normalizeCommitImageUrl(
   url: string | null | undefined,
 ): string | null {
-  if (!url) return null;
-  return url.length <= APPROVE_OUTFIT_MAX_IMAGE_URL_LEN ? url : null;
+  const trimmed = url?.trim();
+  return trimmed ? trimmed : null;
+}
+
+/**
+ * Client-supplied hero: keep it only when it is this Wearer's own generated
+ * `outfit_hero` asset. Anything else is dropped; the outfit falls back to
+ * garment thumbnails (or keeps the hero already stored for that garment set).
+ */
+export async function ownedHeroImagePath(
+  userId: string,
+  url: string | null | undefined,
+): Promise<string | null> {
+  const mediaAssetId = parseMediaAssetIdFromPath(url ?? "");
+  if (!mediaAssetId) return null;
+  const asset = await getOwnedMediaAsset(userId, mediaAssetId);
+  if (!asset || asset.kind !== "outfit_hero") return null;
+  return mediaAssetDisplayPath(asset.id);
 }
 
 export async function assertGarmentsOwnedByUser(
@@ -75,24 +94,62 @@ export async function assertGarmentsOwnedByUser(
   return null;
 }
 
-async function deleteOutfitIfOrphaned(
+type Sql = ReturnType<typeof requireSql>;
+
+/**
+ * Run statements in one Neon transaction so a failure part-way cannot leave a
+ * wear without its last-worn sync or an orphaned Outfit behind.
+ */
+function runInTransaction(
+  sql: Sql,
+  queries: ReturnType<Sql>[],
+): Promise<unknown[]> {
+  return sql.transaction(queries);
+}
+
+/**
+ * Outfit currently worn on (user_id, worn_on). Read before the write
+ * transaction because Neon HTTP transactions cannot feed one statement's
+ * result into the next. If a concurrent write changes the day in between, the
+ * cleanup below is a guarded no-op on the stale id; at worst an Outfit with
+ * no wears is left for the next commit on that day to tidy.
+ */
+async function wornOutfitIdForDay(
+  sql: Sql,
   userId: string,
+  wornOn: string,
+): Promise<string | null> {
+  const rows = await sql`
+    SELECT outfit_id::text AS prior_outfit_id
+    FROM outfit_wears
+    WHERE user_id = ${userId}
+      AND worn_on = ${wornOn}::date
+    LIMIT 1
+  `;
+  const parsed = z.array(priorWearRowSchema).safeParse(rows);
+  return parsed.success ? (parsed.data[0]?.prior_outfit_id ?? null) : null;
+}
+
+/**
+ * Point (user_id, worn_on) at an Outfit. Relies on UNIQUE (user_id, worn_on);
+ * see db/schema.sql.
+ */
+function upsertWearQuery(
+  sql: Sql,
+  userId: string,
+  wornOn: string,
   outfitId: string,
-): Promise<void> {
-  const sql = requireSql();
-  await sql`
-    DELETE FROM outfits o
-    WHERE o.id = ${outfitId}::uuid
-      AND o.user_id = ${userId}
-      AND NOT EXISTS (
-        SELECT 1 FROM outfit_wears w WHERE w.outfit_id = o.id
-      )
+) {
+  return sql`
+    INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
+    VALUES (${outfitId}::uuid, ${userId}, ${wornOn}::date)
+    ON CONFLICT (user_id, worn_on)
+    DO UPDATE SET outfit_id = EXCLUDED.outfit_id
   `;
 }
 
-async function syncLastWorn(outfitId: string): Promise<void> {
-  const sql = requireSql();
-  await sql`
+function syncLastWornQuery(sql: Sql, outfitId: string) {
+  return sql`
     UPDATE outfits o
     SET
       worn_on = coalesce(
@@ -104,34 +161,33 @@ async function syncLastWorn(outfitId: string): Promise<void> {
   `;
 }
 
-/**
- * Atomically replace the wear for (user_id, worn_on) and return the previous
- * outfit id (when different) for orphan cleanup. Requires a unique index on
- * (user_id, worn_on) for concurrent safety; see db/migrate-outfit-wears-unique.sql.
- */
-async function replaceWearForDay(
+function deleteOutfitIfOrphanedQuery(
+  sql: Sql,
   userId: string,
-  wornOn: string,
   outfitId: string,
-): Promise<string | null> {
-  const sql = requireSql();
-  const rows = await sql`
-    WITH deleted AS (
-      DELETE FROM outfit_wears
-      WHERE user_id = ${userId}
-        AND worn_on = ${wornOn}::date
-      RETURNING outfit_id::text AS prior_outfit_id
-    ),
-    inserted AS (
-      INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
-      VALUES (${outfitId}::uuid, ${userId}, ${wornOn}::date)
-      RETURNING 1
-    )
-    SELECT prior_outfit_id FROM deleted
+) {
+  return sql`
+    DELETE FROM outfits o
+    WHERE o.id = ${outfitId}::uuid
+      AND o.user_id = ${userId}
+      AND NOT EXISTS (
+        SELECT 1 FROM outfit_wears w WHERE w.outfit_id = o.id
+      )
   `;
-  const parsed = z.array(priorWearRowSchema).safeParse(rows);
-  const prior = parsed.success ? (parsed.data[0]?.prior_outfit_id ?? null) : null;
-  return prior && prior !== outfitId ? prior : null;
+}
+
+/** Last-worn sync + orphan cleanup for an Outfit that just lost a day. */
+function releasedOutfitQueries(
+  sql: Sql,
+  userId: string,
+  outfitId: string | null,
+  keepOutfitId?: string,
+) {
+  if (!outfitId || outfitId === keepOutfitId) return [];
+  return [
+    syncLastWornQuery(sql, outfitId),
+    deleteOutfitIfOrphanedQuery(sql, userId, outfitId),
+  ];
 }
 
 /**
@@ -157,60 +213,77 @@ export async function commitOutfitForDay(input: {
   const imageUrl = normalizeCommitImageUrl(input.imageUrl);
   const occasion = input.occasion ?? "casual";
 
+  const priorOutfitId = await wornOutfitIdForDay(
+    sql,
+    input.userId,
+    input.wornOn,
+  );
+
   /**
-   * One statement so the outfit and its garment links commit together. A
+   * The first statement writes the outfit and its garment links together. A
    * SELECT-then-INSERT here raced `outfits_user_garment_set_key_uidx`, and
    * linking pieces in a follow-up loop could leave an outfit whose
    * `garment_set_key` claims pieces that `outfit_garments` never got. The
    * link insert also runs on the reuse path, so any set left partial by an
-   * earlier failure is repaired on the next commit.
+   * earlier failure is repaired on the next commit. Later statements find the
+   * outfit by its set key, since its id is not known until the commit runs.
    */
-  const committed = await sql`
-    WITH upserted AS (
-      INSERT INTO outfits (worn_on, occasion, name, image_url, garment_set_key, user_id)
-      VALUES (
-        ${input.wornOn}::date,
-        ${occasion}::outfit_occasion,
-        NULL,
-        ${imageUrl},
-        ${setKey},
-        ${input.userId}
+  const [committed] = await runInTransaction(sql, [
+    sql`
+      WITH upserted AS (
+        INSERT INTO outfits (worn_on, occasion, name, image_url, garment_set_key, user_id)
+        VALUES (
+          ${input.wornOn}::date,
+          ${occasion}::outfit_occasion,
+          NULL,
+          ${imageUrl},
+          ${setKey},
+          ${input.userId}
+        )
+        ON CONFLICT (user_id, garment_set_key)
+          WHERE garment_set_key IS NOT NULL AND garment_set_key <> ''
+        DO UPDATE SET
+          image_url = COALESCE(EXCLUDED.image_url, outfits.image_url),
+          updated_at = now()
+        RETURNING id
+      ),
+      linked AS (
+        INSERT INTO outfit_garments (outfit_id, garment_id, sort_order)
+        SELECT upserted.id, piece.garment_id, (piece.ord - 1)::int
+        FROM upserted
+        CROSS JOIN unnest(${uniqueIds}::uuid[])
+          WITH ORDINALITY AS piece(garment_id, ord)
+        ON CONFLICT (outfit_id, garment_id) DO NOTHING
+        RETURNING 1
       )
-      ON CONFLICT (user_id, garment_set_key)
-        WHERE garment_set_key IS NOT NULL AND garment_set_key <> ''
-      DO UPDATE SET
-        image_url = COALESCE(EXCLUDED.image_url, outfits.image_url),
+      SELECT id FROM upserted
+    `,
+    sql`
+      INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
+      SELECT o.id, ${input.userId}, ${input.wornOn}::date
+      FROM outfits o
+      WHERE o.user_id = ${input.userId}
+        AND o.garment_set_key = ${setKey}
+      ON CONFLICT (user_id, worn_on)
+      DO UPDATE SET outfit_id = EXCLUDED.outfit_id
+    `,
+    sql`
+      UPDATE outfits o
+      SET
+        worn_on = coalesce(
+          (SELECT max(w.worn_on) FROM outfit_wears w WHERE w.outfit_id = o.id),
+          o.worn_on
+        ),
         updated_at = now()
-      RETURNING id
-    ),
-    linked AS (
-      INSERT INTO outfit_garments (outfit_id, garment_id, sort_order)
-      SELECT upserted.id, piece.garment_id, (piece.ord - 1)::int
-      FROM upserted
-      CROSS JOIN unnest(${uniqueIds}::uuid[])
-        WITH ORDINALITY AS piece(garment_id, ord)
-      ON CONFLICT (outfit_id, garment_id) DO NOTHING
-      RETURNING 1
-    )
-    SELECT id FROM upserted
-  `;
+      WHERE o.user_id = ${input.userId}
+        AND o.garment_set_key = ${setKey}
+    `,
+    ...releasedOutfitQueries(sql, input.userId, priorOutfitId),
+  ]);
   const committedParsed = z.array(idRowSchema).parse(committed);
   const outfitId = committedParsed[0]?.id ?? null;
   if (!outfitId) {
     throw new Error("Commit outfit returned no id");
-  }
-
-  const priorOutfitId = await replaceWearForDay(
-    input.userId,
-    input.wornOn,
-    outfitId,
-  );
-
-  await syncLastWorn(outfitId);
-
-  if (priorOutfitId) {
-    await syncLastWorn(priorOutfitId);
-    await deleteOutfitIfOrphaned(input.userId, priorOutfitId);
   }
 
   return outfitId;
@@ -235,18 +308,22 @@ export async function assignOutfitToDay(input: {
       return { ok: false, message: "That outfit was not found." };
     }
 
-    const priorOutfitId = await replaceWearForDay(
+    const priorOutfitId = await wornOutfitIdForDay(
+      sql,
       input.userId,
       input.wornOn,
-      input.outfitId,
     );
 
-    await syncLastWorn(input.outfitId);
-
-    if (priorOutfitId) {
-      await syncLastWorn(priorOutfitId);
-      await deleteOutfitIfOrphaned(input.userId, priorOutfitId);
-    }
+    await runInTransaction(sql, [
+      upsertWearQuery(sql, input.userId, input.wornOn, input.outfitId),
+      syncLastWornQuery(sql, input.outfitId),
+      ...releasedOutfitQueries(
+        sql,
+        input.userId,
+        priorOutfitId,
+        input.outfitId,
+      ),
+    ]);
 
     return { ok: true, outfitId: input.outfitId };
   } catch (e) {
@@ -262,20 +339,19 @@ export async function unwearDay(
 ): Promise<ApproveOutfitResult> {
   try {
     const sql = requireSql();
-    const rows = await sql`
-      DELETE FROM outfit_wears
-      WHERE user_id = ${userId}
-        AND worn_on = ${wornOn}::date
-      RETURNING outfit_id::text AS outfit_id
-    `;
-    const parsed = z.array(wearDeleteRowSchema).safeParse(rows);
-    const outfitId = parsed.success ? parsed.data[0]?.outfit_id : undefined;
-    if (outfitId) {
-      await syncLastWorn(outfitId);
-      await deleteOutfitIfOrphaned(userId, outfitId);
-    }
+    const outfitId = await wornOutfitIdForDay(sql, userId, wornOn);
+    if (!outfitId) return { ok: true, outfitId: "" };
 
-    return { ok: true, outfitId: outfitId ?? "" };
+    await runInTransaction(sql, [
+      sql`
+        DELETE FROM outfit_wears
+        WHERE user_id = ${userId}
+          AND worn_on = ${wornOn}::date
+      `,
+      ...releasedOutfitQueries(sql, userId, outfitId),
+    ]);
+
+    return { ok: true, outfitId };
   } catch (e) {
     logServerError("unwearDay", e);
     return { ok: false, message: "Could not unwear this look." };
@@ -300,7 +376,7 @@ export async function executeApproveGeneratorOutfit(
       userId,
       wornOn,
       garmentIds: uniqueIds,
-      imageUrl: imageUrl ?? null,
+      imageUrl: await ownedHeroImagePath(userId, imageUrl),
       occasion,
     });
 

@@ -4,14 +4,19 @@ This slice adds admission-aware provider settings and switches Gemini and
 UploadThing call sites onto per-Wearer credential resolution with media
 provenance.
 
-## Apply the database migrations
+## Database
 
-Run these once in the Neon SQL editor, in order:
+The BYOK tables (`wearer_memberships`, `wearer_invitations`,
+`provider_connections`, `provider_credentials`, `media_assets`,
+`upload_intents`) are part of `db/schema.sql`.
+Re-running `db/schema.sql` adds `provider_validation_attempts`, the per-Wearer
+limit on key validations. Disconnecting a provider now deletes the ciphertext
+row, so on an existing database run this once to purge rows disconnected
+earlier:
 
-1. `db/migrate-byok-foundation.sql`
-2. `db/migrate-byok-uploadthing.sql`
-3. `db/migrate-admission-invites.sql`
-4. `db/migrate-byok-hardening.sql`
+```sql
+DELETE FROM provider_credentials WHERE revoked_at IS NOT NULL;
+```
 
 Seed the sole platform-funded owner with the stable Better Auth user id:
 
@@ -40,7 +45,7 @@ Set these Vercel environment variables only in production:
 
 - `APP_OWNER_USER_ID`: the same stable Better Auth id as the owner membership.
   Production owner bootstrap uses this exact id only. Auth provider identity
-  and `APP_ADMIN_EMAILS` do not grant product admission. The Playwright
+  does not grant product admission. The Playwright
   test-login route may create an admitted Wearer only outside production.
   It is required in production: without it, no account (not even an `owner`
   membership row) may spend the platform keys.

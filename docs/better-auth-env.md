@@ -7,7 +7,7 @@ Configure these for **local**, **preview**, **production**, and **CI**.
 
 | Variable | Description |
 | --- | --- |
-| `DATABASE_URL` | Neon pooled connection string. Auth tables live in the public schema (`user`, `session`, `account`, `verification`). Apply `db/migrate-better-auth.sql` once before cutover. |
+| `DATABASE_URL` | Neon pooled connection string. Auth tables live in the public schema (`user`, `session`, `account`, `verification`). They are created by `db/schema.sql`. |
 | `BETTER_AUTH_SECRET` | Session signing secret (≥32 chars). Store **raw** — no surrounding quotes. |
 
 ## Optional URL override
@@ -41,7 +41,7 @@ Copy this policy to Z / RDC. App-specific `createTestSession` bodies may differ;
 
 Actions e2e and the Neon preview-branch workflow (shared workflows in `crashoutcompany/.github`) require `NEON_API_KEY` (secret) plus `NEON_PROJECT_ID`. CI e2e uses fixture `TEST_AUTH_SECRET` / `BETTER_AUTH_SECRET` values, so neither needs to be a GitHub secret. Local Cloud Agent e2e can use `.cursor/dev/neon-local-proxy.mjs` instead of Actions Neon branching.
 
-CI e2e / preview Neon DBs also need the full app schema applied, including Better Auth tables (`db/migrate-better-auth.sql`) and `wearer_preferences` (`db/migrate-garment-categories-location.sql` / `db/schema.sql`).
+CI e2e / preview Neon DBs are branches of production, so they inherit its schema. A database created from scratch needs `db/schema.sql`, which includes the Better Auth tables.
 
 ### Env lock (copy checklist)
 
@@ -55,13 +55,12 @@ Test / CI: `TEST_AUTH_SECRET`, `EXPOSE_TESTING_API=1`, header `x-test-auth-secre
 
 ## Owner bootstrap
 
-`APP_OWNER_USER_ID` must match the Better Auth user id for the sole platform-funded owner. Neon Auth `role=admin` / `APP_ADMIN_EMAILS` do **not** admit accounts.
+`APP_OWNER_USER_ID` must match the Better Auth user id for the sole platform-funded owner. Auth-provider identity alone never admits an account; admission lives in `wearer_memberships`.
 
 ## Ops / CI secrets (do not invent tokens)
 
 | Gap | Where | Action |
 | --- | --- | --- |
-| `#30` Vercel build `cookies.secret must be ≥32` | GitHub Actions secrets | Set `NEON_AUTH_COOKIE_SECRET` (≥32) + `NEON_AUTH_BASE_URL` until Better Auth runtime (`#31`) replaces Neon Auth. |
 | Tip e2e `Input required: api_key` | GitHub Actions | Set the `NEON_API_KEY` secret + `NEON_PROJECT_ID` variable. |
 | Vercel preview “Deployment rate limited” | Vercel Hobby | Wait for the rate-limit window (often ~24h) or upgrade; do not invent `VERCEL_TOKEN`. |
 | OAuth buttons missing in e2e | optional | Set `AUTH_GOOGLE_*` / `AUTH_GITHUB_*` or accept the shared “not configured” status in smoke tests. |

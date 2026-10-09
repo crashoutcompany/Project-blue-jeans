@@ -10,7 +10,7 @@ There is one local process — the **Next.js dev server**. Everything else is a 
 
 - **Neon Postgres** (`DATABASE_URL`) — persists garments / outfits. Serverless HTTP driver; no local Postgres.
 - **Better Auth** (`BETTER_AUTH_SECRET`, optional `BETTER_AUTH_URL`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`) — self-hosted sessions and social OAuth in the same Neon database. See `docs/better-auth-env.md` (includes CI `NEON_API_KEY` / `TEST_AUTH_SECRET` / `EXPOSE_TESTING_API=1` strict test-auth gate / header `x-test-auth-secret`).
-- **UploadThing** (`UPLOADTHING_TOKEN`) — image hosting for closet uploads.
+- **UploadThing** (`UPLOADTHING_TOKEN`) — image hosting for closet uploads, the Wearer photo, and generated outfit heroes. Files use the app's default public-read ACL (free plans, including BYOK apps, can't serve private files): anyone with a file URL can view it without signing in. `/api/media/<id>` only gates who learns the URL, so treat these photos as unlisted, not private.
 - **Google AI Studio / Gemini Developer API** (`GOOGLE_GENERATIVE_AI_API_KEY`) — powers outfit generation, hero images, and auto garment descriptions. See `docs/gemini-ai-studio-env.md`.
 - **Vercel Cron** (`CRON_SECRET`) — Bearer token for `GET /api/cron/purge-stale-fits` (Mondays 08:00 UTC). Deletes leftover Weekly Fits from previous Sunday-start weeks; committed Outfits are kept. Store the value raw.
 
@@ -29,19 +29,20 @@ There is one local process — the **Next.js dev server**. Everything else is a 
 - **Full end-to-end testing requires user-provided secrets**: `DATABASE_URL`, `UPLOADTHING_TOKEN`, and `GOOGLE_GENERATIVE_AI_API_KEY`. Add them via the Secrets panel; env vars are injected into the VM.
 - **Store secret values raw — no surrounding quotes.** `lib/ai/gemini-provider.ts` strips wrapping quotes from `GOOGLE_GENERATIVE_AI_API_KEY`. The UploadThing SDK reads `UPLOADTHING_TOKEN` verbatim (a stray quote breaks uploads). Paste these as the bare value.
 - **Production owner bootstrap is `APP_OWNER_USER_ID` only.** Better Auth identity does not admit an account; admission remains in `wearer_memberships`. The test-login endpoint creates only test-environment membership rows.
-- **The Neon schema is applied manually** — run `db/schema.sql` in the Neon SQL editor once against the target database. Existing databases must run `db/migrate-better-auth.sql` before this app version. Confirm the legacy `neon_auth.user` shape and identity mapping when the guarded migration reports that it could not copy users. Configure the Google OAuth callback as `/api/auth/callback/google`.
+- **`db/schema.sql` is the only schema file; there are no migrations.** Run it once (Neon SQL editor or `psql "$DATABASE_URL" -f db/schema.sql`) to set up an empty database. It is idempotent but only creates what's missing, so a change to an existing table needs a hand-written `ALTER` applied to each Neon branch alongside the `schema.sql` edit. Configure the Google OAuth callback as `/api/auth/callback/google`.
 - All Gemini access goes through `@ai-sdk/google`.
 
 ## How agents sign in
 
-- Build and start with `EXPOSE_TESTING_API=1`. Never set that flag on Vercel Production.
+- Tester login is local/CI only. Build and start with `EXPOSE_TESTING_API=1`
+  on your machine or in CI; it is never available on any Vercel deployment
+  (Preview included), because `lib/e2e-env.ts` refuses whenever `VERCEL=1`.
 - Set `TEST_AUTH_SECRET` and `POST /api/test-auth/login` with header
   `x-test-auth-secret: <secret>`.
 - The route upserts the seeded tester (and a wearer membership) and mints a real
-  Better Auth session cookie. Production always 404s; a wrong secret returns 401.
+  Better Auth session cookie. It 404s when the gate is off (always on Vercel);
+  a wrong secret returns 401.
 - Playwright `e2e/global-setup.ts` writes storage state under `e2e/.auth/`.
-- If Deployment Protection is on, also send
-  `x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET`.
 
 ## Neon Managed Better Auth revisit
 

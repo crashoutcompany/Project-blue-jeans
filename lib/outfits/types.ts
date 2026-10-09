@@ -9,8 +9,8 @@ export type OutfitLook = {
   featured?: boolean;
   /** Garment UUIDs chosen in step 1 (closet). */
   garmentIds?: string[];
-  /** Base64 data URL from Gemini image generation (featured look only). */
-  imageDataUrl?: string;
+  /** Hero image: an owned `/api/media/<id>` path (legacy rows may hold other URLs). */
+  imageUrl?: string;
 };
 
 export const outfitLookSchema = z.object({
@@ -20,7 +20,7 @@ export const outfitLookSchema = z.object({
   tags: z.array(z.string()),
   featured: z.boolean().optional(),
   garmentIds: z.array(z.string()).optional(),
-  imageDataUrl: z.string().optional(),
+  imageUrl: z.string().optional(),
 });
 
 export const generateLookbookResultSchema = z.discriminatedUnion("ok", [

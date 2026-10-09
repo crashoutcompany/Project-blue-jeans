@@ -50,11 +50,11 @@ _Avoid_: Shared household closet as the default; multi-profile under one login (
 
 **Admitted Wearer**:
 A **Wearer account** with an active membership (the platform-funded owner, or someone who accepted an **Invitation**). Product surfaces require admission.
-_Avoid_: Treating Neon `admin` role as product access; silent public signup; falling back to platform keys for invited Wearers
+_Avoid_: Treating an auth-provider admin role as product access; silent public signup; falling back to platform keys for invited Wearers
 
 **Invitation**:
 An owner-issued, one-time email invite (7-day expiry) that binds a Wearer id on accept. The owner copies the link; there is no mailer in this slice.
-_Avoid_: `APP_ADMIN_EMAILS` as the Wearer roster; reusable or open invites
+_Avoid_: Reusable or open invites
 
 **Calendar**:
 The week/month map of **Fits** and **Outfits** — browse and open days; not the primary commit surface and not the default home.
@@ -341,10 +341,10 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; archi
 ## Flagged ambiguities
 
 - Generator UI is **chat** plus **Include**/**Avoid** chips (must-wear Include, max 3; Avoid never-use; persist across turns). Sheet over Today; today-scoped approve → **Outfit**; discard-confirm shipped.
-- Admission is invite-gated membership (`wearer_memberships` / `wearer_invitations`); production owner bootstrap uses `APP_OWNER_USER_ID` only. Closet / Today / Calendar / Generator / Wearer photo data are scoped by Better Auth `user.id` (cache tags per account). Existing DBs need `db/migrate-per-account.sql` (+ optional claim `UPDATE` for pre-isolation rows), plus `db/migrate-admission-invites.sql` for invitations.
-- Closet **Pieces | Outfits** mode tabs, garment-set uniqueness (`outfit_wears` + `garment_set_key`), detail **Wear today** (+ replace confirm), and user rename are shipped. Existing DBs need `db/migrate-outfit-wears.sql`.
-- **Wearer photo** + try-on hero path shipped (Settings + Today soft CTA; Generator / Weekly Fits use try-on when a photo exists, editorial fallback otherwise). Existing DBs need `db/migrate-wearer-profile.sql`.
-- Look stack + categories (`outerwear` / `accessories`), Sunday-start weeks, Settings **home city**, Today weather line, and BYOK banners shipped. Existing DBs need `db/migrate-garment-categories-location.sql`.
+- Admission is invite-gated membership (`wearer_memberships` / `wearer_invitations`); production owner bootstrap uses `APP_OWNER_USER_ID` only. Closet / Today / Calendar / Generator / Wearer photo data are scoped by Better Auth `user.id` (cache tags per account).
+- Closet **Pieces | Outfits** mode tabs, garment-set uniqueness (`outfit_wears` + `garment_set_key`), detail **Wear today** (+ replace confirm), and user rename are shipped.
+- **Wearer photo** + try-on hero path shipped (Settings + Today soft CTA; Generator / Weekly Fits use try-on when a photo exists, editorial fallback otherwise).
+- Look stack + categories (`outerwear` / `accessories`), Sunday-start weeks, Settings **home city**, Today weather line, and BYOK banners shipped.
 - Slice E shipped: per **Wearer account** isolation (`user_id` on garments / outfits / wears / weekly plans; `wearer_profile` keyed by user).
 
 ## Deferred

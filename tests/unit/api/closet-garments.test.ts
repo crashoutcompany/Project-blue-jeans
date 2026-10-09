@@ -146,4 +146,16 @@ describe("DELETE /api/closet/garments", () => {
     expect(res.status).toBe(200);
     expect(deleteMock).toHaveBeenCalledWith("owner-1", gid);
   });
+
+  it("returns 400 for a non-uuid id without touching the database", async () => {
+    admitted.mockResolvedValue(ownerGate);
+    const res = await DELETE(
+      new Request("http://localhost/api/closet/garments", {
+        method: "DELETE",
+        body: JSON.stringify({ id: "not-a-uuid" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(deleteMock).not.toHaveBeenCalled();
+  });
 });

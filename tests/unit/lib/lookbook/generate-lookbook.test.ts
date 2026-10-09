@@ -17,6 +17,11 @@ vi.mock("@/lib/ai/lookbook/step2-image", () => ({
   runHeroImageStep: vi.fn(),
 }));
 
+const { storeHeroImage } = vi.hoisted(() => ({ storeHeroImage: vi.fn() }));
+vi.mock("@/lib/media/hero-assets", () => ({
+  createHeroImageStore: () => storeHeroImage,
+}));
+
 vi.mock("@/lib/wearer/profile", () => ({
   getWearerPhoto: vi.fn(),
 }));
@@ -62,6 +67,13 @@ const wearerLocation = vi.mocked(getWearerLocation);
 const outfitsInRange = vi.mocked(loadOutfitsInRange);
 const existingHeroes = vi.mocked(findExistingOutfitHeroUrls);
 
+const HERO_OK_PATH = "/api/media/0a8f3c1e-9b6d-4e2a-8c1f-3d5e7a9b1c2d";
+const HERO_NEW_PATH = "/api/media/1b9f4d2e-8c7e-4f3b-9d2a-4e6f8b0c2d3e";
+
+function generatedImage(tag: string) {
+  return { mediaType: "image/png", bytes: new TextEncoder().encode(tag) };
+}
+
 const GID_A = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 const GID_B = "b47ac10b-58cc-4372-a567-0e02b2c3d479";
 const GID_C = "c47ac10b-58cc-4372-a567-0e02b2c3d479";
@@ -99,6 +111,7 @@ describe("generateLookbook", () => {
     loadByIds.mockReset();
     step1.mockReset();
     hero.mockReset();
+    storeHeroImage.mockReset();
     wearerPhoto.mockReset();
     wearerLocation.mockReset();
     outfitsInRange.mockReset();
@@ -189,7 +202,8 @@ describe("generateLookbook", () => {
     );
     hero
       .mockRejectedValueOnce(new Error("hero failed"))
-      .mockResolvedValueOnce("data:image/png;base64,ok");
+      .mockResolvedValueOnce(generatedImage("ok"));
+    storeHeroImage.mockResolvedValueOnce(HERO_OK_PATH);
 
     const res = await generateLookbook({
       userId: "u1",
@@ -199,8 +213,8 @@ describe("generateLookbook", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.looks).toHaveLength(2);
-    expect(res.looks[0]?.imageDataUrl).toBeUndefined();
-    expect(res.looks[1]?.imageDataUrl).toBe("data:image/png;base64,ok");
+    expect(res.looks[0]?.imageUrl).toBeUndefined();
+    expect(res.looks[1]?.imageUrl).toBe(HERO_OK_PATH);
   });
 
   it("reuses a stored Outfit hero instead of generating a new image", async () => {
@@ -242,7 +256,8 @@ describe("generateLookbook", () => {
         };
       }),
     );
-    hero.mockResolvedValue("data:image/png;base64,new");
+    hero.mockResolvedValue(generatedImage("new"));
+    storeHeroImage.mockResolvedValue(HERO_NEW_PATH);
 
     const res = await generateLookbook({
       userId: "u1",
@@ -251,8 +266,9 @@ describe("generateLookbook", () => {
 
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.looks[0]?.imageDataUrl).toBe(savedUrl);
-    expect(res.looks[1]?.imageDataUrl).toBe("data:image/png;base64,new");
+    expect(res.looks[0]?.imageUrl).toBe(savedUrl);
+    expect(res.looks[1]?.imageUrl).toBe(HERO_NEW_PATH);
+    expect(storeHeroImage).toHaveBeenCalledTimes(1);
     expect(hero).toHaveBeenCalledTimes(1);
     expect(loadByIds).toHaveBeenCalledTimes(1);
     expect(loadByIds.mock.calls[0]?.[1]).toEqual(lookStackB);

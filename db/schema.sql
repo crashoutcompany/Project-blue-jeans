@@ -1,5 +1,14 @@
--- Neon / Postgres — fresh install: run in Neon SQL Editor or via migration tool.
--- UploadThing: store public `image_url` (CDN); `uploadthing_key` for delete/rename via API.
+-- Neon / Postgres schema — the single source of truth (there are no migration
+-- files). Fresh database: run this once in the Neon SQL editor, or
+--   psql "$DATABASE_URL" -f db/schema.sql
+-- Every statement is idempotent, so re-running it is safe, but it only creates
+-- what is missing: it will not alter an existing table, column, or constraint.
+-- Changing an existing database means hand-writing that ALTER and applying it
+-- to each Neon branch alongside the edit here.
+--
+-- Images: rows store owned `/api/media/<media_assets.id>` display paths;
+-- `uploadthing_key` / `media_assets.provider_file_key` address the file in
+-- UploadThing for delete and lookup.
 
 -- Better Auth 1.x core schema. Names and camelCase columns are canonical.
 CREATE TABLE IF NOT EXISTS "user" (
@@ -127,7 +136,7 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE media_kind AS ENUM ('closet_image', 'wearer_photo');
+  CREATE TYPE media_kind AS ENUM ('closet_image', 'wearer_photo', 'outfit_hero');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
@@ -270,7 +279,7 @@ CREATE TABLE IF NOT EXISTS garments (
   name text,
   notes text,
   description text NOT NULL DEFAULT '',
-  -- Neon Auth Wearer account id (text).
+  -- Better Auth "user".id of the owning Wearer.
   user_id text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -356,7 +365,7 @@ CREATE INDEX IF NOT EXISTS outfit_wears_outfit_idx ON outfit_wears (outfit_id);
 CREATE INDEX IF NOT EXISTS outfit_wears_worn_on_idx ON outfit_wears (worn_on DESC);
 CREATE INDEX IF NOT EXISTS outfit_wears_user_id_idx ON outfit_wears (user_id);
 
--- Weekly AI plan: step 1 (structured looks) + inline hero images per day.
+-- Weekly AI plan: step 1 (structured looks) + a hero image per day.
 CREATE TABLE IF NOT EXISTS weekly_outfit_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   week_start date NOT NULL,
@@ -371,6 +380,15 @@ CREATE TABLE IF NOT EXISTS weekly_outfit_plans (
 
 CREATE INDEX IF NOT EXISTS weekly_outfit_plans_week_start_idx ON weekly_outfit_plans (week_start DESC);
 CREATE INDEX IF NOT EXISTS weekly_outfit_plans_user_id_idx ON weekly_outfit_plans (user_id);
+
+-- Lease so only one "Plan my week" run per (user, week) pays for Gemini.
+CREATE TABLE IF NOT EXISTS weekly_plan_claims (
+  user_id text NOT NULL,
+  week_start date NOT NULL,
+  token uuid NOT NULL,
+  expires_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, week_start)
+);
 
 CREATE TABLE IF NOT EXISTS weekly_plan_looks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -407,4 +425,4 @@ COMMENT ON COLUMN outfits.worn_on IS 'Denormalized last-worn date (max outfit_we
 COMMENT ON TABLE outfit_garments IS 'Links outfits to every garment in the look (required usage: insert one row per piece).';
 COMMENT ON TABLE outfit_wears IS 'Day assignment of a shared Outfit (one wear per calendar day).';
 COMMENT ON TABLE weekly_outfit_plans IS 'One row per calendar week (week_start = Sunday); AI weekly outfit pipeline. Monday cron deletes plans older than the current week.';
-COMMENT ON TABLE weekly_plan_looks IS 'Rows per plan (sort_order 0–6 = Sunday–Saturday); garment_ids from step 1; hero_image_url from inline image step.';
+COMMENT ON TABLE weekly_plan_looks IS 'Rows per plan (sort_order 0–6 = Sunday–Saturday); garment_ids from step 1; hero_image_url is an owned /api/media path.';

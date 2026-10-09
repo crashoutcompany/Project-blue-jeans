@@ -1,10 +1,14 @@
-export function firstImageDataUrl(
+export type GeneratedImage = {
+  mediaType: string;
+  bytes: Uint8Array;
+};
+
+export function firstImageFile(
   files: { mediaType: string; uint8Array: Uint8Array }[],
-): string | undefined {
+): GeneratedImage | undefined {
   for (const file of files) {
     if (file.mediaType.startsWith("image/") && file.uint8Array.byteLength > 0) {
-      const b64 = Buffer.from(file.uint8Array).toString("base64");
-      return `data:${file.mediaType};base64,${b64}`;
+      return { mediaType: file.mediaType, bytes: file.uint8Array };
     }
   }
   return undefined;

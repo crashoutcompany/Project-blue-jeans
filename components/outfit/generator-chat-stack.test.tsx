@@ -35,7 +35,7 @@ function look(
     description: `${title} description`,
     tags: ["day"],
     garmentIds,
-    imageDataUrl: PIXEL,
+    imageUrl: PIXEL,
   };
 }
 
