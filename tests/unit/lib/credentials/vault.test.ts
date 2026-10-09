@@ -17,6 +17,7 @@ import {
 } from "@/lib/credentials/crypto";
 import {
   CredentialVaultError,
+  getByokConnectionPublic,
   getStoredProviderCredential,
   revokeByokCredential,
   saveByokCredential,
@@ -58,7 +59,6 @@ describe("provider credential vault", () => {
       userId: "wearer-1",
       provider: "google_ai_studio",
       secret: { apiKey: "google-secret" },
-      secretHint: "…cret",
       testedAt: new Date("2026-08-18T12:00:00.000Z"),
     });
 
@@ -71,6 +71,60 @@ describe("provider credential vault", () => {
     );
     const sqlValues = sql.mock.calls.flatMap((call) => call.slice(1));
     expect(sqlValues).not.toContain("google-secret");
+    expect(sqlValues).not.toContain("cret");
+    // Write-only: no hint (or any other part of the key) is stored.
+    const statements = sql.mock.calls
+      .map((call) => (call[0] as string[]).join("?"))
+      .join("\n");
+    expect(statements).not.toContain("secret_hint");
+  });
+
+  it("reports a connection as having a credential without reading any key material", async () => {
+    const sql = vi.fn().mockResolvedValueOnce([
+      {
+        connection_id: "40fcae40-a6d7-48a6-b877-6f70317825f6",
+        status: "active",
+        has_credential: true,
+        tested_at: new Date("2026-08-18T12:00:00.000Z"),
+      },
+    ]);
+    sqlMockFactory.mockReturnValue(sql as never);
+
+    const connection = await getByokConnectionPublic(
+      "wearer-1",
+      "google_ai_studio",
+    );
+    expect(connection).toEqual({
+      connectionId: "40fcae40-a6d7-48a6-b877-6f70317825f6",
+      status: "active",
+      hasCredential: true,
+      testedAt: "2026-08-18T12:00:00.000Z",
+    });
+    const statement = (sql.mock.calls[0]![0] as string[]).join("?");
+    expect(statement).not.toContain("secret_hint");
+    expect(statement).not.toContain("ciphertext");
+    expect(decryptMock).not.toHaveBeenCalled();
+  });
+
+  it("reports no credential when the connection has no live secret row", async () => {
+    const sql = vi.fn().mockResolvedValueOnce([
+      {
+        connection_id: "40fcae40-a6d7-48a6-b877-6f70317825f6",
+        status: "action_required",
+        has_credential: false,
+        tested_at: null,
+      },
+    ]);
+    sqlMockFactory.mockReturnValue(sql as never);
+
+    await expect(
+      getByokConnectionPublic("wearer-1", "uploadthing"),
+    ).resolves.toEqual({
+      connectionId: "40fcae40-a6d7-48a6-b877-6f70317825f6",
+      status: "action_required",
+      hasCredential: false,
+      testedAt: null,
+    });
   });
 
   it("does not encrypt when no active BYOK membership exists", async () => {

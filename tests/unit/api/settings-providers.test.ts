@@ -99,22 +99,25 @@ describe("settings provider routes", () => {
       funding: "byok",
       canEdit: true,
       connected: true,
-      secretHint: "…1234",
       testedAt: "2026-08-18T12:00:00.000Z",
     });
     getUploadSettings.mockResolvedValue({
       funding: "byok",
       canEdit: true,
       connected: true,
-      secretHint: "…5678",
       testedAt: "2026-08-18T12:00:00.000Z",
     });
 
     const res = await GET();
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body.googleAiStudio.secretHint).toBe("…1234");
-    expect(body.uploadthing.secretHint).toBe("…5678");
+    expect(body.googleAiStudio).toEqual({
+      funding: "byok",
+      canEdit: true,
+      connected: true,
+      testedAt: "2026-08-18T12:00:00.000Z",
+    });
+    expect(body.uploadthing).not.toHaveProperty("secretHint");
     expect(JSON.stringify(body)).not.toContain("AIza");
     expect(JSON.stringify(body)).not.toContain("sk_live");
   });
@@ -156,7 +159,12 @@ describe("settings provider routes", () => {
 
   it("PUT saves a Wearer UploadThing token after validation", async () => {
     admitted.mockResolvedValue(wearerGate);
-    saveUploadMock.mockResolvedValue({ ok: true, secretHint: "…5678" });
+    // Even if the save path ever returned extra fields, the route must not
+    // echo any part of the token back.
+    saveUploadMock.mockResolvedValue({
+      ok: true,
+      secretHint: "…5678",
+    } as never);
 
     const res = await PUT_UPLOADTHING(
       new Request("http://localhost/api/settings/providers/uploadthing", {
@@ -165,6 +173,9 @@ describe("settings provider routes", () => {
       }),
     );
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ ok: true });
+    expect(JSON.stringify(body)).not.toContain("5678");
     expect(saveUploadMock).toHaveBeenCalledWith(
       "wearer-1",
       wearerGate.membership,
@@ -181,5 +192,21 @@ describe("settings provider routes", () => {
 
     const res = await DELETE_UPLOADTHING();
     expect(res.status).toBe(409);
+  });
+
+  it("PUT returns only ok for a saved Google AI Studio key", async () => {
+    admitted.mockResolvedValue(wearerGate);
+    saveGoogleMock.mockResolvedValue({ ok: true });
+
+    const res = await PUT(
+      new Request("http://localhost/api/settings/providers/google-ai-studio", {
+        method: "PUT",
+        body: JSON.stringify({ apiKey: "AIza-wearer-key-4321" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ ok: true });
+    expect(JSON.stringify(body)).not.toContain("4321");
   });
 });

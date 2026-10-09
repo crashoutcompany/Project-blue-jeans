@@ -18,6 +18,28 @@ earlier:
 DELETE FROM provider_credentials WHERE revoked_at IS NOT NULL;
 ```
 
+Provider keys are write-only. After a save, no part of a key (not even a
+last-4 hint) is returned to the browser, logged, or stored outside the
+ciphertext; Settings shows only "Connected" with Replace and Disconnect, and
+"connected" means an `active` connection with a live `provider_credentials`
+row. Earlier builds stored a hint in `provider_credentials.secret_hint`.
+Re-running `db/schema.sql` NULLs it; run it again (or the `UPDATE` below)
+after the write-only build is live, so a save served by the previous build
+during the rollout is scrubbed too:
+
+```sql
+UPDATE provider_credentials SET secret_hint = NULL WHERE secret_hint IS NOT NULL;
+```
+
+The column stays for now because the previous deployment still reads and
+writes it, and instant rollback or skew protection can keep serving that build.
+Once no deployment older than the write-only build can run, drop it in a
+follow-up, together with the column line in `db/schema.sql`:
+
+```sql
+ALTER TABLE provider_credentials DROP COLUMN IF EXISTS secret_hint;
+```
+
 Seed the sole platform-funded owner with the stable Better Auth user id:
 
 ```sql

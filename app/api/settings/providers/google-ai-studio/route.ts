@@ -57,7 +57,8 @@ export async function PUT(request: Request) {
     }
 
     revalidatePath("/settings");
-    return NextResponse.json(result);
+    // Write-only: a successful save never echoes any part of the key.
+    return NextResponse.json({ ok: true as const });
   } catch {
     return NextResponse.json(
       {
