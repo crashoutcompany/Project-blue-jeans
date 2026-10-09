@@ -48,7 +48,7 @@ type CreateAuthOptions = {
   onError?: NonNullable<
     NonNullable<BetterAuthOptions["onAPIError"]>["onError"]
   >;
-  /** App-specific plugins appended after the shared ones. */
+  /** App-specific plugins, registered before nextCookies (which must be last). */
   extraPlugins?: readonly BetterAuthPlugin[];
 };
 
@@ -158,9 +158,9 @@ export function createAuth({
       : {}),
     ...(onError ? { onAPIError: { onError } } : {}),
     plugins: [
-      nextCookies(),
       ...(emailOtp ? createEmailOtpPlugins(emailOtp, appName) : []),
       ...extraPlugins,
+      nextCookies(),
     ],
   });
 }

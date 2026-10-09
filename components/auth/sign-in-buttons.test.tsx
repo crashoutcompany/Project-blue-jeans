@@ -4,11 +4,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const hoisted = vi.hoisted(() => ({
   sendVerificationOtp: vi.fn(),
   signInEmailOtp: vi.fn(),
-  push: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: hoisted.push, refresh: vi.fn() }),
+  useRouter: () => ({ replace: hoisted.replace, refresh: vi.fn() }),
 }));
 
 vi.mock("@/lib/auth/client", () => ({
@@ -53,7 +53,7 @@ describe("SignInButtons email OTP", () => {
     fireEvent.change(codeInput, { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: "Verify" }));
 
-    await waitFor(() => expect(hoisted.push).toHaveBeenCalledWith("/closet"));
+    await waitFor(() => expect(hoisted.replace).toHaveBeenCalledWith("/closet"));
     expect(hoisted.signInEmailOtp).toHaveBeenCalledWith({
       email: "bot@example.com",
       otp: "123456",

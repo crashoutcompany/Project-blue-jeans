@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,55 +49,53 @@ export function EmailOtpForm({ callbackURL }: { callbackURL?: string }) {
       setPending(false);
       return;
     }
-    router.push(callbackURL ?? "/");
+    router.replace(callbackURL ?? "/");
     router.refresh();
   }
 
   return (
-    <section aria-label="Sign in with email code" className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <p className="text-sm font-medium">Sign in with email code</p>
       {step === "email" ? (
         <form className="flex flex-col gap-3" onSubmit={sendCode}>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email-otp-email">Email</Label>
-            <Input
-              id="email-otp-email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              disabled={pending}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>
+          <Label htmlFor="email-otp-email">Email</Label>
+          <Input
+            id="email-otp-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
           <Button type="submit" variant="outline" disabled={pending}>
-            {pending ? "Sending…" : "Send code"}
+            Send code
           </Button>
         </form>
       ) : (
         <form className="flex flex-col gap-3" onSubmit={verifyCode}>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email-otp-code">Code</Label>
-            <Input
-              id="email-otp-code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-              value={otp}
-              disabled={pending}
-              onChange={(event) => setOtp(event.target.value)}
-            />
-          </div>
+          <Label htmlFor="email-otp-code">Code</Label>
+          <Input
+            id="email-otp-code"
+            name="otp"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]*"
+            maxLength={6}
+            required
+            value={otp}
+            onChange={(event) => setOtp(event.target.value)}
+          />
           <Button type="submit" variant="outline" disabled={pending}>
-            {pending ? "Verifying…" : "Verify"}
+            Verify
           </Button>
         </form>
       )}
       {errorMessage ? (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-destructive text-sm">
           {errorMessage}
         </p>
       ) : null}
-    </section>
+    </div>
   );
 }

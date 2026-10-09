@@ -1,7 +1,7 @@
 // shared:email-otp v1
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { emailOTP } from "better-auth/plugins";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import { Resend } from "resend";
 
 export type EmailOtpEnv = {
@@ -21,33 +21,39 @@ export type EmailOtpConfig = {
 };
 
 /**
- * Routes that redeem a code. A non-allowlisted email is rejected here, before
- * Better Auth looks the code up. Send routes are not listed: they always
- * answer the same way so the allowlist can't be probed.
+ * Routes that consume an OTP for a given `email`. Unlisted emails are rejected
+ * here before any code check runs.
  */
-const OTP_REDEEM_PATHS: readonly string[] = [
+const GUARDED_OTP_PATHS = new Set([
   "/sign-in/email-otp",
   "/email-otp/verify-email",
   "/email-otp/check-verification-otp",
   "/email-otp/reset-password",
-];
+]);
 
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
-/** Comma-separated → trimmed, lowercased, empties dropped, de-duplicated. */
+/** Comma-separated, trimmed, lowercased, empties dropped, deduped. */
 export function parseOtpAllowlist(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return [...new Set(raw.split(",").map(normalizeEmail).filter(Boolean))];
+  return [
+    ...new Set(
+      (raw ?? "")
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export function isOtpEmailAllowed(
   email: string,
   allowlist: readonly string[],
 ): boolean {
-  const normalized = normalizeEmail(email);
+  const normalized = email.trim().toLowerCase();
   return normalized !== "" && allowlist.includes(normalized);
+}
+
+function readValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
 }
 
 export function resolveEmailOtpConfig(
@@ -55,8 +61,8 @@ export function resolveEmailOtpConfig(
   warnOnPartialConfig: boolean,
 ): EmailOtpConfig | null {
   const allowlist = parseOtpAllowlist(env.AUTH_OTP_ALLOWED_EMAILS);
-  const resendApiKey = env.RESEND_API_KEY?.trim();
-  const from = env.AUTH_EMAIL_FROM?.trim();
+  const resendApiKey = readValue(env.RESEND_API_KEY);
+  const from = readValue(env.AUTH_EMAIL_FROM);
 
   if (allowlist.length > 0 && resendApiKey && from) {
     return { allowlist, from, resendApiKey };
@@ -67,12 +73,12 @@ export function resolveEmailOtpConfig(
       "[auth] email OTP sign-in is disabled: set AUTH_OTP_ALLOWED_EMAILS, RESEND_API_KEY and AUTH_EMAIL_FROM.",
     );
   }
+
   return null;
 }
 
-/** Server-computed flag for the sign-in UI. */
 export function isEmailOtpEnabled(
-  // Cast: Next types ProcessEnv without an index signature (weak-type check).
+  // Cast: Next's ProcessEnv shares no declared keys with EmailOtpEnv.
   env: EmailOtpEnv = process.env as EmailOtpEnv,
 ): boolean {
   return resolveEmailOtpConfig(env, false) !== null;
@@ -89,57 +95,65 @@ export async function sendSignInOtpEmail(
     subject: `${appName} sign-in code`,
     text: `Your ${appName} sign-in code is ${otp}. It expires in 5 minutes.`,
   });
+
   if (error) {
     throw new Error(`[auth] failed to send sign-in code: ${error.message}`);
   }
 }
 
-function bodyEmail(body: unknown): string | null {
-  if (!body || typeof body !== "object" || !("email" in body)) return null;
-  return typeof body.email === "string" ? body.email : null;
-}
-
 /**
- * Email OTP for allowlisted accounts only (bots that can't pass OAuth). Only
- * `sign-in` codes are ever sent; other types and other emails silently no-op.
+ * Rejects unlisted emails on every OTP-consuming route. The error matches the
+ * plugin's own wrong-code error, so it does not reveal the allowlist.
  */
-export function createEmailOtpPlugins(
-  config: EmailOtpConfig,
-  appName: string,
-): BetterAuthPlugin[] {
-  const allowlistGuard = {
+function emailOtpAllowlistGuard(
+  allowlist: readonly string[],
+): BetterAuthPlugin {
+  return {
     id: "email-otp-allowlist",
     hooks: {
       before: [
         {
-          matcher: (ctx) => OTP_REDEEM_PATHS.includes(ctx.path ?? ""),
+          matcher: (context) => GUARDED_OTP_PATHS.has(context.path ?? ""),
           handler: createAuthMiddleware(async (ctx) => {
-            const email = bodyEmail(ctx.body);
-            if (email === null || !isOtpEmailAllowed(email, config.allowlist)) {
-              throw new APIError("BAD_REQUEST", {
-                message: "Invalid OTP",
+            const email = (ctx.body as { email?: unknown } | undefined)?.email;
+            if (
+              typeof email !== "string" ||
+              !isOtpEmailAllowed(email, allowlist)
+            ) {
+              throw APIError.from("BAD_REQUEST", {
                 code: "INVALID_OTP",
+                message: "Invalid OTP",
               });
             }
           }),
         },
       ],
     },
-  } satisfies BetterAuthPlugin;
+  };
+}
 
+export function createEmailOtpPlugins(
+  config: EmailOtpConfig,
+  appName: string,
+): BetterAuthPlugin[] {
   return [
     emailOTP({
       otpLength: EMAIL_OTP_LENGTH,
       expiresIn: EMAIL_OTP_EXPIRES_IN_SECONDS,
       allowedAttempts: EMAIL_OTP_ALLOWED_ATTEMPTS,
       disableSignUp: false,
+      // Unlisted emails and non-sign-in types get the same success response
+      // from the endpoint, but no email is sent.
       async sendVerificationOTP({ email, otp, type }) {
-        if (type !== "sign-in" || !isOtpEmailAllowed(email, config.allowlist)) {
+        if (
+          type !== "sign-in" ||
+          !isOtpEmailAllowed(email, config.allowlist)
+        ) {
           return;
         }
         await sendSignInOtpEmail(config, { appName, email, otp });
       },
     }),
-    allowlistGuard,
+    emailOtpAllowlistGuard(config.allowlist),
   ];
 }
