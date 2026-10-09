@@ -53,6 +53,6 @@ next-env.d.ts
 .cursor/dev/certs/
 .cursor/dev/node_modules/
 
-# neon branch switch log + saved pre-switch DB URLs
+# neon branch switch state + log
 .neon-switch.log
 .neon-switch.json
