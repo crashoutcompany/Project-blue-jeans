@@ -1,6 +1,8 @@
+import { memoryAdapter } from "better-auth/adapters/memory";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  createAuth,
   getEnabledSocialProviders,
   resolveAuthEnvironment,
 } from "./create-auth";
@@ -57,5 +59,30 @@ describe("resolveAuthEnvironment", () => {
     expect(warn).not.toHaveBeenCalled();
 
     warn.mockRestore();
+  });
+});
+
+describe("createAuth email OTP", () => {
+  it("registers the email OTP plugins only when email OTP is configured", () => {
+    const build = (env: Record<string, string>) =>
+      createAuth({
+        appName: "Project Blue Jeans",
+        database: memoryAdapter({}),
+        env: { BETTER_AUTH_SECRET: SECRET, ...env },
+        productionUrl: "http://localhost:3000",
+        previewOrigin: "http://localhost:3000",
+      }).options.plugins.map((plugin) => plugin.id);
+
+    expect(build({})).not.toContain("email-otp");
+    expect(build({ AUTH_OTP_ALLOWED_EMAILS: "bot@example.com" })).not.toContain(
+      "email-otp",
+    );
+    expect(
+      build({
+        AUTH_OTP_ALLOWED_EMAILS: "bot@example.com",
+        RESEND_API_KEY: "re_test",
+        AUTH_EMAIL_FROM: "auth@example.com",
+      }),
+    ).toEqual(expect.arrayContaining(["email-otp", "email-otp-allowlist"]));
   });
 });

@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { SignInButtons } from "@/components/auth/sign-in-buttons";
-import { getSession, enabledSocialProviders } from "@/lib/auth";
+import {
+  emailOtpEnabled,
+  enabledSocialProviders,
+  getSession,
+} from "@/lib/auth";
 
 const AUTH_IMAGE =
   "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=1800&q=85";
@@ -76,7 +80,10 @@ async function SignInContent() {
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
               Step back into your closet and find your next look.
             </p>
-            <SignInButtons providers={enabledSocialProviders} />
+            <SignInButtons
+              providers={enabledSocialProviders}
+              emailOtpEnabled={emailOtpEnabled}
+            />
           </div>
         </div>
         <footer className="flex items-center justify-between gap-3 text-xs text-muted-foreground">

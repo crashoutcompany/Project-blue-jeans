@@ -1,5 +1,8 @@
 import "server-only";
 
+import type { BetterAuthPlugin } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+
 import { getSql } from "@/lib/db";
 
 export type MembershipPolicy = {
@@ -153,3 +156,47 @@ export function platformOwnerMembership(userId: string): MembershipPolicy {
     persisted: false,
   };
 }
+
+/**
+ * Email-code sign-in is for allowlisted bots. It must never open the owner's
+ * account, even if the owner's email lands on the allowlist by mistake. A
+ * store failure throws, which blocks the sign-in (fail closed).
+ */
+export async function isOtpSignInBlockedForUser(
+  userIdInput: string,
+): Promise<boolean> {
+  const userId = userIdInput.trim();
+  if (!userId) return true;
+  if (ownerBootstrapUserId() === userId) return true;
+  const policy = await getMembershipPolicy(userId);
+  return policy?.accessRole === "owner";
+}
+
+/**
+ * Blue Jeans-only guard next to the shared email OTP plugins: refuse email
+ * OTP sign-in into the owner account. A user created by email OTP has a fresh
+ * id with no membership, so it is un-invited until the owner invites it as a
+ * `wearer` (`user_byok`); it can never pick up `platform_env`.
+ */
+export const otpOwnerGuardPlugin = {
+  id: "email-otp-owner-guard",
+  hooks: {
+    before: [
+      {
+        matcher: (ctx) => ctx.path === "/sign-in/email-otp",
+        handler: createAuthMiddleware(async (ctx) => {
+          const body = ctx.body as { email?: unknown } | undefined;
+          if (typeof body?.email !== "string") return;
+          const existing = await ctx.context.internalAdapter.findUserByEmail(
+            body.email.toLowerCase(),
+          );
+          if (existing && (await isOtpSignInBlockedForUser(existing.user.id))) {
+            throw new APIError("FORBIDDEN", {
+              message: "This account can't sign in with an email code.",
+            });
+          }
+        }),
+      },
+    ],
+  },
+} satisfies BetterAuthPlugin;

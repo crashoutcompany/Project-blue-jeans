@@ -1,12 +1,24 @@
+import { betterAuth } from "better-auth";
+import { memoryAdapter } from "better-auth/adapters/memory";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const resendSend = vi.hoisted(() => vi.fn());
+vi.mock("resend", () => ({
+  Resend: vi.fn(function Resend() {
+    return { emails: { send: resendSend } };
+  }),
+}));
 
 vi.mock("@/lib/db", () => ({
   getSql: vi.fn(),
   requireSql: vi.fn(),
 }));
 
+import { createEmailOtpPlugins } from "@/lib/auth/email-otp";
 import {
   getMembershipPolicy,
+  isOtpSignInBlockedForUser,
+  otpOwnerGuardPlugin,
   membershipAllowsPlatformCredentials,
   membershipFromRow,
   MembershipStoreUnavailableError,
@@ -258,5 +270,191 @@ describe("membershipAllowsPlatformCredentials", () => {
         "e2e-admin",
       ),
     ).toBe(false);
+  });
+});
+
+describe("email OTP sign-in users", () => {
+  const originalOwnerId = process.env.APP_OWNER_USER_ID;
+
+  beforeEach(() => {
+    getSqlMock.mockReset();
+    process.env.APP_OWNER_USER_ID = "owner-1";
+  });
+
+  afterEach(() => {
+    if (originalOwnerId === undefined) {
+      delete process.env.APP_OWNER_USER_ID;
+    } else {
+      process.env.APP_OWNER_USER_ID = originalOwnerId;
+    }
+  });
+
+  it("a freshly created OTP user is un-invited: no owner, no platform credentials", async () => {
+    getSqlMock.mockReturnValue(vi.fn().mockResolvedValue([]) as never);
+
+    const policy = await getMembershipPolicy("otp-bot-user");
+    expect(policy).toBeNull();
+    expect(membershipAllowsPlatformCredentials(policy, "otp-bot-user")).toBe(
+      false,
+    );
+    await expect(isOtpSignInBlockedForUser("otp-bot-user")).resolves.toBe(
+      false,
+    );
+  });
+
+  it("an invited OTP user is a BYOK wearer", async () => {
+    getSqlMock.mockReturnValue(
+      vi.fn().mockResolvedValue([
+        {
+          user_id: "otp-bot-user",
+          access_role: "wearer",
+          credential_source: "user_byok",
+          status: "active",
+        },
+      ]) as never,
+    );
+
+    const policy = await getMembershipPolicy("otp-bot-user");
+    expect(policy?.accessRole).toBe("wearer");
+    expect(policy?.credentialSource).toBe("user_byok");
+    expect(membershipAllowsPlatformCredentials(policy, "otp-bot-user")).toBe(
+      false,
+    );
+    await expect(isOtpSignInBlockedForUser("otp-bot-user")).resolves.toBe(
+      false,
+    );
+  });
+
+  it("blocks OTP sign-in into the owner account", async () => {
+    getSqlMock.mockReturnValue(vi.fn().mockResolvedValue([]) as never);
+    await expect(isOtpSignInBlockedForUser("owner-1")).resolves.toBe(true);
+
+    delete process.env.APP_OWNER_USER_ID;
+    getSqlMock.mockReturnValue(
+      vi.fn().mockResolvedValue([
+        {
+          user_id: "row-owner",
+          access_role: "owner",
+          credential_source: "platform_env",
+          status: "active",
+        },
+      ]) as never,
+    );
+    await expect(isOtpSignInBlockedForUser("row-owner")).resolves.toBe(true);
+  });
+
+  it("fails closed when the membership store is unavailable", async () => {
+    getSqlMock.mockReturnValue(
+      vi.fn().mockRejectedValue(new Error("down")) as never,
+    );
+    const error = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    await expect(isOtpSignInBlockedForUser("otp-bot-user")).rejects.toThrow(
+      MembershipStoreUnavailableError,
+    );
+    error.mockRestore();
+  });
+});
+
+describe("otpOwnerGuardPlugin", () => {
+  const originalOwnerId = process.env.APP_OWNER_USER_ID;
+
+  beforeEach(() => {
+    getSqlMock.mockReset();
+    getSqlMock.mockReturnValue(vi.fn().mockResolvedValue([]) as never);
+    resendSend.mockReset();
+    resendSend.mockResolvedValue({ data: { id: "e" }, error: null });
+  });
+
+  afterEach(() => {
+    if (originalOwnerId === undefined) {
+      delete process.env.APP_OWNER_USER_ID;
+    } else {
+      process.env.APP_OWNER_USER_ID = originalOwnerId;
+    }
+  });
+
+  async function signInWithCode(existingUserId?: string) {
+    const db: Record<string, unknown[]> = {
+      user: existingUserId
+        ? [
+            {
+              id: existingUserId,
+              email: "bot@example.com",
+              name: "Existing",
+              emailVerified: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ]
+        : [],
+      session: [],
+      account: [],
+      verification: [],
+    };
+    const auth = betterAuth({
+      baseURL: "http://localhost:3000",
+      secret: "test-better-auth-secret-at-least-32-characters",
+      database: memoryAdapter(db),
+      plugins: [
+        ...createEmailOtpPlugins(
+          {
+            allowlist: ["bot@example.com"],
+            from: "auth@example.com",
+            resendApiKey: "re_test",
+          },
+          "Project Blue Jeans",
+        ),
+        otpOwnerGuardPlugin,
+      ],
+    });
+    const post = (path: string, body: unknown) =>
+      auth.handler(
+        new Request(`http://localhost:3000/api/auth${path}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+
+    await post("/email-otp/send-verification-otp", {
+      email: "bot@example.com",
+      type: "sign-in",
+    });
+    const otp = (resendSend.mock.calls[0]?.[0].text as string).match(
+      /\b(\d{6})\b/,
+    )?.[1];
+    const response = await post("/sign-in/email-otp", {
+      email: "bot@example.com",
+      otp,
+    });
+    return { response, db };
+  }
+
+  it("refuses email OTP sign-in into the owner account", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+
+    const { response, db } = await signInWithCode("owner-1");
+
+    expect(response.status).toBe(403);
+    expect(db.session).toHaveLength(0);
+  });
+
+  it("lets a new OTP user sign in without making it the owner", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+
+    const { response, db } = await signInWithCode();
+
+    expect(response.status).toBe(200);
+    const user = db.user[0] as { id: string };
+    expect(user.id).not.toBe("owner-1");
+    const policy = await getMembershipPolicy(user.id);
+    expect(policy).toBeNull();
+    expect(membershipAllowsPlatformCredentials(policy, user.id)).toBe(false);
   });
 });

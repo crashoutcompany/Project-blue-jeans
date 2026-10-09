@@ -27,6 +27,25 @@ Trusted origins also include the production host and `https://*-crashoutcos-proj
 
 `createAuth` / `getEnabledSocialProviders` register a provider only when **both** id and secret are set. Sign-in renders `SignInButtons` for `enabledSocialProviders`; if none are configured, the page shows a status message (no invented tokens).
 
+## Email OTP sign-in (allowlisted bots only)
+
+Google/GitHub OAuth blocks automated browsers, so bots that need to test
+production sign in with an emailed one-time code instead. Only addresses on the
+allowlist can use it; everyone else keeps using OAuth. Logic lives in
+`lib/auth/email-otp.ts` (shared byte-for-byte with Project-RDC and Project-Z).
+
+| Variable | Description |
+| --- | --- |
+| `AUTH_OTP_ALLOWED_EMAILS` | Comma-separated emails allowed to sign in with a code. Trimmed, lowercased, empties dropped. |
+| `RESEND_API_KEY` | Resend API key used to send the code. |
+| `AUTH_EMAIL_FROM` | Sender address on a **Resend-verified domain**, e.g. `Project Blue Jeans <auth@yourdomain.com>`. |
+
+- The Better Auth `emailOTP` plugin is registered only when all three are set. Otherwise the `/api/auth/email-otp/*` and `/api/auth/sign-in/email-otp` routes do not exist and the sign-in page hides the form. A partial config logs a warning.
+- Codes: 6 digits, expire after 5 minutes, 3 attempts. Only `sign-in` codes are ever emailed; email-verification and password-reset requests send nothing.
+- A send request for a non-listed email sends nothing and returns the same `{ "success": true }`, so the list can't be probed. Redeeming a code for a non-listed email is rejected.
+- Email OTP sign-in never opens the owner account (`APP_OWNER_USER_ID` or an `owner` membership row), even if that email is listed (`otpOwnerGuardPlugin` in `lib/auth/membership.ts`).
+- A user created by email OTP has no membership, so it is "not admitted" until the owner invites it (Settings → Invites) and it accepts the invite link while signed in as that email. It then becomes a `wearer` with `user_byok` credentials, never `platform_env`.
+
 ## CI / Playwright only
 Copy this policy to Z / RDC. App-specific `createTestSession` bodies may differ; the gate must not.
 
@@ -46,6 +65,8 @@ CI e2e / preview Neon DBs are branches of production, so they inherit its schema
 ### Env lock (copy checklist)
 
 Runtime / OAuth: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (optional), `AUTH_GOOGLE_*`, `AUTH_GITHUB_*`.
+
+Email OTP sign-in (optional): `AUTH_OTP_ALLOWED_EMAILS`, `RESEND_API_KEY`, `AUTH_EMAIL_FROM`.
 
 Test / CI: `TEST_AUTH_SECRET`, `EXPOSE_TESTING_API=1`, header `x-test-auth-secret`, Neon `NEON_API_KEY` + `NEON_PROJECT_ID` (optional `NEON_DATABASE` / `NEON_ROLE`). See `.env.example` for where each variable lives.
 
