@@ -138,7 +138,6 @@ export async function saveByokCredential<P extends ProviderKind>(input: {
   userId: string;
   provider: P;
   secret: ProviderSecretByKind[P];
-  secretHint?: string | null;
   externalAccountId?: string | null;
   testedAt: Date;
 }): Promise<{ connectionId: string }> {
@@ -238,7 +237,6 @@ export async function saveByokCredential<P extends ProviderKind>(input: {
       iv,
       auth_tag,
       encryption_key_version,
-      secret_hint,
       tested_at
     )
     SELECT
@@ -247,7 +245,6 @@ export async function saveByokCredential<P extends ProviderKind>(input: {
       ${encrypted.iv},
       ${encrypted.authTag},
       ${encrypted.keyVersion},
-      ${input.secretHint?.trim() || null},
       ${testedAt}::timestamptz
     FROM bound
     ON CONFLICT (connection_id) WHERE revoked_at IS NULL
@@ -256,7 +253,6 @@ export async function saveByokCredential<P extends ProviderKind>(input: {
       iv = EXCLUDED.iv,
       auth_tag = EXCLUDED.auth_tag,
       encryption_key_version = EXCLUDED.encryption_key_version,
-      secret_hint = EXCLUDED.secret_hint,
       tested_at = EXCLUDED.tested_at,
       updated_at = now()
     RETURNING connection_id
@@ -419,10 +415,14 @@ export async function revokeByokCredential(
   return rows.length > 0;
 }
 
+/**
+ * What the app may say about a stored credential. Keys are write-only: no
+ * part of the secret (not even a last-4 hint) is ever read back out.
+ */
 export type PublicByokConnection = {
   connectionId: string;
   status: "active" | "action_required" | "disabled";
-  secretHint: string | null;
+  hasCredential: boolean;
   testedAt: string | null;
 };
 
@@ -436,7 +436,7 @@ export async function getByokConnectionPublic(
     SELECT
       pc.id AS connection_id,
       pc.status::text AS status,
-      secret.secret_hint,
+      secret.id IS NOT NULL AS has_credential,
       secret.tested_at
     FROM provider_connections pc
     LEFT JOIN provider_credentials secret
@@ -450,7 +450,7 @@ export async function getByokConnectionPublic(
   `) as Array<{
     connection_id: string;
     status: PublicByokConnection["status"];
-    secret_hint: string | null;
+    has_credential: boolean;
     tested_at: Date | string | null;
   }>;
 
@@ -465,7 +465,7 @@ export async function getByokConnectionPublic(
   return {
     connectionId: row.connection_id,
     status: row.status,
-    secretHint: row.secret_hint,
+    hasCredential: row.has_credential === true,
     testedAt,
   };
 }

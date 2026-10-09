@@ -12,7 +12,6 @@ import type { GoogleAiStudioSettingsView } from "@/lib/credentials/types";
 const mutationSchema = z.object({
   ok: z.boolean(),
   message: z.string().optional(),
-  secretHint: z.string().nullable().optional(),
 });
 
 export function GoogleAiStudioCard({
@@ -24,8 +23,11 @@ export function GoogleAiStudioCard({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [apiKey, setApiKey] = useState("");
+  const [replacing, setReplacing] = useState(false);
   const connected = initial.connected;
-  const hint = initial.secretHint;
+  // Write-only: the stored key is never sent back, so the form only ever
+  // holds what the Wearer is typing right now.
+  const showForm = !connected || replacing;
 
   if (!initial.canEdit) {
     return (
@@ -63,8 +65,7 @@ export function GoogleAiStudioCard({
     <section className="flex flex-col gap-4">
       {connected ? (
         <p className="text-sm text-muted-foreground">
-          Connected{hint ? ` (${hint})` : ""}. New Fits and closet descriptions
-          use this key.
+          Connected. New Fits and closet descriptions use this key.
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -88,8 +89,19 @@ export function GoogleAiStudioCard({
         </p>
       ) : null}
 
-      {connected ? (
-        <div>
+      {!showForm ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              setError(null);
+              setReplacing(true);
+            }}
+          >
+            Replace key
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -123,6 +135,7 @@ export function GoogleAiStudioCard({
               try {
                 await persist("PUT");
                 setApiKey("");
+                setReplacing(false);
                 router.refresh();
               } catch (e) {
                 setError(
@@ -135,7 +148,9 @@ export function GoogleAiStudioCard({
           }}
         >
           <div className="flex flex-col gap-2">
-            <Label htmlFor="google-ai-studio-key">API key</Label>
+            <Label htmlFor="google-ai-studio-key">
+              {replacing ? "New API key" : "API key"}
+            </Label>
             <Input
               id="google-ai-studio-key"
               type="password"
@@ -148,10 +163,24 @@ export function GoogleAiStudioCard({
               placeholder="AIza…"
             />
           </div>
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={pending || apiKey.trim().length < 8}>
               {pending ? "Checking…" : "Save key"}
             </Button>
+            {replacing ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => {
+                  setApiKey("");
+                  setError(null);
+                  setReplacing(false);
+                }}
+              >
+                Cancel
+              </Button>
+            ) : null}
           </div>
         </form>
       )}
