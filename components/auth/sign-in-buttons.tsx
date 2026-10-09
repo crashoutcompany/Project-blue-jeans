@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { EmailOtpForm } from "@/components/auth/email-otp-form";
+import { AuthDivider, ProviderIcon } from "@/components/auth/sign-in-parts";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
 import {
@@ -64,10 +65,13 @@ export function SignInButtons({
         <Button
           key={provider}
           type="button"
-          className="h-12 w-full rounded-full"
+          className="h-12 w-full gap-3 rounded-full"
           disabled={pendingProvider !== null}
           onClick={() => void signIn(provider)}
         >
+          <span className="flex size-6 items-center justify-center rounded-full bg-white text-[#181717]">
+            <ProviderIcon provider={provider} className="size-4" />
+          </span>
           {pendingProvider === provider
             ? "Redirecting…"
             : `Sign in with ${PROVIDER_LABELS[provider]}`}
@@ -79,7 +83,8 @@ export function SignInButtons({
         </p>
       ) : null}
       {emailOtpEnabled ? (
-        <div className="mt-6">
+        <div className="mt-3 flex flex-col gap-5">
+          <AuthDivider />
           <EmailOtpForm callbackURL="/" />
         </div>
       ) : null}
