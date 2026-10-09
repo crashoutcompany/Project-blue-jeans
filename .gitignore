@@ -52,3 +52,7 @@ next-env.d.ts
 # Cloud Agent local Neon proxy
 .cursor/dev/certs/
 .cursor/dev/node_modules/
+
+# neon branch switch state + log
+.neon-switch.log
+.neon-switch.json

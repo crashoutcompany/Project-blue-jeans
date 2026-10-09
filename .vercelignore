@@ -11,3 +11,6 @@ db
 .turbo
 dist
 Thumbs.db
+
+scripts
+.husky

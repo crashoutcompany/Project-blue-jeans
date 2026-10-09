@@ -26,8 +26,11 @@ test.describe("closet add-garment drafts (admin)", () => {
       category: "bottoms",
     });
     await page.goto("/closet");
+    // The Suspense fallback is also a ClosetView, so wait for the streamed one.
     await expect(
-      page.getByRole("button", { name: "Choose photos" }),
+      page
+        .getByTestId("closet-content")
+        .getByRole("button", { name: "Choose photos" }),
     ).toBeVisible({ timeout: 20_000 });
   });
 
@@ -35,6 +38,7 @@ test.describe("closet add-garment drafts (admin)", () => {
     page,
   }) => {
     await page
+      .getByTestId("closet-content")
       .getByLabel("Choose clothing photos")
       .setInputFiles(photo("black-jeans.png"));
 
@@ -62,6 +66,7 @@ test.describe("closet add-garment drafts (admin)", () => {
     page,
   }) => {
     await page
+      .getByTestId("closet-content")
       .getByLabel("Choose clothing photos")
       .setInputFiles([photo("tee.png"), photo("boots.png")]);
 
