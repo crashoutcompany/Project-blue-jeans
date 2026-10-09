@@ -1,17 +1,27 @@
-import { betterAuth, type BetterAuthOptions } from "better-auth";
+import {
+  betterAuth,
+  type BetterAuthOptions,
+  type BetterAuthPlugin,
+} from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 
 import { resolveAuthBaseUrl, type AuthBaseUrlEnv } from "./base-url";
+import {
+  createEmailOtpPlugins,
+  resolveEmailOtpConfig,
+  type EmailOtpEnv,
+} from "./email-otp";
 
 export type SocialProviderId = "github" | "google";
 
-type AuthEnv = AuthBaseUrlEnv & {
-  BETTER_AUTH_SECRET?: string;
-  AUTH_GITHUB_ID?: string;
-  AUTH_GITHUB_SECRET?: string;
-  AUTH_GOOGLE_ID?: string;
-  AUTH_GOOGLE_SECRET?: string;
-};
+type AuthEnv = AuthBaseUrlEnv &
+  EmailOtpEnv & {
+    BETTER_AUTH_SECRET?: string;
+    AUTH_GITHUB_ID?: string;
+    AUTH_GITHUB_SECRET?: string;
+    AUTH_GOOGLE_ID?: string;
+    AUTH_GOOGLE_SECRET?: string;
+  };
 
 type ProviderCredentials = {
   clientId: string;
@@ -38,6 +48,8 @@ type CreateAuthOptions = {
   onError?: NonNullable<
     NonNullable<BetterAuthOptions["onAPIError"]>["onError"]
   >;
+  /** App-specific plugins appended after the shared ones. */
+  extraPlugins?: readonly BetterAuthPlugin[];
 };
 
 const PROVIDER_ENV = {
@@ -118,8 +130,10 @@ export function createAuth({
   sessionModelName,
   userAdditionalFields,
   onError,
+  extraPlugins = [],
 }: CreateAuthOptions) {
   const { secret, socialProviders } = resolveAuthEnvironment(env);
+  const emailOtp = resolveEmailOtpConfig(env, true);
 
   return betterAuth({
     appName,
@@ -143,6 +157,10 @@ export function createAuth({
       ? { user: { additionalFields: userAdditionalFields } }
       : {}),
     ...(onError ? { onAPIError: { onError } } : {}),
-    plugins: [nextCookies()],
+    plugins: [
+      nextCookies(),
+      ...(emailOtp ? createEmailOtpPlugins(emailOtp, appName) : []),
+      ...extraPlugins,
+    ],
   });
 }
