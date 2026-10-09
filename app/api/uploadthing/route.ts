@@ -27,7 +27,12 @@ async function handle(request: NextRequest) {
   if (isUploadThingServerHook(request)) {
     const resolved = await resolveUploadThingHookToken(request);
     if (!resolved.ok) {
-      return Response.json({ message: resolved.message }, { status: 401 });
+      // Hooks are unauthenticated: one message for every failure, so the
+      // response cannot reveal whether a user id is admitted or connected.
+      return Response.json(
+        { message: "Invalid UploadThing callback." },
+        { status: 401 },
+      );
     }
     return runUploadThingHandler(request, resolved.token);
   }
@@ -40,10 +45,7 @@ async function handle(request: NextRequest) {
     );
   }
 
-  const resolved = await resolveUploadThingToken(
-    gate.userId,
-    gate.membership,
-  );
+  const resolved = await resolveUploadThingToken(gate.userId);
   if (!resolved.ok) {
     return Response.json({ message: resolved.message }, { status: 409 });
   }

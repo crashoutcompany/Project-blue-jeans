@@ -247,6 +247,7 @@ export function OutfitCalendar({
           return (
             <div
               key={key}
+              aria-current={isToday ? "date" : undefined}
               className={cn(
                 CELL_ASPECT,
                 "relative min-w-0 overflow-hidden rounded-xl bg-muted/30",

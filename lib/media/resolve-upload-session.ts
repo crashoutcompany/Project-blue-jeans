@@ -1,6 +1,5 @@
 import "server-only";
 
-import type { MembershipPolicy } from "@/lib/auth/membership";
 import { resolveUploadThingToken } from "@/lib/credentials/resolve";
 import { ensurePlatformUploadThingConnection } from "@/lib/media/platform-connection";
 
@@ -14,9 +13,8 @@ export type ResolvedUploadSession =
 
 export async function resolveUploadSession(
   userId: string,
-  membership?: MembershipPolicy | null,
 ): Promise<ResolvedUploadSession> {
-  const resolved = await resolveUploadThingToken(userId, membership);
+  const resolved = await resolveUploadThingToken(userId);
   if (!resolved.ok) return resolved;
 
   const connectionId =

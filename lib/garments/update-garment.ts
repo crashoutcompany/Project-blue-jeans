@@ -1,5 +1,4 @@
 import { analyzeGarmentFromImageUrl } from "@/lib/ai/garments/describe-from-image";
-import type { MembershipPolicy } from "@/lib/auth/membership";
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { GARMENT_FIELD_LIMITS } from "@/lib/garments/field-limits";
@@ -44,7 +43,6 @@ export type UpdateGarmentFieldsInput = {
 export async function updateGarmentFields(
   userId: string,
   input: UpdateGarmentFieldsInput,
-  membership?: MembershipPolicy | null,
 ): Promise<UpdateGarmentFieldsResult> {
   if (!userId) {
     return { ok: false, message: "Missing user id." };
@@ -72,7 +70,7 @@ export async function updateGarmentFields(
     const sql = requireSql();
 
     if (fillName || fillDescription) {
-      const gemini = await resolveGeminiApiKey(userId, membership);
+      const gemini = await resolveGeminiApiKey(userId);
       if (!gemini.ok) {
         return {
           ok: false,
@@ -111,7 +109,6 @@ export async function updateGarmentFields(
             mediaAssetId: row.media_asset_id,
             imageUrl: row.image_url,
           },
-          membership,
         );
         if (!imageUrl) {
           return { ok: false, message: "Could not load that photo." };

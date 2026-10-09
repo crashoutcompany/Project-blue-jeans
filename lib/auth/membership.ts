@@ -75,7 +75,8 @@ export function isPlatformFundedOwner(
 /**
  * Only the active owner may charge `GOOGLE_GENERATIVE_AI_API_KEY` /
  * `UPLOADTHING_TOKEN`. The membership must belong to `userId`. When
- * `APP_OWNER_USER_ID` is set it must match.
+ * `APP_OWNER_USER_ID` is set it must match. Production requires it, so a stray
+ * owner row alone can never spend the platform keys.
  */
 export function membershipAllowsPlatformCredentials(
   membership: MembershipPolicy | null | undefined,
@@ -90,7 +91,7 @@ export function membershipAllowsPlatformCredentials(
   if (configuredOwner) {
     return configuredOwner === userId;
   }
-  return true;
+  return process.env.VERCEL_ENV?.trim() !== "production";
 }
 
 /**

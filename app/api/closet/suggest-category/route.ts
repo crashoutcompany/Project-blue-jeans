@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const gemini = await resolveGeminiApiKey(gate.userId, gate.membership);
+  const gemini = await resolveGeminiApiKey(gate.userId);
   if (!gemini.ok) {
     return NextResponse.json(
       { ok: false as const, message: gemini.message },

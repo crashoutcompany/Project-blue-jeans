@@ -137,6 +137,23 @@ describe("settings provider routes", () => {
     expect(saveGoogleMock).toHaveBeenCalled();
   });
 
+  it("PUT returns 429 when the Wearer is rate limited", async () => {
+    admitted.mockResolvedValue(wearerGate);
+    saveUploadMock.mockResolvedValue({
+      ok: false,
+      message: "Too many attempts. Try again in an hour.",
+      rateLimited: true,
+    });
+
+    const res = await PUT_UPLOADTHING(
+      new Request("http://localhost/api/settings/providers/uploadthing", {
+        method: "PUT",
+        body: JSON.stringify({ token: "wearer-upload-token-5678" }),
+      }),
+    );
+    expect(res.status).toBe(429);
+  });
+
   it("PUT saves a Wearer UploadThing token after validation", async () => {
     admitted.mockResolvedValue(wearerGate);
     saveUploadMock.mockResolvedValue({ ok: true, secretHint: "…5678" });

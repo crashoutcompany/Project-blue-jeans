@@ -1,5 +1,4 @@
 import { analyzeGarmentFromImageUrl } from "@/lib/ai/garments/describe-from-image";
-import type { MembershipPolicy } from "@/lib/auth/membership";
 import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
@@ -51,7 +50,6 @@ async function resolveGarmentAiFields(input: {
   colorRaw: string;
   notes: string | null;
   apiKey: string | null;
-  membership?: MembershipPolicy | null;
 }): Promise<{ description: string; color: string | null }> {
   const hasDesc = input.descRaw.length > 0;
   const hasColor = input.colorRaw.length > 0;
@@ -77,7 +75,6 @@ async function resolveGarmentAiFields(input: {
     {
       mediaAssetId: input.mediaAssetId,
     },
-    input.membership,
   );
   if (!imageUrl) {
     return {
@@ -133,7 +130,6 @@ async function resolveGarmentAiFields(input: {
 export async function persistUploadedGarmentItems(
   userId: string,
   items: CreateGarmentItemInput[],
-  membership?: MembershipPolicy | null,
 ): Promise<CreateGarmentsResult> {
   if (!userId) {
     return { ok: false, message: "Missing user id." };
@@ -186,7 +182,7 @@ export async function persistUploadedGarmentItems(
       return !hasDesc || !hasColor;
     });
     const gemini = needsAi
-      ? await resolveGeminiApiKey(userId, membership)
+      ? await resolveGeminiApiKey(userId)
       : { ok: false as const, message: "" };
     const apiKey = gemini.ok ? gemini.apiKey : null;
 
@@ -210,7 +206,6 @@ export async function persistUploadedGarmentItems(
           colorRaw,
           notes,
           apiKey,
-          membership,
         });
         const asset = assetById.get(item.mediaAssetId)!;
 

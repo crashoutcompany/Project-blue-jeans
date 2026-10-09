@@ -1,6 +1,5 @@
 import "server-only";
 
-import type { MembershipPolicy } from "@/lib/auth/membership";
 import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { deleteUploadThingFiles } from "@/lib/uploadthing-server";
@@ -182,7 +181,6 @@ const CLEANUP_BATCH = 50;
  */
 export async function cleanupExpiredUnclaimedUploads(input: {
   userId: string;
-  membership?: MembershipPolicy | null;
 }): Promise<void> {
   const sql = requireSql();
   const rows = (await sql`
@@ -249,7 +247,6 @@ export async function cleanupExpiredUnclaimedUploads(input: {
     const resolved = await resolveUploadThingTokenForConnection(
       input.userId,
       connectionId,
-      input.membership,
     );
     if (!resolved.ok) continue;
     const deleted = await deleteUploadThingFiles(

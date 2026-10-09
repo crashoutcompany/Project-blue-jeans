@@ -2,7 +2,6 @@ import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
-import type { MembershipPolicy } from "@/lib/auth/membership";
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import {
@@ -44,7 +43,6 @@ const DEFAULT_CONTEXT = "Versatile day-to-night";
 
 export type GenerateLookbookInput = {
   userId: string;
-  membership?: MembershipPolicy | null;
   climate?: string;
   context?: string;
   /** Override default weather location (New York, NY) when set. */
@@ -90,7 +88,7 @@ export async function generateLookbook(
     return { ok: false, message: "Sign in to continue." };
   }
 
-  const gemini = await resolveGeminiApiKey(input.userId, input.membership);
+  const gemini = await resolveGeminiApiKey(input.userId);
   if (!gemini.ok) {
     return { ok: false, message: gemini.message };
   }
@@ -232,10 +230,7 @@ export async function generateLookbook(
         (look) => !existingHeroForGarments(existingHeroes, look.garmentIds),
       );
       const wearer = needsGeneratedHero ? wearerPhoto : null;
-      const storeHeroImage = createHeroImageStore(
-        input.userId,
-        input.membership,
-      );
+      const storeHeroImage = createHeroImageStore(input.userId);
 
       const heroImages = await Promise.all(
         looks.map(async (look) => {
@@ -261,7 +256,6 @@ export async function generateLookbook(
             const garments = await resolveGarmentImageSourcesForAi(
               input.userId,
               rows,
-              input.membership,
             );
             if (garments.length === 0) return undefined;
 
@@ -272,7 +266,6 @@ export async function generateLookbook(
                     mediaAssetId: wearer.mediaAssetId,
                     imageUrl: wearer.imageUrl,
                   },
-                  input.membership,
                 )
               : null;
 

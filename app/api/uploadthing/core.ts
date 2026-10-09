@@ -26,7 +26,7 @@ async function uploadMiddleware(endpoint: UploadEndpoint) {
     throw new Error(gate.message);
   }
 
-  const session = await resolveUploadSession(gate.userId, gate.membership);
+  const session = await resolveUploadSession(gate.userId);
   if (!session.ok) {
     throw new Error(session.message);
   }
@@ -38,7 +38,6 @@ async function uploadMiddleware(endpoint: UploadEndpoint) {
       }),
       cleanupExpiredUnclaimedUploads({
         userId: gate.userId,
-        membership: gate.membership,
       }).catch((error) => {
         logServerError("cleanupExpiredUnclaimedUploads", error);
       }),

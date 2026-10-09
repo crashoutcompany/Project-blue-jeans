@@ -83,20 +83,6 @@ function serializeSecret<P extends ProviderKind>(
   return JSON.stringify(parsed.data);
 }
 
-async function runSqlTransaction(
-  sql: ReturnType<typeof requireSql>,
-  queries: unknown[],
-): Promise<unknown[]> {
-  if (typeof sql.transaction === "function") {
-    return sql.transaction(queries as never);
-  }
-  const results: unknown[] = [];
-  for (const query of queries) {
-    results.push(await query);
-  }
-  return results;
-}
-
 function storedPlaintext(plaintext: string): unknown {
   try {
     return JSON.parse(plaintext);
@@ -213,50 +199,80 @@ export async function saveByokCredential<P extends ProviderKind>(input: {
     connectionId: connection.id,
   });
 
-  await runSqlTransaction(sql, [
-    sql`
-      INSERT INTO provider_credentials (
-        connection_id,
-        ciphertext,
-        iv,
-        auth_tag,
-        encryption_key_version,
-        secret_hint,
-        tested_at
-      )
-      VALUES (
-        ${connection.id}::uuid,
-        ${encrypted.ciphertext},
-        ${encrypted.iv},
-        ${encrypted.authTag},
-        ${encrypted.keyVersion},
-        ${input.secretHint?.trim() || null},
-        ${testedAt}::timestamptz
-      )
-      ON CONFLICT (connection_id) WHERE revoked_at IS NULL
-      DO UPDATE SET
-        ciphertext = EXCLUDED.ciphertext,
-        iv = EXCLUDED.iv,
-        auth_tag = EXCLUDED.auth_tag,
-        encryption_key_version = EXCLUDED.encryption_key_version,
-        secret_hint = EXCLUDED.secret_hint,
-        tested_at = EXCLUDED.tested_at,
-        updated_at = now()
-    `,
-    sql`
-      UPDATE provider_connections
+  /**
+   * One statement binds the account and writes the ciphertext. The UPDATE
+   * row-locks the connection, so a concurrent save for a different app
+   * re-checks `external_account_id` after the first commits and writes
+   * nothing, instead of storing app B's token on a connection bound to app A.
+   */
+  const saved = (await sql`
+    WITH bound AS (
+      UPDATE provider_connections pc
       SET
         status = 'active',
         last_validated_at = ${testedAt}::timestamptz,
         external_account_id = COALESCE(
-          provider_connections.external_account_id,
-          ${externalAccountId}
+          pc.external_account_id,
+          ${externalAccountId}::text
         ),
         updated_at = now()
-      WHERE id = ${connection.id}::uuid
-        AND credential_source = 'user_byok'
-    `,
-  ]);
+      WHERE pc.id = ${connection.id}::uuid
+        AND pc.user_id = ${userId}
+        AND pc.credential_source = 'user_byok'
+        AND (
+          ${externalAccountId}::text IS NULL
+          OR pc.external_account_id IS NULL
+          OR pc.external_account_id = ${externalAccountId}::text
+        )
+        AND EXISTS (
+          SELECT 1 FROM wearer_memberships membership
+          WHERE membership.user_id = pc.user_id
+            AND membership.credential_source = 'user_byok'
+            AND membership.status = 'active'
+        )
+      RETURNING pc.id
+    )
+    INSERT INTO provider_credentials (
+      connection_id,
+      ciphertext,
+      iv,
+      auth_tag,
+      encryption_key_version,
+      secret_hint,
+      tested_at
+    )
+    SELECT
+      bound.id,
+      ${encrypted.ciphertext},
+      ${encrypted.iv},
+      ${encrypted.authTag},
+      ${encrypted.keyVersion},
+      ${input.secretHint?.trim() || null},
+      ${testedAt}::timestamptz
+    FROM bound
+    ON CONFLICT (connection_id) WHERE revoked_at IS NULL
+    DO UPDATE SET
+      ciphertext = EXCLUDED.ciphertext,
+      iv = EXCLUDED.iv,
+      auth_tag = EXCLUDED.auth_tag,
+      encryption_key_version = EXCLUDED.encryption_key_version,
+      secret_hint = EXCLUDED.secret_hint,
+      tested_at = EXCLUDED.tested_at,
+      updated_at = now()
+    RETURNING connection_id
+  `) as Array<{ connection_id: string }>;
+
+  if (!saved[0]) {
+    throw externalAccountId
+      ? new CredentialVaultError(
+          "That provider account is already bound to a different app.",
+          "account_mismatch",
+        )
+      : new CredentialVaultError(
+          "An active BYOK membership is required before saving provider credentials.",
+          "membership_unavailable",
+        );
+  }
 
   return { connectionId: connection.id };
 }
@@ -378,17 +394,17 @@ export async function revokeByokCredential(
 ): Promise<boolean> {
   const userId = required(userIdInput, "userId");
   const sql = requireSql();
+  // Delete rather than flag: a disconnected key should not stay decryptable
+  // by anyone holding a database copy and the master key.
   const rows = (await sql`
     WITH revoked AS (
-      UPDATE provider_credentials secret
-      SET revoked_at = now(), updated_at = now()
-      FROM provider_connections connection
+      DELETE FROM provider_credentials secret
+      USING provider_connections connection
       WHERE connection.id = secret.connection_id
         AND connection.user_id = ${userId}
         AND connection.provider = ${provider}::provider_kind
         AND connection.credential_source = 'user_byok'
-    AND connection.is_default = true
-        AND secret.revoked_at IS NULL
+        AND connection.is_default = true
       RETURNING secret.id
     )
     UPDATE provider_connections

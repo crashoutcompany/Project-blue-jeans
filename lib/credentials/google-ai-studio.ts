@@ -3,19 +3,22 @@ import "server-only";
 import { isPlatformFundedOwner, type MembershipPolicy } from "@/lib/auth/membership";
 import { secretHint } from "@/lib/credentials/paste";
 import { googleAiStudioEnvApiKey } from "@/lib/credentials/resolve";
-import type { GoogleAiStudioSettingsView } from "@/lib/credentials/types";
+import type {
+  ProviderMutationResult,
+  GoogleAiStudioSettingsView,
+} from "@/lib/credentials/types";
 import { validateGoogleAiStudioApiKey } from "@/lib/credentials/validate-google-ai";
 import {
   getByokConnectionPublic,
   revokeByokCredential,
   saveByokCredential,
 } from "@/lib/credentials/vault";
+import {
+  consumeValidationAttempt,
+  VALIDATION_RATE_LIMITED_MESSAGE,
+} from "@/lib/credentials/validation-rate-limit";
 
-export type { GoogleAiStudioSettingsView };
-
-export type ProviderMutationResult =
-  | { ok: true; secretHint?: string | null }
-  | { ok: false; message: string };
+export type { ProviderMutationResult, GoogleAiStudioSettingsView };
 
 export async function getGoogleAiStudioSettings(
   userId: string,
@@ -53,6 +56,14 @@ export async function saveGoogleAiStudioByok(
     return {
       ok: false,
       message: "Platform-funded accounts use the environment Google AI Studio key.",
+    };
+  }
+
+  if (!(await consumeValidationAttempt(userId, "google_ai_studio"))) {
+    return {
+      ok: false,
+      message: VALIDATION_RATE_LIMITED_MESSAGE,
+      rateLimited: true,
     };
   }
 

@@ -2,15 +2,14 @@ import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-const resolve = {
-  alias: {
-    "@": path.resolve(import.meta.dirname, "."),
-  },
-};
-
+// Inline projects extend this config, so they inherit the plugin and alias.
 export default defineConfig({
   plugins: [react()],
-  resolve,
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "."),
+    },
+  },
   test: {
     globals: true,
     env: {
@@ -27,7 +26,6 @@ export default defineConfig({
     ],
     projects: [
       {
-        resolve,
         test: {
           name: "node",
           environment: "node",
@@ -36,8 +34,6 @@ export default defineConfig({
         },
       },
       {
-        plugins: [react()],
-        resolve,
         test: {
           name: "components",
           environment: "jsdom",

@@ -228,6 +228,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS provider_credentials_active_connection_uidx
   ON provider_credentials (connection_id)
   WHERE revoked_at IS NULL;
 
+-- Fixed-window BYOK validation counter; see lib/credentials/validation-rate-limit.ts.
+CREATE TABLE IF NOT EXISTS provider_validation_attempts (
+  user_id text NOT NULL
+    REFERENCES wearer_memberships (user_id) ON DELETE CASCADE,
+  provider provider_kind NOT NULL,
+  window_start timestamptz NOT NULL DEFAULT now(),
+  attempts integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, provider)
+);
+
 -- UploadThing objects. Display uses /api/media/{id}; the CDN object itself is public-read.
 CREATE TABLE IF NOT EXISTS media_assets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -402,7 +412,8 @@ COMMENT ON TYPE credential_source IS 'platform_env for the sole owner; user_byok
 COMMENT ON TABLE wearer_invitations IS 'Owner-issued, one-time expiring email invites that bind an authenticated Wearer id.';
 COMMENT ON TABLE wearer_memberships IS 'Invite-gated product admission and provider funding policy.';
 COMMENT ON TABLE provider_connections IS 'Logical provider account/app; media_assets.connection_id is UploadThing provenance.';
-COMMENT ON TABLE provider_credentials IS 'Write-only encrypted BYOK credentials; master keys stay outside Neon.';
+COMMENT ON TABLE provider_credentials IS 'Write-only encrypted BYOK credentials; master keys stay outside Neon. Disconnect deletes the row.';
+COMMENT ON TABLE provider_validation_attempts IS 'Fixed-window count of BYOK key validations per Wearer, so Settings cannot be used as a key oracle.';
 COMMENT ON TABLE media_assets IS 'Owned UploadThing file identity. Browser reads go through /api/media/{id}.';
 COMMENT ON TABLE upload_intents IS 'Server-issued upload slots consumed by onUploadComplete; client mutations use media ids.';
 COMMENT ON COLUMN garments.color IS 'Free text: e.g. hex #1a1c1b or name "navy".';

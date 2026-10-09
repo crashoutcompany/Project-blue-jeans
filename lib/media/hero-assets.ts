@@ -5,7 +5,6 @@ import { randomUUID } from "node:crypto";
 import { UTFile } from "uploadthing/server";
 
 import type { GeneratedImage } from "@/lib/ai/lookbook/images";
-import type { MembershipPolicy } from "@/lib/auth/membership";
 import { requireSql } from "@/lib/db";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 import {
@@ -28,16 +27,13 @@ function heroFileName(mediaType: string): string {
  *
  * Returns `null` when storage fails — a hero is optional for every look.
  */
-export function createHeroImageStore(
-  userId: string,
-  membership?: MembershipPolicy | null,
-) {
+export function createHeroImageStore(userId: string) {
   let session: Promise<ResolvedUploadSession> | null = null;
 
   return async function storeHeroImage(
     image: GeneratedImage,
   ): Promise<string | null> {
-    session ??= resolveUploadSession(userId, membership);
+    session ??= resolveUploadSession(userId);
     const resolved = await session;
     if (!resolved.ok) {
       logServerError("storeHeroImage", resolved.message);

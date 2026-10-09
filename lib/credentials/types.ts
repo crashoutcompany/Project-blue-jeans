@@ -26,3 +26,7 @@ export type GoogleAiStudioSettingsView = {
 };
 
 export type UploadThingSettingsView = GoogleAiStudioSettingsView;
+
+export type ProviderMutationResult =
+  | { ok: true; secretHint?: string | null }
+  | { ok: false; message: string; rateLimited?: true };

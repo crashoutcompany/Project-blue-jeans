@@ -40,7 +40,6 @@ export async function GET(
   const resolved = await resolveUploadThingTokenForConnection(
     gate.userId,
     asset.connectionId,
-    gate.membership,
   );
   if (!resolved.ok) {
     return NextResponse.json(

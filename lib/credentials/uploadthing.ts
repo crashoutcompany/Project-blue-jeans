@@ -3,7 +3,10 @@ import "server-only";
 import { isPlatformFundedOwner, type MembershipPolicy } from "@/lib/auth/membership";
 import { secretHint } from "@/lib/credentials/paste";
 import { uploadThingEnvToken } from "@/lib/credentials/resolve";
-import type { UploadThingSettingsView } from "@/lib/credentials/types";
+import type {
+  ProviderMutationResult,
+  UploadThingSettingsView,
+} from "@/lib/credentials/types";
 import { validateUploadThingToken } from "@/lib/credentials/validate-uploadthing";
 import {
   CredentialVaultError,
@@ -11,12 +14,12 @@ import {
   revokeByokCredential,
   saveByokCredential,
 } from "@/lib/credentials/vault";
+import {
+  consumeValidationAttempt,
+  VALIDATION_RATE_LIMITED_MESSAGE,
+} from "@/lib/credentials/validation-rate-limit";
 
-export type { UploadThingSettingsView };
-
-export type ProviderMutationResult =
-  | { ok: true; secretHint?: string | null }
-  | { ok: false; message: string };
+export type { ProviderMutationResult, UploadThingSettingsView };
 
 function isUploadThingAppTaken(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -66,6 +69,14 @@ export async function saveUploadThingByok(
     return {
       ok: false,
       message: "Platform-funded accounts use the environment UploadThing token.",
+    };
+  }
+
+  if (!(await consumeValidationAttempt(userId, "uploadthing"))) {
+    return {
+      ok: false,
+      message: VALIDATION_RATE_LIMITED_MESSAGE,
+      rateLimited: true,
     };
   }
 

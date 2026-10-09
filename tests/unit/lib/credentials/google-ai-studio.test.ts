@@ -4,6 +4,11 @@ vi.mock("@/lib/credentials/validate-google-ai", () => ({
   validateGoogleAiStudioApiKey: vi.fn(),
 }));
 
+vi.mock("@/lib/credentials/validation-rate-limit", () => ({
+  consumeValidationAttempt: vi.fn(),
+  VALIDATION_RATE_LIMITED_MESSAGE: "Too many attempts. Try again in an hour.",
+}));
+
 vi.mock("@/lib/credentials/vault", () => ({
   getByokConnectionPublic: vi.fn(),
   saveByokCredential: vi.fn(),
@@ -21,6 +26,7 @@ import {
 } from "@/lib/credentials/google-ai-studio";
 import { googleAiStudioEnvApiKey } from "@/lib/credentials/resolve";
 import { validateGoogleAiStudioApiKey } from "@/lib/credentials/validate-google-ai";
+import { consumeValidationAttempt } from "@/lib/credentials/validation-rate-limit";
 import {
   getByokConnectionPublic,
   revokeByokCredential,
@@ -30,6 +36,7 @@ import {
 const validateMock = vi.mocked(validateGoogleAiStudioApiKey);
 const saveMock = vi.mocked(saveByokCredential);
 const revokeMock = vi.mocked(revokeByokCredential);
+const rateLimitMock = vi.mocked(consumeValidationAttempt);
 
 const wearer = {
   userId: "wearer-1",
@@ -52,7 +59,22 @@ describe("Google AI Studio BYOK mutations", () => {
     validateMock.mockReset();
     saveMock.mockReset();
     revokeMock.mockReset();
+    rateLimitMock.mockReset();
+    rateLimitMock.mockResolvedValue(true);
     vi.mocked(googleAiStudioEnvApiKey).mockReturnValue("env-key");
+  });
+
+  it("stops before validating once the Wearer is rate limited", async () => {
+    rateLimitMock.mockResolvedValue(false);
+
+    await expect(saveGoogleAiStudioByok("wearer-1", wearer, "some-secret-value")).resolves.toEqual({
+      ok: false,
+      message: "Too many attempts. Try again in an hour.",
+      rateLimited: true,
+    });
+    expect(rateLimitMock).toHaveBeenCalledWith("wearer-1", "google_ai_studio");
+    expect(validateMock).not.toHaveBeenCalled();
+    expect(saveMock).not.toHaveBeenCalled();
   });
 
   it("does not save a platform-funded owner key", async () => {

@@ -1,5 +1,4 @@
 import { getSql, requireSql } from "@/lib/db";
-import type { MembershipPolicy } from "@/lib/auth/membership";
 import { getOwnedMediaAsset } from "@/lib/media/assets";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
 import { logServerError } from "@/lib/server/safe-client-error";
@@ -62,7 +61,6 @@ export type WearerPhotoResult =
 export async function saveWearerPhoto(input: {
   userId: string;
   mediaAssetId: string;
-  membership?: MembershipPolicy | null;
 }): Promise<WearerPhotoResult> {
   if (!input.userId) {
     return { ok: false, message: "Missing user id.", reason: "failed" };
@@ -120,7 +118,6 @@ export async function saveWearerPhoto(input: {
       const resolved = await resolveUploadThingTokenForConnection(
         input.userId,
         previous?.connectionId ?? asset.connectionId,
-        input.membership,
       );
       const deleted = await deleteUploadThingFiles(
         [previousKey],
@@ -153,7 +150,6 @@ export async function saveWearerPhoto(input: {
 
 export async function clearWearerPhoto(
   userId: string,
-  membership?: MembershipPolicy | null,
 ): Promise<WearerPhotoResult> {
   if (!userId) {
     return { ok: false, message: "Missing user id.", reason: "failed" };
@@ -177,7 +173,6 @@ export async function clearWearerPhoto(
       const resolved = await resolveUploadThingTokenForConnection(
         userId,
         previous?.connectionId ?? null,
-        membership,
       );
       const deleted = await deleteUploadThingFiles(
         [previousKey],

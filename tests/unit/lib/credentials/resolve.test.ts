@@ -152,11 +152,12 @@ describe("provider credential resolution", () => {
     });
   });
 
-  it("rejects a membership object that belongs to a different user", async () => {
+  it("rejects a stored membership that belongs to a different user", async () => {
+    membershipMock.mockResolvedValue(ownerPlatform);
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = "platform-key";
 
     await expect(
-      resolveProviderCredential("wearer-1", "google_ai_studio", ownerPlatform),
+      resolveProviderCredential("wearer-1", "google_ai_studio"),
     ).rejects.toEqual(
       expect.objectContaining<Partial<ProviderCredentialUnavailableError>>({
         code: "not_admitted",
@@ -165,24 +166,26 @@ describe("provider credential resolution", () => {
     expect(storedCredentialMock).not.toHaveBeenCalled();
   });
 
-  it("ignores an owner fallback when resolving credentials for another user", async () => {
+  it("does not let a caller supply an owner membership", async () => {
     membershipMock.mockResolvedValue(null);
     storedCredentialMock.mockResolvedValue(null);
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = "platform-key";
     process.env.UPLOADTHING_TOKEN = "platform-token";
 
+    const resolveWithExtraArg = resolveGeminiApiKey as (
+      ...args: unknown[]
+    ) => ReturnType<typeof resolveGeminiApiKey>;
     await expect(
-      resolveGeminiApiKey("wearer-1", ownerPlatform),
+      resolveWithExtraArg("wearer-1", { ...ownerPlatform, userId: "wearer-1" }),
     ).resolves.toEqual({
       ok: false,
       message: "This account has not been admitted to Blue Jeans.",
     });
-    await expect(
-      resolveUploadThingToken("wearer-1", ownerPlatform),
-    ).resolves.toEqual({
+    await expect(resolveUploadThingToken("wearer-1")).resolves.toEqual({
       ok: false,
       message: "This account has not been admitted to Blue Jeans.",
     });
+    expect(membershipMock).toHaveBeenCalledWith("wearer-1");
   });
 
   it("does not bill the env keys when APP_OWNER_USER_ID is a different user", async () => {
@@ -223,39 +226,25 @@ describe("provider credential resolution", () => {
     );
   });
 
-  it("uses an explicit membership without reading the platform key for Wearers", async () => {
-    membershipMock.mockResolvedValue(null);
+  it("does not bill the env keys in production without APP_OWNER_USER_ID", async () => {
+    const originalVercelEnv = process.env.VERCEL_ENV;
+    process.env.VERCEL_ENV = "production";
+    membershipMock.mockResolvedValue(ownerPlatform);
     storedCredentialMock.mockResolvedValue(null);
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = "platform-key";
 
-    await expect(
-      resolveProviderCredential("wearer-1", "google_ai_studio", wearerByok),
-    ).rejects.toEqual(
-      expect.objectContaining<Partial<ProviderCredentialUnavailableError>>({
-        code: "byok_credential_missing",
-      }),
-    );
-    expect(membershipMock).not.toHaveBeenCalled();
-  });
-
-  it("lets a stored membership win over an owner fallback when resolving Gemini", async () => {
-    membershipMock.mockResolvedValue(wearerByok);
-    storedCredentialMock.mockResolvedValue(null);
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "platform-key";
-
-    await expect(
-      resolveGeminiApiKey("wearer-1", {
-        userId: "wearer-1",
-        accessRole: "owner",
-        credentialSource: "platform_env",
-        status: "active",
-        persisted: false,
-      }),
-    ).resolves.toEqual({
-      ok: false,
-      message:
-        "Connect Google AI Studio in Settings before using this feature.",
-    });
+    try {
+      await expect(
+        resolveProviderCredential("owner-1", "google_ai_studio"),
+      ).rejects.toEqual(
+        expect.objectContaining<Partial<ProviderCredentialUnavailableError>>({
+          code: "byok_credential_missing",
+        }),
+      );
+    } finally {
+      if (originalVercelEnv === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = originalVercelEnv;
+    }
   });
 
   /**

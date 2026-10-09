@@ -239,7 +239,7 @@ async function planClaimedWeek(
     return { ok: true, planId: row?.id ?? "", skipped: true };
   }
 
-  const gemini = await resolveGeminiApiKey(input.userId, input.membership);
+  const gemini = await resolveGeminiApiKey(input.userId);
   if (!gemini.ok) {
     return {
       ok: false,
@@ -453,10 +453,7 @@ async function planClaimedWeek(
         !existingHeroForGarments(existingHeroes, look.garmentIds),
     );
     const wearer = needsGeneratedHero ? wearerPhoto : null;
-    const storeHeroImage = createHeroImageStore(
-      input.userId,
-      input.membership,
-    );
+    const storeHeroImage = createHeroImageStore(input.userId);
     const heroOutcomes = await mapWithConcurrency(
       looksForDb,
       HERO_IMAGE_CONCURRENCY,
@@ -486,7 +483,6 @@ async function planClaimedWeek(
           const garments = await resolveGarmentImageSourcesForAi(
             input.userId,
             rows,
-            input.membership,
           );
           if (garments.length === 0) {
             return {
@@ -502,7 +498,6 @@ async function planClaimedWeek(
                   mediaAssetId: wearer.mediaAssetId,
                   imageUrl: wearer.imageUrl,
                 },
-                input.membership,
               )
             : null;
           const heroImage = await runHeroImageStep({
