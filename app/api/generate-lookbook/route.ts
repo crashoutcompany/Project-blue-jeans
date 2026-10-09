@@ -50,7 +50,6 @@ export async function POST(request: Request) {
 
   const input: GenerateLookbookInput = {
     userId: gate.userId,
-    membership: gate.membership,
     narrative: body.narrative,
   };
 

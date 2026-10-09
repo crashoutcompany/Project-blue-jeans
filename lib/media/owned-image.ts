@@ -1,6 +1,5 @@
 import "server-only";
 
-import type { MembershipPolicy } from "@/lib/auth/membership";
 import { fetchUrlAsImagePart } from "@/lib/ai/fetch-image-part";
 import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
 import { decodeUploadThingAppId } from "@/lib/credentials/validate-uploadthing";
@@ -25,14 +24,13 @@ export async function fetchOwnedImagePart(
   ref: OwnedImageRef,
   options?: {
     abortSignal?: AbortSignal;
-    membership?: MembershipPolicy | null;
   },
 ): Promise<{
   type: "image";
   image: Uint8Array;
   mediaType?: string;
 }> {
-  const url = await resolveOwnedImageFetchUrl(userId, ref, options?.membership);
+  const url = await resolveOwnedImageFetchUrl(userId, ref);
   if (!url) {
     throw new Error("Could not load that photo.");
   }
@@ -42,7 +40,6 @@ export async function fetchOwnedImagePart(
 export async function resolveOwnedImageFetchUrl(
   userId: string,
   ref: OwnedImageRef,
-  membership?: MembershipPolicy | null,
 ): Promise<string | null> {
   const mediaAssetId =
     ref.mediaAssetId?.trim() ||
@@ -55,7 +52,6 @@ export async function resolveOwnedImageFetchUrl(
     const resolved = await resolveUploadThingTokenForConnection(
       userId,
       asset.connectionId,
-      membership,
     );
     if (!resolved.ok) return null;
     if (!decodeUploadThingAppId(resolved.token)) return null;
@@ -78,7 +74,6 @@ export async function resolveGarmentImageSourcesForAi(
     image_url: string;
     media_asset_id: string | null;
   }>,
-  membership?: MembershipPolicy | null,
 ): Promise<
   Array<{
     id: string;
@@ -95,7 +90,6 @@ export async function resolveGarmentImageSourcesForAi(
           mediaAssetId: row.media_asset_id,
           imageUrl: row.image_url,
         },
-        membership,
       );
       if (!imageUrl) return null;
       return {

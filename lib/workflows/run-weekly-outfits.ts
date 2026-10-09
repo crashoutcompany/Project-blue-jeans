@@ -171,7 +171,7 @@ export async function runWeeklyOutfitsJob(
     return { ok: true, planId: row?.id ?? "", skipped: true };
   }
 
-  const gemini = await resolveGeminiApiKey(input.userId, input.membership);
+  const gemini = await resolveGeminiApiKey(input.userId);
   if (!gemini.ok) {
     return {
       ok: false,
@@ -414,7 +414,6 @@ export async function runWeeklyOutfitsJob(
           const garments = await resolveGarmentImageSourcesForAi(
             input.userId,
             rows,
-            input.membership,
           );
           if (garments.length === 0) {
             return {
@@ -430,7 +429,6 @@ export async function runWeeklyOutfitsJob(
                   mediaAssetId: wearer.mediaAssetId,
                   imageUrl: wearer.imageUrl,
                 },
-                input.membership,
               )
             : null;
           const heroImage = await runHeroImageStep({

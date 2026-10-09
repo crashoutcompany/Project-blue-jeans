@@ -66,6 +66,41 @@ describe("POST /api/uploadthing", () => {
     );
   });
 
+  it("answers every rejected callback the same way", async () => {
+    const hook = () =>
+      POST(
+        new Request("http://localhost/api/uploadthing", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "uploadthing-hook": "callback",
+          },
+          body: JSON.stringify({ metadata: { userId: "probe" } }),
+        }),
+      );
+
+    resolveToken.mockResolvedValueOnce({
+      ok: false,
+      message: "This account has not been admitted to Blue Jeans.",
+    });
+    const notAdmitted = await hook();
+    resolveToken.mockResolvedValueOnce({
+      ok: false,
+      message: "Connect UploadThing in Settings before uploading photos.",
+    });
+    const notConnected = await hook();
+
+    expect(notAdmitted.status).toBe(401);
+    expect(notConnected.status).toBe(401);
+    expect(await notAdmitted.json()).toEqual({
+      message: "Invalid UploadThing callback.",
+    });
+    expect(await notConnected.json()).toEqual({
+      message: "Invalid UploadThing callback.",
+    });
+    expect(createHandler).not.toHaveBeenCalled();
+  });
+
   it("still requires admission for browser uploads", async () => {
     admitted.mockResolvedValue({
       ok: false,

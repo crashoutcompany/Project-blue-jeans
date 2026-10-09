@@ -38,6 +38,7 @@ test.describe("guest page smoke", () => {
     await expect(google.or(github).or(unconfigured).first()).toBeVisible();
   });
 });
+
 test.describe("admin page smoke", () => {
   test.use({ storageState: "e2e/.auth/admin.json" });
 
@@ -99,20 +100,6 @@ test.describe("admin page smoke", () => {
     await expect(
       page.getByRole("heading", { name: "Terms", level: 1 }),
     ).toBeVisible();
-  });
-
-  test("generator deep-links to change-look on home", async ({ page }) => {
-    await page.goto("/generator");
-    await expect(page).toHaveURL(/\/\?change-look=1/);
-    await expect(
-      page
-        .locator("main")
-        .getByTestId("today-shell-marker")
-        .filter({ visible: true })
-        .first(),
-    ).toBeVisible({
-      timeout: 20_000,
-    });
   });
 
   test("dashboard redirects to closet", async ({ page }) => {

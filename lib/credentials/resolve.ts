@@ -71,25 +71,10 @@ function platformSecret<P extends ProviderKind>(
   return (token ? { token } : null) as ProviderSecretByKind[P] | null;
 }
 
-function membershipForResolution(
+function assertActiveMembership(
   userId: string,
-  fromDb: MembershipPolicy | null,
-  fallback?: MembershipPolicy | null,
-): MembershipPolicy | null {
-  if (fromDb) return fromDb;
-  if (fallback && fallback.userId === userId) return fallback;
-  return null;
-}
-
-export async function resolveProviderCredential<P extends ProviderKind>(
-  userId: string,
-  provider: P,
-  membershipInput?: MembershipPolicy | null,
-): Promise<ResolvedProviderCredential<P>> {
-  const membership =
-    membershipInput === undefined
-      ? await getMembershipPolicy(userId)
-      : membershipInput;
+  membership: MembershipPolicy | null,
+): asserts membership is MembershipPolicy {
   if (!membership || membership.userId !== userId) {
     throw new ProviderCredentialUnavailableError(
       "This account has not been admitted to Blue Jeans.",
@@ -102,6 +87,19 @@ export async function resolveProviderCredential<P extends ProviderKind>(
       "membership_inactive",
     );
   }
+}
+
+/**
+ * Policy always comes from the store (`getMembershipPolicy`, which already
+ * covers the `APP_OWNER_USER_ID` bootstrap). Callers cannot hand in a
+ * membership, so no code path can mint owner policy and spend platform keys.
+ */
+async function resolveWithMembership<P extends ProviderKind>(
+  userId: string,
+  provider: P,
+  membership: MembershipPolicy | null,
+): Promise<ResolvedProviderCredential<P>> {
+  assertActiveMembership(userId, membership);
 
   if (membershipAllowsPlatformCredentials(membership, userId)) {
     const secret = platformSecret(provider);
@@ -134,21 +132,24 @@ export async function resolveProviderCredential<P extends ProviderKind>(
   };
 }
 
+export async function resolveProviderCredential<P extends ProviderKind>(
+  userId: string,
+  provider: P,
+): Promise<ResolvedProviderCredential<P>> {
+  return resolveWithMembership(
+    userId,
+    provider,
+    await getMembershipPolicy(userId),
+  );
+}
+
 export async function resolveGeminiApiKey(
   userId: string,
-  fallbackMembership?: MembershipPolicy | null,
 ): Promise<{ ok: true; apiKey: string } | { ok: false; message: string }> {
   try {
-    const fromDb = await getMembershipPolicy(userId);
-    const membership = membershipForResolution(
-      userId,
-      fromDb,
-      fallbackMembership,
-    );
     const resolved = await resolveProviderCredential(
       userId,
       "google_ai_studio",
-      membership,
     );
     return { ok: true, apiKey: resolved.secret.apiKey };
   } catch (error) {
@@ -191,18 +192,6 @@ export type ResolvedUploadThingToken =
   | { ok: false; message: string };
 
 /**
- * The stored policy wins over any caller-supplied membership so a deleted
- * account cannot keep spending credentials via a stale session value.
- */
-async function membershipForTokenResolution(
-  userId: string,
-  fallbackMembership?: MembershipPolicy | null,
-): Promise<MembershipPolicy | null> {
-  const fromDb = await getMembershipPolicy(userId);
-  return membershipForResolution(userId, fromDb, fallbackMembership);
-}
-
-/**
  * Callers branch on `ok`, so a membership store that cannot answer has to be
  * reported the same way rather than thrown past them as a 500.
  */
@@ -218,15 +207,10 @@ function uploadThingFailure(error: unknown): { ok: false; message: string } {
 
 export async function resolveUploadThingToken(
   userId: string,
-  fallbackMembership?: MembershipPolicy | null,
 ): Promise<ResolvedUploadThingToken> {
   try {
-    const membership = await membershipForTokenResolution(
-      userId,
-      fallbackMembership,
-    );
     return uploadThingSuccess(
-      await resolveProviderCredential(userId, "uploadthing", membership),
+      await resolveProviderCredential(userId, "uploadthing"),
     );
   } catch (error) {
     return uploadThingFailure(error);
@@ -252,37 +236,21 @@ function uploadThingSuccess(
 export async function resolveUploadThingTokenForConnection(
   userId: string,
   connectionId: string | null | undefined,
-  fallbackMembership?: MembershipPolicy | null,
 ): Promise<ResolvedUploadThingToken> {
   try {
-    const membership = await membershipForTokenResolution(
-      userId,
-      fallbackMembership,
-    );
+    const membership = await getMembershipPolicy(userId);
     const recordedConnectionId = connectionId?.trim() || null;
     if (
       !recordedConnectionId ||
       membershipAllowsPlatformCredentials(membership, userId)
     ) {
-      // Pass the membership just read from the store rather than delegating,
-      // which would query it a second time for the same request.
+      // Reuse the membership just read rather than querying it again.
       return uploadThingSuccess(
-        await resolveProviderCredential(userId, "uploadthing", membership),
+        await resolveWithMembership(userId, "uploadthing", membership),
       );
     }
 
-    if (!membership) {
-      throw new ProviderCredentialUnavailableError(
-        "This account has not been admitted to Blue Jeans.",
-        "not_admitted",
-      );
-    }
-    if (membership.status !== "active") {
-      throw new ProviderCredentialUnavailableError(
-        "This account is not active.",
-        "membership_inactive",
-      );
-    }
+    assertActiveMembership(userId, membership);
     const stored = await getStoredProviderCredentialByConnectionId(
       userId,
       recordedConnectionId,

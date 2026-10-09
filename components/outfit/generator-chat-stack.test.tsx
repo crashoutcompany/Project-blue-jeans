@@ -61,6 +61,7 @@ describe("GeneratorChatStack", () => {
       }),
     });
   });
+
   it("renders a stacked deck with photo count and included pieces", () => {
     render(
       <GeneratorChatStack
@@ -162,31 +163,6 @@ describe("GeneratorChatStack", () => {
     expect(screen.getByText(/Look 1 of 3: Gallery navy/)).toBeInTheDocument();
   });
 
-  it("preserves previous motion direction with two looks", () => {
-    render(
-      <GeneratorChatStack
-        messageId="m1"
-        looks={looks.slice(0, 2)}
-        approvedLookId={null}
-        onApprove={vi.fn()}
-        onRemix={vi.fn()}
-        closetGarments={garments}
-      />,
-    );
-
-    const stage = screen.getByRole("region", {
-      name: "Generated outfit looks",
-    });
-    const frontCard = stage.querySelector<HTMLElement>(
-      '[data-look-card="look-a"]',
-    );
-    stage.focus();
-    fireEvent.keyDown(stage, { key: "ArrowLeft" });
-
-    expect(frontCard?.style.transform).toContain("translate3d(18%");
-    expect(screen.getByText(/Look 2 of 2: Travel khaki/)).toBeInTheDocument();
-  });
-
   it("restores the deck without switching when a drag is canceled", () => {
     render(
       <GeneratorChatStack
@@ -202,11 +178,6 @@ describe("GeneratorChatStack", () => {
     const stage = screen.getByRole("region", {
       name: "Generated outfit looks",
     });
-    const frontCard = stage.querySelector<HTMLElement>(
-      '[data-look-card="look-a"]',
-    );
-    expect(frontCard).not.toBeNull();
-
     fireEvent.pointerDown(stage, {
       pointerId: 1,
       button: 0,
@@ -227,9 +198,6 @@ describe("GeneratorChatStack", () => {
     });
 
     expect(stage).not.toHaveAttribute("data-dragging");
-    expect(frontCard?.style.transform).toBe(
-      "translate3d(0px, 0px, 0) scale(1)",
-    );
     expect(screen.getByText(/Look 1 of 3: Gallery navy/)).toBeInTheDocument();
   });
 

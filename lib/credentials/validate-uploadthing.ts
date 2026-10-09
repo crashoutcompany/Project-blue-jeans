@@ -42,9 +42,41 @@ function appIdFromBase64Json(part: string): string | null {
   return null;
 }
 
+const PROBE_FILE_NAME = "blue-jeans-token-check.txt";
+
+function withTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), VALIDATE_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /**
- * Confirms an UploadThing API token with a usage metadata read. Does not list
- * files and never returns UploadThing's error body to the client.
+ * `ufsUrl` comes from UploadThing's ingest response, so it names the app that
+ * actually stored the file: `https://{appId}.ufs.sh/f/{key}` or
+ * `https://ufs.sh/a/{appId}/{key}`.
+ */
+export function ufsUrlBelongsToApp(ufsUrl: string, appId: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(ufsUrl);
+  } catch {
+    return false;
+  }
+  const expected = appId.toLowerCase();
+  const subdomain = url.hostname.toLowerCase().split(".")[0];
+  if (subdomain === expected) return true;
+  return url.pathname.toLowerCase().startsWith(`/a/${expected}/`);
+}
+
+/**
+ * Confirms an UploadThing token by uploading and deleting a tiny probe file.
+ * The token's `appId` is plain base64 the user controls; only an upload proves
+ * the API key belongs to that app, because ingest verifies the presigned URL
+ * signature against the app named in it. A metadata read such as
+ * `getUsageInfo` only checks the API key, which would let a Wearer bind
+ * someone else's (public) app id. Never returns UploadThing's error body.
  */
 export async function validateUploadThingToken(
   rawToken: string,
@@ -62,18 +94,25 @@ export async function validateUploadThingToken(
     };
   }
 
+  const unverified = {
+    ok: false as const,
+    message: "That UploadThing token could not be verified.",
+  };
+
   try {
     const { UTApi } = await import("uploadthing/server");
     const utapi = new UTApi({ token });
-    await Promise.race([
-      utapi.getUsageInfo(),
-      new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new Error("timeout")),
-          VALIDATE_TIMEOUT_MS,
-        );
-      }),
-    ]);
+    const probe = new File(["blue-jeans token check"], PROBE_FILE_NAME, {
+      type: "text/plain",
+    });
+    const uploaded = await withTimeout(utapi.uploadFiles(probe));
+    if (uploaded.error || !uploaded.data) return unverified;
+
+    await withTimeout(utapi.deleteFiles(uploaded.data.key)).catch(() => {
+      // A leftover probe costs a few bytes; it must not fail validation.
+    });
+
+    if (!ufsUrlBelongsToApp(uploaded.data.ufsUrl, appId)) return unverified;
     return { ok: true, token, appId };
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
@@ -83,9 +122,6 @@ export async function validateUploadThingToken(
         message: "Could not reach UploadThing. Try again.",
       };
     }
-    return {
-      ok: false,
-      message: "That UploadThing token could not be verified.",
-    };
+    return unverified;
   }
 }

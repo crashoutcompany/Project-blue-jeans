@@ -48,8 +48,11 @@ export async function PUT(request: Request) {
       parsed.data.token,
     );
     if (!result.ok) {
-      const status =
-        isPlatformFundedOwner(gate.membership) ? 409 : 422;
+      const status = result.rateLimited
+        ? 429
+        : isPlatformFundedOwner(gate.membership)
+          ? 409
+          : 422;
       return NextResponse.json(result, { status });
     }
 

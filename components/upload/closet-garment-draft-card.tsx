@@ -109,6 +109,7 @@ export function ClosetGarmentDraftCard({
                       type="button"
                       size="sm"
                       variant={active ? "default" : "secondary"}
+                      aria-pressed={active}
                       disabled={disabled}
                       onClick={() =>
                         onChange({ category: cat, categoryTouched: true })

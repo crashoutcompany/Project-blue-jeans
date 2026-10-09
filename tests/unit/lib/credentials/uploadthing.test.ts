@@ -4,6 +4,11 @@ vi.mock("@/lib/credentials/validate-uploadthing", () => ({
   validateUploadThingToken: vi.fn(),
 }));
 
+vi.mock("@/lib/credentials/validation-rate-limit", () => ({
+  consumeValidationAttempt: vi.fn(),
+  VALIDATION_RATE_LIMITED_MESSAGE: "Too many attempts. Try again in an hour.",
+}));
+
 vi.mock("@/lib/credentials/vault", () => ({
   getByokConnectionPublic: vi.fn(),
   saveByokCredential: vi.fn(),
@@ -21,6 +26,7 @@ import {
 } from "@/lib/credentials/uploadthing";
 import { uploadThingEnvToken } from "@/lib/credentials/resolve";
 import { validateUploadThingToken } from "@/lib/credentials/validate-uploadthing";
+import { consumeValidationAttempt } from "@/lib/credentials/validation-rate-limit";
 import {
   getByokConnectionPublic,
   revokeByokCredential,
@@ -30,6 +36,7 @@ import {
 const validateMock = vi.mocked(validateUploadThingToken);
 const saveMock = vi.mocked(saveByokCredential);
 const revokeMock = vi.mocked(revokeByokCredential);
+const rateLimitMock = vi.mocked(consumeValidationAttempt);
 
 const wearer = {
   userId: "wearer-1",
@@ -52,7 +59,22 @@ describe("UploadThing BYOK mutations", () => {
     validateMock.mockReset();
     saveMock.mockReset();
     revokeMock.mockReset();
+    rateLimitMock.mockReset();
+    rateLimitMock.mockResolvedValue(true);
     vi.mocked(uploadThingEnvToken).mockReturnValue("env-token");
+  });
+
+  it("stops before validating once the Wearer is rate limited", async () => {
+    rateLimitMock.mockResolvedValue(false);
+
+    await expect(saveUploadThingByok("wearer-1", wearer, "some-secret-value")).resolves.toEqual({
+      ok: false,
+      message: "Too many attempts. Try again in an hour.",
+      rateLimited: true,
+    });
+    expect(rateLimitMock).toHaveBeenCalledWith("wearer-1", "uploadthing");
+    expect(validateMock).not.toHaveBeenCalled();
+    expect(saveMock).not.toHaveBeenCalled();
   });
 
   it("does not save a platform-funded owner token", async () => {

@@ -31,7 +31,6 @@ export async function planMyWeek(): Promise<
   try {
     const result = await runWeeklyOutfitsJob({
       userId: gate.userId,
-      membership: gate.membership,
       weekStart,
       climate: "Temperate",
       context: "Everyday week",

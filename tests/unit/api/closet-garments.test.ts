@@ -99,7 +99,6 @@ describe("POST /api/closet/garments", () => {
       expect.arrayContaining([
         expect.objectContaining({ mediaAssetId: validItem.mediaAssetId }),
       ]),
-      ownerGate.membership,
     );
   });
 
@@ -145,10 +144,6 @@ describe("DELETE /api/closet/garments", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(deleteMock).toHaveBeenCalledWith(
-      "owner-1",
-      gid,
-      expect.objectContaining({ userId: "owner-1" }),
-    );
+    expect(deleteMock).toHaveBeenCalledWith("owner-1", gid);
   });
 });

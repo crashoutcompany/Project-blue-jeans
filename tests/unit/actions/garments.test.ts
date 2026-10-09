@@ -1,62 +1,70 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/server", () => ({
-  auth: {
-    getAuthoritativeSession: vi.fn(),
-    getSession: vi.fn(),
-  },
+vi.mock("@/lib/auth/admitted", () => ({
+  assertAdmittedForServerAction: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
-  getSql: vi.fn(),
 }));
 
-import { auth } from "@/lib/auth/server";
-import { getSql, requireSql } from "@/lib/db";
+import { revalidateTag } from "next/cache";
+
+import {
+  admitted,
+  NOT_ADMITTED_MESSAGE,
+  notAdmitted,
+} from "@/tests/helpers/admission";
+import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
+import { requireSql } from "@/lib/db";
+import { closetGarmentsTag } from "@/lib/garments/closet-garments-cache-tag";
 import { toggleGarmentFavorite } from "@/app/actions/garments";
 
-const getSession = vi.mocked(auth.getAuthoritativeSession);
+const gate = vi.mocked(assertAdmittedForServerAction);
 const requireSqlMock = vi.mocked(requireSql);
+const revalidateTagMock = vi.mocked(revalidateTag);
+
+const GARMENT_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+
+function sqlReturning(rows: unknown) {
+  const sql = vi.fn().mockResolvedValue(rows);
+  requireSqlMock.mockReturnValue(sql as never);
+  return sql;
+}
 
 describe("toggleGarmentFavorite", () => {
-  const originalOwnerId = process.env.APP_OWNER_USER_ID;
-  const garmentId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
-
   beforeEach(() => {
-    getSession.mockReset();
-    requireSqlMock.mockReset();
-    vi.mocked(getSql).mockReset();
-    vi.mocked(getSql).mockReturnValue(undefined);
-    delete process.env.APP_OWNER_USER_ID;
+    vi.clearAllMocks();
+    gate.mockResolvedValue(admitted("u1"));
   });
 
-  afterEach(() => {
-    if (originalOwnerId === undefined) {
-      delete process.env.APP_OWNER_USER_ID;
-    } else {
-      process.env.APP_OWNER_USER_ID = originalOwnerId;
-    }
-  });
+  it("returns the admission error without querying", async () => {
+    gate.mockResolvedValue(notAdmitted);
+    const sql = sqlReturning([{ id: GARMENT_ID }]);
 
-  it("returns error when not admitted", async () => {
-    getSession.mockResolvedValue({
-      data: { user: { email: "u@x.com", role: "user" } },
+    await expect(toggleGarmentFavorite(GARMENT_ID)).resolves.toEqual({
+      ok: false,
+      message: NOT_ADMITTED_MESSAGE,
     });
-    const res = await toggleGarmentFavorite("x");
-    expect(res.ok).toBe(false);
+    expect(sql).not.toHaveBeenCalled();
   });
 
-  it("updates and returns ok", async () => {
-    process.env.APP_OWNER_USER_ID = "u1";
-    getSession.mockResolvedValue({
-      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
+  it("rejects a non-uuid id before querying", async () => {
+    const sql = sqlReturning([]);
+
+    await expect(toggleGarmentFavorite("not-a-uuid")).resolves.toEqual({
+      ok: false,
+      message: "Invalid garment id.",
     });
-    const sql = vi.fn().mockResolvedValue([{ id: garmentId }]);
-    requireSqlMock.mockReturnValue(sql as never);
-    const res = await toggleGarmentFavorite(garmentId);
-    expect(res.ok).toBe(true);
-    expect(sql).toHaveBeenCalled();
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("toggles the Wearer's garment and refreshes the closet cache", async () => {
+    const sql = sqlReturning([{ id: GARMENT_ID }]);
+
+    await expect(toggleGarmentFavorite(GARMENT_ID)).resolves.toEqual({ ok: true });
+    expect(sql.mock.calls[0]?.slice(1)).toEqual([GARMENT_ID, "u1"]);
+    expect(revalidateTagMock).toHaveBeenCalledWith(closetGarmentsTag("u1"), "max");
   });
 
   /**
@@ -65,31 +73,24 @@ describe("toggleGarmentFavorite", () => {
    * never stored.
    */
   it("reports not found when no row was updated", async () => {
-    process.env.APP_OWNER_USER_ID = "u1";
-    getSession.mockResolvedValue({
-      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
+    sqlReturning([]);
+
+    await expect(toggleGarmentFavorite(GARMENT_ID)).resolves.toEqual({
+      ok: false,
+      message: "That piece was not found.",
     });
-    const sql = vi.fn().mockResolvedValue([]);
-    requireSqlMock.mockReturnValue(sql as never);
-
-    const res = await toggleGarmentFavorite(garmentId);
-
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toMatch(/not found/i);
+    expect(revalidateTagMock).not.toHaveBeenCalled();
   });
 
-  it("rejects a non-uuid id before querying", async () => {
-    process.env.APP_OWNER_USER_ID = "u1";
-    getSession.mockResolvedValue({
-      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
+  it("returns a safe message when the database fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    requireSqlMock.mockReturnValue(
+      vi.fn().mockRejectedValue(new Error("password authentication failed")) as never,
+    );
+
+    await expect(toggleGarmentFavorite(GARMENT_ID)).resolves.toEqual({
+      ok: false,
+      message: "Could not update that favorite. Try again in a moment.",
     });
-    const sql = vi.fn();
-    requireSqlMock.mockReturnValue(sql as never);
-
-    const res = await toggleGarmentFavorite("not-a-uuid");
-
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toMatch(/invalid garment id/i);
-    expect(sql).not.toHaveBeenCalled();
   });
 });

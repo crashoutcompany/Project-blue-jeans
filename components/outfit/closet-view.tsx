@@ -688,8 +688,14 @@ export function ClosetView({
       ) : null}
 
       {pendingDrafts.length > 0 ? (
-        <div className="mt-10 flex w-full flex-col gap-4 border-t border-border/50 pt-8">
-          <p className="text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <section
+          aria-labelledby="closet-drafts-heading"
+          className="mt-10 flex w-full flex-col gap-4 border-t border-border/50 pt-8"
+        >
+          <p
+            id="closet-drafts-heading"
+            className="text-center text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+          >
             Ready to save
           </p>
           <div className="flex flex-col gap-4">
@@ -703,7 +709,7 @@ export function ClosetView({
               />
             ))}
           </div>
-        </div>
+        </section>
       ) : null}
 
       {/* Slim dock: picker + save actions. Drafts live above so buttons never stack. */}

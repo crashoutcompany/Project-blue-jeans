@@ -18,6 +18,7 @@ import {
 import {
   CredentialVaultError,
   getStoredProviderCredential,
+  revokeByokCredential,
   saveByokCredential,
 } from "@/lib/credentials/vault";
 import { requireSql } from "@/lib/db";
@@ -48,7 +49,9 @@ describe("provider credential vault", () => {
       .mockResolvedValueOnce([
         { id: "40fcae40-a6d7-48a6-b877-6f70317825f6" },
       ])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([
+        { connection_id: "40fcae40-a6d7-48a6-b877-6f70317825f6" },
+      ]);
     sqlMockFactory.mockReturnValue(sql as never);
 
     await saveByokCredential({
@@ -141,6 +144,50 @@ describe("provider credential vault", () => {
       }),
     );
     expect(encryptMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a save when a concurrent save bound a different app first", async () => {
+    // The connection looked unbound when read, but the guarded write found it
+    // bound to another app by the time it ran, so nothing was stored.
+    const sql = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: "40fcae40-a6d7-48a6-b877-6f70317825f6",
+          external_account_id: null,
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    sqlMockFactory.mockReturnValue(sql as never);
+
+    await expect(
+      saveByokCredential({
+        userId: "wearer-1",
+        provider: "uploadthing",
+        secret: { token: "token-b" },
+        externalAccountId: "app-b",
+        testedAt: new Date("2026-08-18T12:00:00.000Z"),
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<CredentialVaultError>>({
+        code: "account_mismatch",
+      }),
+    );
+    expect(sql).toHaveBeenCalledTimes(2);
+  });
+
+  it("deletes ciphertext on revoke instead of flagging it", async () => {
+    const sql = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: "40fcae40-a6d7-48a6-b877-6f70317825f6" }]);
+    sqlMockFactory.mockReturnValue(sql as never);
+
+    await expect(revokeByokCredential("wearer-1", "uploadthing")).resolves.toBe(
+      true,
+    );
+    const statement = (sql.mock.calls[0]![0] as string[]).join("?");
+    expect(statement).toContain("DELETE FROM provider_credentials");
+    expect(statement).not.toContain("SET revoked_at");
   });
 
   it("maps decryption failures to a vault error without exposing internals", async () => {

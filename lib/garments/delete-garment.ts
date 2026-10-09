@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import type { MembershipPolicy } from "@/lib/auth/membership";
 import { resolveUploadThingTokenForConnection } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { logServerError, safeClientMessage } from "@/lib/server/safe-client-error";
@@ -43,7 +42,6 @@ async function runSqlTransaction(
 export async function deleteGarment(
   userId: string,
   garmentId: string,
-  membership?: MembershipPolicy | null,
 ): Promise<DeleteGarmentResult> {
   if (!userId) {
     return { ok: false, message: "Missing user id." };
@@ -218,7 +216,6 @@ export async function deleteGarment(
         const resolved = await resolveUploadThingTokenForConnection(
           userId,
           connectionId,
-          membership,
         );
         remoteDeleted = await deleteUploadThingFiles(
           [uploadthingKey],

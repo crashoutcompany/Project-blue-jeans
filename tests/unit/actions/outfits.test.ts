@@ -1,25 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/server", () => ({
-  auth: {
-    getAuthoritativeSession: vi.fn(),
-    getSession: vi.fn(),
-  },
+vi.mock("@/lib/auth/admitted", () => ({
+  assertAdmittedForServerAction: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
-  getSql: vi.fn(),
 }));
 
-vi.mock("@/lib/outfits/persist-generator-outfit", async (orig) => {
-  const actual =
-    await orig<typeof import("@/lib/outfits/persist-generator-outfit")>();
-  return {
-    ...actual,
-    commitOutfitForDay: vi.fn(),
-  };
-});
+vi.mock("@/lib/outfits/promote-fit", () => ({
+  promoteWeeklyFitToOutfit: vi.fn(),
+}));
+
+vi.mock("@/lib/outfits/persist-generator-outfit", () => ({
+  assignOutfitToDay: vi.fn(),
+}));
 
 vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
   const actual =
@@ -32,187 +27,218 @@ vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
 
 import { revalidateTag } from "next/cache";
 
-import { auth } from "@/lib/auth/server";
-import { getSql, requireSql } from "@/lib/db";
+import {
+  admitted,
+  NOT_ADMITTED_MESSAGE,
+  notAdmitted,
+} from "@/tests/helpers/admission";
+import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
+import { requireSql } from "@/lib/db";
 import { calendarMonthTag } from "@/lib/outfits/calendar-month-cache-tag";
 import { closetSavedOutfitsTag } from "@/lib/outfits/closet-saved-outfits-cache-tag";
-import { commitOutfitForDay } from "@/lib/outfits/persist-generator-outfit";
-import { approveWeeklyPlanLook, renameOutfit } from "@/app/actions/outfits";
+import { assignOutfitToDay } from "@/lib/outfits/persist-generator-outfit";
+import { promoteWeeklyFitToOutfit } from "@/lib/outfits/promote-fit";
+import {
+  approveWeeklyPlanLook,
+  getTodaysOutfitId,
+  renameOutfit,
+  wearOutfitToday,
+} from "@/app/actions/outfits";
 
-const getSession = vi.mocked(auth.getAuthoritativeSession);
+const gate = vi.mocked(assertAdmittedForServerAction);
 const sqlMock = vi.mocked(requireSql);
-const commitMock = vi.mocked(commitOutfitForDay);
+const promote = vi.mocked(promoteWeeklyFitToOutfit);
+const assign = vi.mocked(assignOutfitToDay);
 const revalidateTagMock = vi.mocked(revalidateTag);
 
-function adminSession() {
-  process.env.APP_OWNER_USER_ID = "u1";
-  return {
-    data: {
-      user: {
-        id: "u1",
-        email: "a@x.com",
-        role: "admin",
-        name: "Admin",
-      },
-    },
-  };
+const PLAN_LOOK_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+const OUTFIT_ID = "b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+
+/** Tags passed to revalidateTag, i.e. the cached Wearer surfaces refreshed. */
+function revalidatedTags(): unknown[] {
+  return revalidateTagMock.mock.calls.map((call) => call[0]);
 }
 
+function sqlReturning(rows: unknown) {
+  const sql = vi.fn().mockResolvedValue(rows);
+  sqlMock.mockReturnValue(sql as never);
+  return sql;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  gate.mockResolvedValue(admitted("u1"));
+});
+
 describe("approveWeeklyPlanLook", () => {
-  const planLookId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
-  const originalOwnerId = process.env.APP_OWNER_USER_ID;
+  it("returns the admission error without promoting", async () => {
+    gate.mockResolvedValue(notAdmitted);
 
-  beforeEach(() => {
-    getSession.mockReset();
-    sqlMock.mockReset();
-    commitMock.mockReset();
-    vi.mocked(getSql).mockReset();
-    vi.mocked(getSql).mockReturnValue(undefined);
-    delete process.env.APP_OWNER_USER_ID;
-  });
-
-  afterEach(() => {
-    if (originalOwnerId === undefined) {
-      delete process.env.APP_OWNER_USER_ID;
-    } else {
-      process.env.APP_OWNER_USER_ID = originalOwnerId;
-    }
-  });
-
-  it("returns error when not admitted", async () => {
-    getSession.mockResolvedValue({
-      data: {
-        user: { id: "u1", email: "u@x.com", role: "user", name: "User" },
-      },
+    await expect(approveWeeklyPlanLook(PLAN_LOOK_ID)).resolves.toEqual({
+      ok: false,
+      message: NOT_ADMITTED_MESSAGE,
     });
-    const res = await approveWeeklyPlanLook(planLookId);
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toBeDefined();
+    expect(promote).not.toHaveBeenCalled();
   });
 
-  it("returns error for invalid uuid", async () => {
-    getSession.mockResolvedValue(adminSession());
-    const res = await approveWeeklyPlanLook("not-a-uuid");
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toContain("Invalid");
+  it("rejects a non-uuid id before promoting", async () => {
+    await expect(approveWeeklyPlanLook("not-a-uuid")).resolves.toEqual({
+      ok: false,
+      message: "Invalid plan look id.",
+    });
+    expect(promote).not.toHaveBeenCalled();
   });
 
-  it("returns not found when no row", async () => {
-    getSession.mockResolvedValue(adminSession());
-    const sql = vi.fn().mockResolvedValueOnce([]);
-    sqlMock.mockReturnValue(sql as never);
-    const res = await approveWeeklyPlanLook(planLookId);
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toContain("not found");
+  it("promotes the Fit for the signed-in Wearer and refreshes Outfit surfaces", async () => {
+    promote.mockResolvedValue({ ok: true, outfitId: OUTFIT_ID });
+
+    await expect(approveWeeklyPlanLook(PLAN_LOOK_ID)).resolves.toEqual({
+      ok: true,
+      outfitId: OUTFIT_ID,
+    });
+    expect(promote).toHaveBeenCalledWith("u1", PLAN_LOOK_ID);
+    expect(revalidatedTags()).toEqual(
+      expect.arrayContaining([closetSavedOutfitsTag("u1"), calendarMonthTag("u1")]),
+    );
   });
 
-  it("returns error when garment_ids empty", async () => {
-    getSession.mockResolvedValue(adminSession());
-    const sql = vi.fn().mockResolvedValueOnce([
-      {
-        id: planLookId,
-        hero_image_url: null,
-        garment_ids: [],
-        worn_on: "2026-08-10",
-      },
-    ]);
-    sqlMock.mockReturnValue(sql as never);
-    const res = await approveWeeklyPlanLook(planLookId);
+  it("passes a promotion failure through without revalidating", async () => {
+    promote.mockResolvedValue({ ok: false, message: "That weekly look was not found." });
+
+    await expect(approveWeeklyPlanLook(PLAN_LOOK_ID)).resolves.toEqual({
+      ok: false,
+      message: "That weekly look was not found.",
+    });
+    expect(revalidateTagMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("wearOutfitToday", () => {
+  it("returns the admission error without assigning", async () => {
+    gate.mockResolvedValue(notAdmitted);
+
+    const res = await wearOutfitToday(OUTFIT_ID);
+
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toContain("no linked garments");
+    expect(assign).not.toHaveBeenCalled();
   });
 
-  it("returns error when garment count mismatch", async () => {
-    getSession.mockResolvedValue(adminSession());
-    const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
-    const sql = vi
-      .fn()
-      .mockResolvedValueOnce([
-        {
-          id: planLookId,
-          hero_image_url: null,
-          garment_ids: [gid],
-          worn_on: "2026-08-10",
-        },
-      ])
-      .mockResolvedValueOnce([{ n: 0 }]);
-    sqlMock.mockReturnValue(sql as never);
-    const res = await approveWeeklyPlanLook(planLookId);
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toContain("missing");
+  it("rejects a non-uuid id before assigning", async () => {
+    await expect(wearOutfitToday("nope")).resolves.toEqual({
+      ok: false,
+      message: "Invalid outfit id.",
+    });
+    expect(assign).not.toHaveBeenCalled();
   });
 
-  it("rejects past-day looks without committing", async () => {
-    getSession.mockResolvedValue(adminSession());
-    const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
-    const sql = vi.fn().mockResolvedValueOnce([
-      {
-        id: planLookId,
-        hero_image_url: null,
-        garment_ids: [gid],
-        worn_on: "2026-08-09",
-      },
-    ]);
-    sqlMock.mockReturnValue(sql as never);
-    const res = await approveWeeklyPlanLook(planLookId);
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.message).toMatch(/past/i);
-    expect(commitMock).not.toHaveBeenCalled();
+  it("assigns the Outfit to the product-timezone today", async () => {
+    assign.mockResolvedValue({ ok: true, outfitId: OUTFIT_ID });
+
+    await expect(wearOutfitToday(OUTFIT_ID)).resolves.toEqual({
+      ok: true,
+      outfitId: OUTFIT_ID,
+    });
+    expect(assign).toHaveBeenCalledWith({
+      userId: "u1",
+      outfitId: OUTFIT_ID,
+      wornOn: "2026-08-10",
+    });
+    expect(revalidatedTags()).toContain(calendarMonthTag("u1"));
   });
 
-  it("commits outfit and returns ok", async () => {
-    getSession.mockResolvedValue(adminSession());
-    const gid = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
-    const outfitId = "b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
-    const sql = vi
-      .fn()
-      .mockResolvedValueOnce([
-        {
-          id: planLookId,
-          hero_image_url: null,
-          garment_ids: [gid],
-          worn_on: "2026-08-10",
-        },
-      ])
-      .mockResolvedValueOnce([{ n: 1 }]);
-    sqlMock.mockReturnValue(sql as never);
-    commitMock.mockResolvedValue(outfitId);
-    const res = await approveWeeklyPlanLook(planLookId);
-    expect(res.ok).toBe(true);
-    if (res.ok) expect(res.outfitId).toBe(outfitId);
-    expect(commitMock).toHaveBeenCalled();
+  it("does not revalidate when the assignment fails", async () => {
+    assign.mockResolvedValue({ ok: false, message: "That outfit was not found." });
+
+    const res = await wearOutfitToday(OUTFIT_ID);
+
+    expect(res.ok).toBe(false);
+    expect(revalidateTagMock).not.toHaveBeenCalled();
   });
 });
 
 describe("renameOutfit", () => {
-  const outfitId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+  it("returns the admission error without querying", async () => {
+    gate.mockResolvedValue(notAdmitted);
+    const sql = sqlReturning([{ id: OUTFIT_ID }]);
 
-  beforeEach(() => {
-    revalidateTagMock.mockClear();
+    const res = await renameOutfit(OUTFIT_ID, "Rainy Tuesday");
+
+    expect(res.ok).toBe(false);
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("stores a trimmed name scoped to the Wearer", async () => {
+    const sql = sqlReturning([{ id: OUTFIT_ID }]);
+
+    await expect(renameOutfit(OUTFIT_ID, "  Rainy Tuesday  ")).resolves.toEqual({
+      ok: true,
+    });
+    expect(sql.mock.calls[0]?.slice(1)).toEqual(["Rainy Tuesday", OUTFIT_ID, "u1"]);
+  });
+
+  it("clears the name when given only whitespace", async () => {
+    const sql = sqlReturning([{ id: OUTFIT_ID }]);
+
+    await renameOutfit(OUTFIT_ID, "   ");
+
+    expect(sql.mock.calls[0]?.[1]).toBeNull();
   });
 
   /** loadCalendarMonthData is cached under calendarMonthTag and reads name. */
   it("invalidates the calendar month as well as the saved outfits list", async () => {
-    getSession.mockResolvedValue(adminSession());
-    sqlMock.mockReturnValue(
-      vi.fn().mockResolvedValue([{ id: outfitId }]) as never,
+    sqlReturning([{ id: OUTFIT_ID }]);
+
+    await renameOutfit(OUTFIT_ID, "Rainy Tuesday");
+
+    expect(revalidatedTags()).toEqual(
+      expect.arrayContaining([closetSavedOutfitsTag("u1"), calendarMonthTag("u1")]),
     );
-
-    const res = await renameOutfit(outfitId, "Rainy Tuesday");
-
-    expect(res.ok).toBe(true);
-    const tags = revalidateTagMock.mock.calls.map((call) => call[0]);
-    expect(tags).toContain(closetSavedOutfitsTag("u1"));
-    expect(tags).toContain(calendarMonthTag("u1"));
   });
 
-  it("does not invalidate caches when the outfit was not found", async () => {
-    getSession.mockResolvedValue(adminSession());
-    sqlMock.mockReturnValue(vi.fn().mockResolvedValue([]) as never);
+  it("reports not found without invalidating caches", async () => {
+    sqlReturning([]);
 
-    const res = await renameOutfit(outfitId, "Nope");
-
-    expect(res.ok).toBe(false);
+    await expect(renameOutfit(OUTFIT_ID, "Nope")).resolves.toEqual({
+      ok: false,
+      message: "That outfit was not found.",
+    });
     expect(revalidateTagMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a safe message when the database fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    sqlMock.mockReturnValue(
+      vi.fn().mockRejectedValue(new Error("connection reset")) as never,
+    );
+
+    await expect(renameOutfit(OUTFIT_ID, "Rainy Tuesday")).resolves.toEqual({
+      ok: false,
+      message: "Could not rename this outfit.",
+    });
+  });
+});
+
+describe("getTodaysOutfitId", () => {
+  it("returns null without querying when not admitted", async () => {
+    gate.mockResolvedValue(notAdmitted);
+    const sql = sqlReturning([{ outfit_id: OUTFIT_ID }]);
+
+    await expect(getTodaysOutfitId()).resolves.toBeNull();
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("returns the Outfit worn today", async () => {
+    const sql = sqlReturning([{ outfit_id: OUTFIT_ID }]);
+
+    await expect(getTodaysOutfitId()).resolves.toBe(OUTFIT_ID);
+    expect(sql.mock.calls[0]?.slice(1)).toEqual(["u1", "2026-08-10"]);
+  });
+
+  it("returns null when nothing is worn today or the read fails", async () => {
+    sqlReturning([]);
+    await expect(getTodaysOutfitId()).resolves.toBeNull();
+
+    sqlMock.mockReturnValue(vi.fn().mockRejectedValue(new Error("down")) as never);
+    await expect(getTodaysOutfitId()).resolves.toBeNull();
   });
 });

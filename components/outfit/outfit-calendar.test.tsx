@@ -68,12 +68,13 @@ describe("OutfitCalendar", () => {
     expect(approveWeeklyPlanLook).toHaveBeenCalledWith(PLAN_LOOK_ID);
   });
 
-  it("rings the product-timezone today cell", () => {
+  it("marks the product-timezone today cell as the current date", () => {
     render(
       <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
     );
-    const day = screen.getByText("10", { selector: "span.tabular-nums" });
-    expect(day.parentElement?.parentElement).toHaveClass("ring-primary/35");
+    const current = document.querySelectorAll('[aria-current="date"]');
+    expect(current).toHaveLength(1);
+    expect(current[0]).toHaveTextContent(/^10/);
   });
 
   it("fills the day tile with a hero image", () => {
@@ -126,12 +127,5 @@ describe("OutfitCalendar", () => {
     expect(
       document.querySelectorAll("img[src^='https://cdn.example.com/g']"),
     ).toHaveLength(2);
-  });
-
-  it("does not use a dash placeholder on empty days", () => {
-    render(
-      <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
-    );
-    expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });

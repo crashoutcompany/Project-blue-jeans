@@ -37,7 +37,7 @@ async function readJsonBody(
 }
 
 async function requireAdmittedUser(): Promise<
-  | { ok: true; userId: string; membership: import("@/lib/auth/membership").MembershipPolicy }
+  | { ok: true; userId: string }
   | { ok: false; response: NextResponse }
 > {
   const gate = await assertAdmittedSession();
@@ -50,7 +50,7 @@ async function requireAdmittedUser(): Promise<
       ),
     };
   }
-  return { ok: true, userId: gate.userId, membership: gate.membership };
+  return { ok: true, userId: gate.userId };
 }
 
 const createItemSchema = z.object({
@@ -106,7 +106,6 @@ export async function POST(request: Request) {
   const result = await persistUploadedGarmentItems(
     gate.userId,
     items,
-    gate.membership,
   );
   if (!result.ok) {
     return NextResponse.json(result, { status: 422 });
@@ -149,7 +148,6 @@ export async function PATCH(request: Request) {
       regenerateNameWithAi: body.regenerateNameWithAi,
       regenerateDescriptionWithAi: body.regenerateDescriptionWithAi,
     },
-    gate.membership,
   );
   if (!result.ok) {
     const status = result.message === "Garment not found." ? 404 : 422;
@@ -183,7 +181,6 @@ export async function DELETE(request: Request) {
   const result = await deleteGarment(
     gate.userId,
     parsed.data.id.trim(),
-    gate.membership,
   );
   if (!result.ok) {
     const status = result.message === "Garment not found." ? 404 : 422;

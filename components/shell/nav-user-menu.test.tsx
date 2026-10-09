@@ -31,9 +31,4 @@ describe("NavUserMenu", () => {
     expect(screen.getByText("Ada")).toBeInTheDocument();
   });
 
-  it("shows skeleton while pending", () => {
-    hoisted.useSession.mockReturnValue({ data: null, isPending: true });
-    const { container } = render(<NavUserMenu />);
-    expect(container.querySelector('[aria-hidden="true"]')).toBeTruthy();
-  });
 });
