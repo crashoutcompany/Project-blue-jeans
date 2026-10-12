@@ -12,7 +12,6 @@ import type { UploadThingSettingsView } from "@/lib/credentials/types";
 const mutationSchema = z.object({
   ok: z.boolean(),
   message: z.string().optional(),
-  secretHint: z.string().nullable().optional(),
 });
 
 export function UploadThingCard({
@@ -24,8 +23,11 @@ export function UploadThingCard({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [token, setToken] = useState("");
+  const [replacing, setReplacing] = useState(false);
   const connected = initial.connected;
-  const hint = initial.secretHint;
+  // Write-only: the stored token is never sent back, so the form only ever
+  // holds what the Wearer is typing right now.
+  const showForm = !connected || replacing;
 
   if (!initial.canEdit) {
     return (
@@ -63,8 +65,7 @@ export function UploadThingCard({
     <section className="flex flex-col gap-4">
       {connected ? (
         <p className="text-sm text-muted-foreground">
-          Connected{hint ? ` (${hint})` : ""}. Closet photos stay in your
-          UploadThing app.
+          Connected. Closet photos stay in your UploadThing app.
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -88,8 +89,19 @@ export function UploadThingCard({
         </p>
       ) : null}
 
-      {connected ? (
-        <div>
+      {!showForm ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              setError(null);
+              setReplacing(true);
+            }}
+          >
+            Replace token
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -123,6 +135,7 @@ export function UploadThingCard({
               try {
                 await persist("PUT");
                 setToken("");
+                setReplacing(false);
                 router.refresh();
               } catch (e) {
                 setError(
@@ -135,7 +148,9 @@ export function UploadThingCard({
           }}
         >
           <div className="flex flex-col gap-2">
-            <Label htmlFor="uploadthing-token">API token</Label>
+            <Label htmlFor="uploadthing-token">
+              {replacing ? "New API token" : "API token"}
+            </Label>
             <Input
               id="uploadthing-token"
               type="password"
@@ -148,10 +163,24 @@ export function UploadThingCard({
               placeholder="UploadThing token"
             />
           </div>
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={pending || token.trim().length < 8}>
               {pending ? "Checking…" : "Save token"}
             </Button>
+            {replacing ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => {
+                  setToken("");
+                  setError(null);
+                  setReplacing(false);
+                }}
+              >
+                Cancel
+              </Button>
+            ) : null}
           </div>
         </form>
       )}

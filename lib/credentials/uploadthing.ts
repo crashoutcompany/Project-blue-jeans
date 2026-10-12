@@ -1,7 +1,6 @@
 import "server-only";
 
 import { isPlatformFundedOwner, type MembershipPolicy } from "@/lib/auth/membership";
-import { secretHint } from "@/lib/credentials/paste";
 import { uploadThingEnvToken } from "@/lib/credentials/resolve";
 import type {
   ProviderMutationResult,
@@ -42,20 +41,18 @@ export async function getUploadThingSettings(
       funding: "platform",
       canEdit: false,
       connected: Boolean(uploadThingEnvToken()),
-      secretHint: null,
       testedAt: null,
     };
   }
 
   const connection = await getByokConnectionPublic(userId, "uploadthing");
   const connected =
-    connection?.status === "active" && Boolean(connection.secretHint);
+    connection?.status === "active" && connection.hasCredential;
 
   return {
     funding: "byok",
     canEdit: true,
     connected,
-    secretHint: connected ? connection?.secretHint ?? null : null,
     testedAt: connected ? connection?.testedAt ?? null : null,
   };
 }
@@ -84,13 +81,11 @@ export async function saveUploadThingByok(
   if (!validated.ok) return validated;
 
   const testedAt = new Date();
-  const hint = secretHint(validated.token);
   try {
     await saveByokCredential({
       userId,
       provider: "uploadthing",
       secret: { token: validated.token },
-      secretHint: hint,
       externalAccountId: validated.appId,
       testedAt,
     });
@@ -115,7 +110,7 @@ export async function saveUploadThingByok(
     throw error;
   }
 
-  return { ok: true, secretHint: hint };
+  return { ok: true };
 }
 
 export async function revokeUploadThingByok(

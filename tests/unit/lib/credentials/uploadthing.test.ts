@@ -88,7 +88,7 @@ describe("UploadThing BYOK mutations", () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
-  it("validates then encrypts a Wearer token with a hint", async () => {
+  it("validates then encrypts a Wearer token without keeping any hint", async () => {
     validateMock.mockResolvedValueOnce({
       ok: true,
       token: "wearer-token-1234",
@@ -98,16 +98,16 @@ describe("UploadThing BYOK mutations", () => {
 
     await expect(
       saveUploadThingByok("wearer-1", wearer, "wearer-token-1234"),
-    ).resolves.toEqual({ ok: true, secretHint: "…1234" });
+    ).resolves.toEqual({ ok: true });
     expect(saveMock).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "wearer-1",
         provider: "uploadthing",
         secret: { token: "wearer-token-1234" },
         externalAccountId: "app-wearer",
-        secretHint: "…1234",
       }),
     );
+    expect(saveMock.mock.calls[0]![0]).not.toHaveProperty("secretHint");
   });
 
   it("does not revoke the platform-funded owner connection", async () => {
@@ -129,7 +129,6 @@ describe("UploadThing BYOK mutations", () => {
       funding: "byok",
       canEdit: true,
       connected: false,
-      secretHint: null,
       testedAt: null,
     });
 
@@ -142,7 +141,48 @@ describe("UploadThing BYOK mutations", () => {
 
     await expect(
       saveUploadThingByok("wearer-1", mislabeled, "wearer-token-9999"),
-    ).resolves.toEqual({ ok: true, secretHint: "…9999" });
+    ).resolves.toEqual({ ok: true });
     expect(saveMock).toHaveBeenCalled();
   });
+
+  it("derives connected from an active connection with a stored credential", async () => {
+    vi.mocked(getByokConnectionPublic).mockResolvedValue({
+      connectionId: "c1",
+      status: "active",
+      hasCredential: true,
+      testedAt: "2026-08-18T12:00:00.000Z",
+    });
+
+    const view = await getUploadThingSettings("wearer-1", wearer);
+    expect(view).toEqual({
+      funding: "byok",
+      canEdit: true,
+      connected: true,
+      testedAt: "2026-08-18T12:00:00.000Z",
+    });
+    expect(view).not.toHaveProperty("secretHint");
+  });
+
+  it.each([
+    { status: "active" as const, hasCredential: false },
+    { status: "action_required" as const, hasCredential: true },
+    { status: "disabled" as const, hasCredential: true },
+  ])(
+    "is not connected when status is $status and hasCredential is $hasCredential",
+    async ({ status, hasCredential }) => {
+      vi.mocked(getByokConnectionPublic).mockResolvedValue({
+        connectionId: "c1",
+        status,
+        hasCredential,
+        testedAt: "2026-08-18T12:00:00.000Z",
+      });
+
+      await expect(getUploadThingSettings("wearer-1", wearer)).resolves.toEqual({
+        funding: "byok",
+        canEdit: true,
+        connected: false,
+        testedAt: null,
+      });
+    },
+  );
 });

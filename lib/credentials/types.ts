@@ -17,16 +17,19 @@ export type ResolvedProviderCredential<P extends ProviderKind = ProviderKind> = 
   secret: ProviderSecretByKind[P];
 };
 
+/**
+ * BYOK keys are write-only: views and mutation results never carry any part
+ * of the stored secret, so the client can only learn whether one is connected.
+ */
 export type GoogleAiStudioSettingsView = {
   funding: "platform" | "byok";
   canEdit: boolean;
   connected: boolean;
-  secretHint: string | null;
   testedAt: string | null;
 };
 
 export type UploadThingSettingsView = GoogleAiStudioSettingsView;
 
 export type ProviderMutationResult =
-  | { ok: true; secretHint?: string | null }
+  | { ok: true }
   | { ok: false; message: string; rateLimited?: true };
