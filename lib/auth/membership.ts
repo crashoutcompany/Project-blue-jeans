@@ -7,6 +7,7 @@ import {
   formCsrfMiddleware,
 } from "better-auth/api";
 
+import { normalizeOtpEmail } from "./email-otp";
 import { getSql } from "@/lib/db";
 
 export type MembershipPolicy = {
@@ -178,6 +179,54 @@ export async function isOtpSignInBlockedForUser(
 
 type GuardContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 
+/** Lookups run this many times in total before the guard fails closed. */
+const LOOKUP_ATTEMPTS = 2;
+
+type OtpCandidate = {
+  userId: string;
+  accounts: readonly unknown[];
+};
+
+/**
+ * Loads the user for an email, then that user's accounts by `userId`. Returns
+ * null when no user has the email.
+ */
+async function findOtpCandidate(
+  ctx: GuardContext,
+  email: string,
+): Promise<OtpCandidate | null> {
+  const internal = ctx.context.internalAdapter;
+  const found = await internal.findUserByEmail(email);
+  if (!found) return null;
+  const userId = found.user.id;
+  const accounts = await internal.findAccounts(userId);
+  return { userId, accounts };
+}
+
+/**
+ * Retries the user and account lookup once. If every attempt fails, the error
+ * is logged and rethrown, so the request fails and the send or sign-in is
+ * denied. The email is not logged.
+ */
+async function lookupOtpCandidate(
+  ctx: GuardContext,
+  email: string,
+): Promise<OtpCandidate | null> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= LOOKUP_ATTEMPTS; attempt += 1) {
+    try {
+      return await findOtpCandidate(ctx, email);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  console.error("otp_guard_lookup_failed", {
+    attempts: LOOKUP_ATTEMPTS,
+    error: lastError,
+  });
+  throw lastError;
+}
+
 /**
  * True when an email code must not open this address's existing account: the
  * owner, or anyone who already signs in another way (OAuth or password). A
@@ -187,12 +236,10 @@ async function isOtpBlockedForEmail(
   ctx: GuardContext,
   email: string,
 ): Promise<boolean> {
-  const existing = await ctx.context.internalAdapter.findUserByEmail(email, {
-    includeAccounts: true,
-  });
-  if (!existing) return false;
-  if (existing.accounts.length > 0) return true;
-  return isOtpSignInBlockedForUser(existing.user.id);
+  const candidate = await lookupOtpCandidate(ctx, email);
+  if (!candidate) return false;
+  if (candidate.accounts.length > 0) return true;
+  return isOtpSignInBlockedForUser(candidate.userId);
 }
 
 /**
@@ -219,9 +266,7 @@ export const otpOwnerGuardPlugin = {
           if (body?.type !== "sign-in" || typeof body.email !== "string") {
             return;
           }
-          // No trim: an address with stray spaces must fail the endpoint's
-          // own validation exactly as it does for an unlisted address.
-          if (!(await isOtpBlockedForEmail(ctx, body.email.toLowerCase()))) {
+          if (!(await isOtpBlockedForEmail(ctx, normalizeOtpEmail(body.email)))) {
             return;
           }
           await formCsrfMiddleware(ctx);
@@ -235,9 +280,7 @@ export const otpOwnerGuardPlugin = {
           if (typeof body?.email !== "string") return;
           // Same error as every other OTP failure, so a blocked email is
           // indistinguishable from a wrong code.
-          if (
-            await isOtpBlockedForEmail(ctx, body.email.trim().toLowerCase())
-          ) {
+          if (await isOtpBlockedForEmail(ctx, normalizeOtpEmail(body.email))) {
             throw APIError.from("BAD_REQUEST", {
               code: "INVALID_OTP",
               message: "Invalid OTP",

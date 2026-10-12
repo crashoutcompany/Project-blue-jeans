@@ -358,6 +358,34 @@ describe("email OTP sign-in users", () => {
   });
 });
 
+/**
+ * Memory adapter whose next `failures.remaining` reads reject, to simulate a
+ * transient database error during the guard's user or account lookup.
+ */
+function flakyMemoryAdapter(
+  db: Record<string, unknown[]>,
+  failures: { remaining: number },
+) {
+  const base = memoryAdapter(db);
+  return (options: Parameters<typeof base>[0]) => {
+    const adapter = base(options);
+    const failIfArmed =
+      <Args extends unknown[], Result>(fn: (...args: Args) => Promise<Result>) =>
+      (...args: Args): Promise<Result> => {
+        if (failures.remaining > 0) {
+          failures.remaining -= 1;
+          return Promise.reject(new Error("transient db error"));
+        }
+        return fn(...args);
+      };
+    return {
+      ...adapter,
+      findOne: failIfArmed(adapter.findOne),
+      findMany: failIfArmed(adapter.findMany),
+    };
+  };
+}
+
 describe("otpOwnerGuardPlugin", () => {
   const originalOwnerId = process.env.APP_OWNER_USER_ID;
 
@@ -379,6 +407,7 @@ describe("otpOwnerGuardPlugin", () => {
   function buildGuardedAuth(
     existingUserId?: string,
     linkedProvider?: string,
+    failures?: { remaining: number },
   ) {
     const db: Record<string, unknown[]> = {
       user: existingUserId
@@ -412,7 +441,9 @@ describe("otpOwnerGuardPlugin", () => {
     const auth = betterAuth({
       baseURL: "http://localhost:3000",
       secret: "test-better-auth-secret-at-least-32-characters",
-      database: memoryAdapter(db),
+      database: failures
+        ? flakyMemoryAdapter(db, failures)
+        : memoryAdapter(db),
       plugins: [
         ...createEmailOtpPlugins(
           {
@@ -546,5 +577,141 @@ describe("otpOwnerGuardPlugin", () => {
     const policy = await getMembershipPolicy(user.id);
     expect(policy).toBeNull();
     expect(membershipAllowsPlatformCredentials(policy, user.id)).toBe(false);
+  });
+
+  it("does not store a verification row for an unlisted address", async () => {
+    const { post, db } = buildGuardedAuth();
+
+    const response = await post("/email-otp/send-verification-otp", {
+      email: "intruder@example.com",
+      type: "sign-in",
+    });
+
+    expect(response.status).toBe(200);
+    expect(db.verification).toHaveLength(0);
+    expect(resendSend).not.toHaveBeenCalled();
+  });
+
+  it("lets a code-created user sign in again and still has no linked accounts", async () => {
+    const { auth, post, db } = buildGuardedAuth();
+
+    const firstOtp = await auth.api.createVerificationOTP({
+      body: { email: "bot@example.com", type: "sign-in" },
+    });
+    const first = await post("/sign-in/email-otp", {
+      email: "bot@example.com",
+      otp: firstOtp,
+    });
+    expect(first.status).toBe(200);
+
+    const secondOtp = await auth.api.createVerificationOTP({
+      body: { email: "bot@example.com", type: "sign-in" },
+    });
+    const second = await post("/sign-in/email-otp", {
+      email: "bot@example.com",
+      otp: secondOtp,
+    });
+
+    expect(second.status).toBe(200);
+    expect(db.user).toHaveLength(1);
+    expect(db.account).toHaveLength(0);
+  });
+
+  it("fails sign-in closed when the membership store is down", async () => {
+    const down = { value: false };
+    getSqlMock.mockReturnValue(
+      vi.fn(async () => {
+        if (down.value) throw new Error("membership store down");
+        return [];
+      }) as never,
+    );
+    const error = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const { auth, post, db } = buildGuardedAuth("bot-1");
+    const otp = await auth.api.createVerificationOTP({
+      body: { email: "bot@example.com", type: "sign-in" },
+    });
+
+    down.value = true;
+    const response = await post("/sign-in/email-otp", {
+      email: "bot@example.com",
+      otp,
+    });
+
+    expect(response.status).not.toBe(200);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(db.session).toHaveLength(0);
+    error.mockRestore();
+  });
+
+  it("blocks a password-linked account as well as a Google-linked one", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+
+    const { response, db } = await signInWithCode(
+      "member-1",
+      "bot@example.com",
+      "credential",
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "INVALID_OTP" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(db.session).toHaveLength(0);
+  });
+
+  it("succeeds when the lookup works on the second attempt", async () => {
+    const failures = { remaining: 0 };
+    const { auth, post, db } = buildGuardedAuth("bot-1", undefined, failures);
+    const otp = await auth.api.createVerificationOTP({
+      body: { email: "bot@example.com", type: "sign-in" },
+    });
+    const error = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    failures.remaining = 1;
+    const response = await post("/sign-in/email-otp", {
+      email: "bot@example.com",
+      otp,
+    });
+
+    expect(response.status).toBe(200);
+    expect(failures.remaining).toBe(0);
+    expect(error).not.toHaveBeenCalledWith(
+      "otp_guard_lookup_failed",
+      expect.anything(),
+    );
+    expect(db.session).toHaveLength(1);
+    error.mockRestore();
+  });
+
+  it("denies sign-in and logs otp_guard_lookup_failed after two failed lookups", async () => {
+    const failures = { remaining: 0 };
+    const { auth, post, db } = buildGuardedAuth("bot-1", undefined, failures);
+    const otp = await auth.api.createVerificationOTP({
+      body: { email: "bot@example.com", type: "sign-in" },
+    });
+    const error = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    failures.remaining = 2;
+    const response = await post("/sign-in/email-otp", {
+      email: "bot@example.com",
+      otp,
+    });
+
+    expect(response.status).not.toBe(200);
+    expect(failures.remaining).toBe(0);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(db.session).toHaveLength(0);
+    expect(error).toHaveBeenCalledWith(
+      "otp_guard_lookup_failed",
+      expect.objectContaining({ attempts: 2 }),
+    );
+    const logged = JSON.stringify(error.mock.calls);
+    expect(logged).not.toContain("bot@example.com");
+    error.mockRestore();
   });
 });

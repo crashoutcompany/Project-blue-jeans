@@ -6,8 +6,15 @@ import {
   getEnabledSocialProviders,
   resolveAuthEnvironment,
 } from "./create-auth";
+import { EMAIL_OTP_DISABLED_PATHS } from "./email-otp";
 
 const SECRET = "test-better-auth-secret-at-least-32-characters";
+const ORIGIN = "http://localhost:3000";
+const OTP_ENV = {
+  AUTH_OTP_ALLOWED_EMAILS: "bot@example.com",
+  RESEND_API_KEY: "re_test",
+  AUTH_EMAIL_FROM: "auth@example.com",
+};
 
 describe("resolveAuthEnvironment", () => {
   it("requires BETTER_AUTH_SECRET and ignores the legacy AUTH_SECRET name", () => {
@@ -84,5 +91,60 @@ describe("createAuth email OTP", () => {
         AUTH_EMAIL_FROM: "auth@example.com",
       }),
     ).toEqual(expect.arrayContaining(["email-otp", "email-otp-allowlist"]));
+  });
+
+  it("disables the non-sign-in OTP routes only when email OTP is configured", () => {
+    const withOtp = createAuth({
+      appName: "Project Blue Jeans",
+      database: memoryAdapter({}),
+      env: { BETTER_AUTH_SECRET: SECRET, ...OTP_ENV },
+      productionUrl: ORIGIN,
+      previewOrigin: ORIGIN,
+    });
+    const withoutOtp = createAuth({
+      appName: "Project Blue Jeans",
+      database: memoryAdapter({}),
+      env: { BETTER_AUTH_SECRET: SECRET },
+      productionUrl: ORIGIN,
+      previewOrigin: ORIGIN,
+    });
+
+    expect(withOtp.options.disabledPaths).toEqual([...EMAIL_OTP_DISABLED_PATHS]);
+    expect(withOtp.options.disabledPaths).toEqual(
+      expect.arrayContaining([
+        "/email-otp/reset-password",
+        "/email-otp/verify-email",
+        "/email-otp/check-verification-otp",
+        "/email-otp/request-password-reset",
+        "/forget-password/email-otp",
+      ]),
+    );
+    expect(withoutOtp.options.disabledPaths).toBeUndefined();
+  });
+
+  it("answers 404 for disabled OTP routes", async () => {
+    const auth = createAuth({
+      appName: "Project Blue Jeans",
+      database: memoryAdapter({}),
+      env: { BETTER_AUTH_SECRET: SECRET, ...OTP_ENV },
+      productionUrl: ORIGIN,
+      previewOrigin: ORIGIN,
+    });
+
+    for (const path of [
+      "/email-otp/reset-password",
+      "/email-otp/verify-email",
+      "/email-otp/check-verification-otp",
+      "/email-otp/request-password-reset",
+    ]) {
+      const response = await auth.handler(
+        new Request(`${ORIGIN}/api/auth${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          body: JSON.stringify({ email: "bot@example.com", otp: "123456" }),
+        }),
+      );
+      expect(response.status, path).toBe(404);
+    }
   });
 });
