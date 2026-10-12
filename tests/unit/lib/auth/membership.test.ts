@@ -376,9 +376,9 @@ describe("otpOwnerGuardPlugin", () => {
     }
   });
 
-  async function signInWithCode(
+  function buildGuardedAuth(
     existingUserId?: string,
-    signInEmail = "bot@example.com",
+    linkedProvider?: string,
   ) {
     const db: Record<string, unknown[]> = {
       user: existingUserId
@@ -394,7 +394,19 @@ describe("otpOwnerGuardPlugin", () => {
           ]
         : [],
       session: [],
-      account: [],
+      account:
+        existingUserId && linkedProvider
+          ? [
+              {
+                id: "acct-1",
+                userId: existingUserId,
+                accountId: "provider-account-1",
+                providerId: linkedProvider,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ]
+          : [],
       verification: [],
     };
     const auth = betterAuth({
@@ -425,13 +437,22 @@ describe("otpOwnerGuardPlugin", () => {
         }),
       );
 
-    await post("/email-otp/send-verification-otp", {
-      email: "bot@example.com",
-      type: "sign-in",
+    return { auth, post, db };
+  }
+
+  /**
+   * Issues a valid code server-side (blocked accounts are never emailed one)
+   * and tries to sign in with it.
+   */
+  async function signInWithCode(
+    existingUserId?: string,
+    signInEmail = "bot@example.com",
+    linkedProvider?: string,
+  ) {
+    const { auth, post, db } = buildGuardedAuth(existingUserId, linkedProvider);
+    const otp = await auth.api.createVerificationOTP({
+      body: { email: "bot@example.com", type: "sign-in" },
     });
-    const otp = (resendSend.mock.calls[0]?.[0].text as string).match(
-      /\b(\d{6})\b/,
-    )?.[1];
     const response = await post("/sign-in/email-otp", {
       email: signInEmail,
       otp,
@@ -465,6 +486,53 @@ describe("otpOwnerGuardPlugin", () => {
     });
     expect(response.headers.get("set-cookie")).toBeNull();
     expect(db.session).toHaveLength(0);
+  });
+
+  it("refuses email OTP sign-in into an account with a linked provider", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+
+    const { response, db } = await signInWithCode(
+      "member-1",
+      "bot@example.com",
+      "google",
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "INVALID_OTP" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(db.session).toHaveLength(0);
+  });
+
+  it("emails no code to the owner and answers like an unlisted address", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+    const { post, db } = buildGuardedAuth("owner-1");
+
+    const owner = await post("/email-otp/send-verification-otp", {
+      email: "bot@example.com",
+      type: "sign-in",
+    });
+    expect(db.verification).toHaveLength(0);
+    const unlisted = await post("/email-otp/send-verification-otp", {
+      email: "intruder@example.com",
+      type: "sign-in",
+    });
+
+    expect(resendSend).not.toHaveBeenCalled();
+    expect(owner.status).toBe(unlisted.status);
+    expect(await owner.json()).toEqual(await unlisted.json());
+  });
+
+  it("still emails a code to a code-only account", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+    const { post } = buildGuardedAuth("bot-1");
+
+    const response = await post("/email-otp/send-verification-otp", {
+      email: "bot@example.com",
+      type: "sign-in",
+    });
+
+    expect(response.status).toBe(200);
+    expect(resendSend).toHaveBeenCalledTimes(1);
   });
 
   it("lets a new OTP user sign in without making it the owner", async () => {

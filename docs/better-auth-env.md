@@ -43,7 +43,9 @@ allowlist can use it; everyone else keeps using OAuth. Logic lives in
 - The Better Auth `emailOTP` plugin is registered only when all three are set. Otherwise the `/api/auth/email-otp/*` and `/api/auth/sign-in/email-otp` routes do not exist and the sign-in page hides the form. A partial config logs a warning.
 - Codes: 6 digits, expire after 5 minutes, 3 attempts. Only `sign-in` codes are ever emailed; email-verification and password-reset requests send nothing.
 - A send request for a non-listed email sends nothing and returns the same `{ "success": true }`, so the list can't be probed. Redeeming a code for a non-listed email is rejected.
-- Email OTP sign-in never opens the owner account (`APP_OWNER_USER_ID` or an `owner` membership row), even if that email is listed (`otpOwnerGuardPlugin` in `lib/auth/membership.ts`).
+- Email OTP sign-in never opens the owner account (`APP_OWNER_USER_ID` or an `owner` membership row) or any account with a linked OAuth or password provider, even if that email is listed (`otpOwnerGuardPlugin` in `lib/auth/membership.ts`). Those addresses get the same `{ "success": true }` on send but no code is stored or emailed, and redeeming a code fails with the same 400 `INVALID_OTP` as a wrong code.
+- If Resend rejects a code email, the error is logged as `[auth] sign-in code email failed` and the caller still gets `{ "success": true }`, so failures don't reveal the list.
+- Rate limiting relies on Better Auth's defaults, which are in memory per server instance (not shared across instances).
 - A user created by email OTP has no membership, so it is "not admitted" until the owner invites it (Settings → Invites) and it accepts the invite link while signed in as that email. It then becomes a `wearer` with `user_byok` credentials, never `platform_env`.
 
 ## CI / Playwright only

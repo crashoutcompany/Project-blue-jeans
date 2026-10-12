@@ -1,7 +1,11 @@
 import "server-only";
 
 import type { BetterAuthPlugin } from "better-auth";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  formCsrfMiddleware,
+} from "better-auth/api";
 
 import { getSql } from "@/lib/db";
 
@@ -172,27 +176,68 @@ export async function isOtpSignInBlockedForUser(
   return policy?.accessRole === "owner";
 }
 
+type GuardContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
+
+/**
+ * True when an email code must not open this address's existing account: the
+ * owner, or anyone who already signs in another way (OAuth or password). A
+ * user created by email OTP has no linked accounts, so it keeps using codes.
+ */
+async function isOtpBlockedForEmail(
+  ctx: GuardContext,
+  email: string,
+): Promise<boolean> {
+  const existing = await ctx.context.internalAdapter.findUserByEmail(email, {
+    includeAccounts: true,
+  });
+  if (!existing) return false;
+  if (existing.accounts.length > 0) return true;
+  return isOtpSignInBlockedForUser(existing.user.id);
+}
+
 /**
  * Blue Jeans-only guard next to the shared email OTP plugins: refuse email
- * OTP sign-in into the owner account. A user created by email OTP has a fresh
- * id with no membership, so it is un-invited until the owner invites it as a
- * `wearer` (`user_byok`); it can never pick up `platform_env`.
+ * OTP sign-in into the owner account or any account with a linked provider. A
+ * user created by email OTP has a fresh id with no membership, so it is
+ * un-invited until the owner invites it as a `wearer` (`user_byok`); it can
+ * never pick up `platform_env`.
  */
 export const otpOwnerGuardPlugin = {
   id: "email-otp-owner-guard",
   hooks: {
     before: [
       {
+        // Blocked accounts can never use a code, so none is stored or emailed.
+        // The endpoint's own success body is returned early, after the same
+        // CSRF check the endpoint runs, so the response matches an unlisted
+        // address.
+        matcher: (ctx) => ctx.path === "/email-otp/send-verification-otp",
+        handler: createAuthMiddleware(async (ctx) => {
+          const body = ctx.body as
+            | { email?: unknown; type?: unknown }
+            | undefined;
+          if (body?.type !== "sign-in" || typeof body.email !== "string") {
+            return;
+          }
+          // No trim: an address with stray spaces must fail the endpoint's
+          // own validation exactly as it does for an unlisted address.
+          if (!(await isOtpBlockedForEmail(ctx, body.email.toLowerCase()))) {
+            return;
+          }
+          await formCsrfMiddleware(ctx);
+          return ctx.json({ success: true });
+        }),
+      },
+      {
         matcher: (ctx) => ctx.path === "/sign-in/email-otp",
         handler: createAuthMiddleware(async (ctx) => {
           const body = ctx.body as { email?: unknown } | undefined;
           if (typeof body?.email !== "string") return;
-          const existing = await ctx.context.internalAdapter.findUserByEmail(
-            body.email.trim().toLowerCase(),
-          );
-          // Same error as every other OTP failure, so an allowlisted owner
-          // email is indistinguishable from a wrong code.
-          if (existing && (await isOtpSignInBlockedForUser(existing.user.id))) {
+          // Same error as every other OTP failure, so a blocked email is
+          // indistinguishable from a wrong code.
+          if (
+            await isOtpBlockedForEmail(ctx, body.email.trim().toLowerCase())
+          ) {
             throw APIError.from("BAD_REQUEST", {
               code: "INVALID_OTP",
               message: "Invalid OTP",
