@@ -1,17 +1,37 @@
-import { betterAuth, type BetterAuthOptions } from "better-auth";
+import {
+  betterAuth,
+  type BetterAuthOptions,
+  type BetterAuthPlugin,
+} from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 
 import { resolveAuthBaseUrl, type AuthBaseUrlEnv } from "./base-url";
+import {
+  createEmailOtpPlugins,
+  EMAIL_OTP_DISABLED_PATHS,
+  normalizeOtpEmail,
+  resolveEmailOtpConfig,
+  type EmailOtpEnv,
+} from "./email-otp";
+import {
+  createAuthRateLimitStore,
+  createOtpEmailLockoutPlugin,
+  rateLimitPrefixFromAppName,
+  type RateLimitEnv,
+} from "./rate-limit";
 
 export type SocialProviderId = "github" | "google";
 
-type AuthEnv = AuthBaseUrlEnv & {
-  BETTER_AUTH_SECRET?: string;
-  AUTH_GITHUB_ID?: string;
-  AUTH_GITHUB_SECRET?: string;
-  AUTH_GOOGLE_ID?: string;
-  AUTH_GOOGLE_SECRET?: string;
-};
+type AuthEnv = AuthBaseUrlEnv &
+  EmailOtpEnv &
+  RateLimitEnv & {
+    NODE_ENV?: string;
+    BETTER_AUTH_SECRET?: string;
+    AUTH_GITHUB_ID?: string;
+    AUTH_GITHUB_SECRET?: string;
+    AUTH_GOOGLE_ID?: string;
+    AUTH_GOOGLE_SECRET?: string;
+  };
 
 type ProviderCredentials = {
   clientId: string;
@@ -38,6 +58,8 @@ type CreateAuthOptions = {
   onError?: NonNullable<
     NonNullable<BetterAuthOptions["onAPIError"]>["onError"]
   >;
+  /** App-specific plugins, registered before nextCookies (which must be last). */
+  extraPlugins?: readonly BetterAuthPlugin[];
 };
 
 const PROVIDER_ENV = {
@@ -118,11 +140,27 @@ export function createAuth({
   sessionModelName,
   userAdditionalFields,
   onError,
+  extraPlugins = [],
 }: CreateAuthOptions) {
   const { secret, socialProviders } = resolveAuthEnvironment(env);
+  const emailOtp = resolveEmailOtpConfig(env, true);
+  // Per-IP limits (Better Auth) and per-email lockout share one store, so
+  // both use Redis when it is configured and fall back to memory otherwise.
+  const rateLimitStore = createAuthRateLimitStore({
+    env,
+    appSlug: rateLimitPrefixFromAppName(appName),
+    secret,
+  });
 
   return betterAuth({
     appName,
+    // On when NODE_ENV=production (Vercel production and preview, and
+    // `next start` in CI), off in dev and unit tests, matching Better Auth's
+    // default. Read from `env` so it can be tested.
+    rateLimit: {
+      enabled: env.NODE_ENV === "production",
+      customStorage: rateLimitStore,
+    },
     baseURL: resolveAuthBaseUrl(productionUrl, env),
     trustedOrigins: [
       ...new Set([productionUrl, previewOrigin, ...extraTrustedOrigins]),
@@ -143,6 +181,22 @@ export function createAuth({
       ? { user: { additionalFields: userAdditionalFields } }
       : {}),
     ...(onError ? { onAPIError: { onError } } : {}),
-    plugins: [nextCookies()],
+    ...(emailOtp ? { disabledPaths: [...EMAIL_OTP_DISABLED_PATHS] } : {}),
+    plugins: [
+      // Order matters: before hooks run in this order. The email lockout comes
+      // first so over-limit requests stop before the allowlist and owner guards.
+      ...(emailOtp
+        ? [
+            createOtpEmailLockoutPlugin({
+              store: rateLimitStore,
+              normalizeEmail: normalizeOtpEmail,
+            }),
+            // The auth secret keys the email hash in OTP failure logs.
+            ...createEmailOtpPlugins(emailOtp, appName, { logSecret: secret }),
+          ]
+        : []),
+      ...extraPlugins,
+      nextCookies(),
+    ],
   });
 }
