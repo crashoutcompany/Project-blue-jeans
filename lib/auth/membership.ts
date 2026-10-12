@@ -190,9 +190,12 @@ export const otpOwnerGuardPlugin = {
           const existing = await ctx.context.internalAdapter.findUserByEmail(
             body.email.toLowerCase(),
           );
+          // Same error as every other OTP failure, so an allowlisted owner
+          // email is indistinguishable from a wrong code.
           if (existing && (await isOtpSignInBlockedForUser(existing.user.id))) {
-            throw new APIError("FORBIDDEN", {
-              message: "This account can't sign in with an email code.",
+            throw APIError.from("BAD_REQUEST", {
+              code: "INVALID_OTP",
+              message: "Invalid OTP",
             });
           }
         }),

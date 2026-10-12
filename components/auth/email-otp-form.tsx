@@ -21,20 +21,23 @@ export function EmailOtpForm({ callbackURL }: { callbackURL?: string }) {
     setPending(true);
     setErrorMessage(null);
 
-    const result = await authClient.emailOtp.sendVerificationOtp({
-      email: email.trim(),
-      type: "sign-in",
-    });
+    try {
+      const result = await authClient.emailOtp.sendVerificationOtp({
+        email: email.trim(),
+        type: "sign-in",
+      });
 
-    setPending(false);
-    if (result.error) {
-      setErrorMessage(
-        result.error.message || "Unable to send a code. Try again in a minute.",
-      );
-      return;
+      if (result.error) {
+        setErrorMessage(
+          result.error.message || "Unable to send a code. Try again in a minute.",
+        );
+        return;
+      }
+      setOtp("");
+      setStep("code");
+    } finally {
+      setPending(false);
     }
-    setOtp("");
-    setStep("code");
   }
 
   async function verifyCode(event: FormEvent<HTMLFormElement>) {
@@ -42,20 +45,27 @@ export function EmailOtpForm({ callbackURL }: { callbackURL?: string }) {
     setPending(true);
     setErrorMessage(null);
 
-    const result = await authClient.signIn.emailOtp({
-      email: email.trim(),
-      otp: otp.trim(),
-    });
+    // Stay pending through a successful sign-in so the form cannot be
+    // resubmitted while the navigation is in flight.
+    let signedIn = false;
+    try {
+      const result = await authClient.signIn.emailOtp({
+        email: email.trim(),
+        otp: otp.trim(),
+      });
 
-    if (result.error) {
-      setErrorMessage(
-        result.error.message || "Unable to sign in. Check the code and try again.",
-      );
-      setPending(false);
-      return;
+      if (result.error) {
+        setErrorMessage(
+          result.error.message || "Unable to sign in. Check the code and try again.",
+        );
+        return;
+      }
+      signedIn = true;
+      router.replace(callbackURL ?? "/");
+      router.refresh();
+    } finally {
+      if (!signedIn) setPending(false);
     }
-    router.replace(callbackURL ?? "/");
-    router.refresh();
   }
 
   function changeEmail() {

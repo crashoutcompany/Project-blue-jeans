@@ -441,7 +441,12 @@ describe("otpOwnerGuardPlugin", () => {
 
     const { response, db } = await signInWithCode("owner-1");
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "INVALID_OTP",
+      message: "Invalid OTP",
+    });
+    expect(response.headers.get("set-cookie")).toBeNull();
     expect(db.session).toHaveLength(0);
   });
 
