@@ -7,7 +7,11 @@ import {
   formCsrfMiddleware,
 } from "better-auth/api";
 
-import { normalizeOtpEmail } from "./email-otp";
+import {
+  logOtpFailure,
+  normalizeOtpEmail,
+  otpEmailLogHash,
+} from "./email-otp";
 import { getSql } from "@/lib/db";
 
 export type MembershipPolicy = {
@@ -184,12 +188,27 @@ const LOOKUP_ATTEMPTS = 2;
 
 type OtpCandidate = {
   userId: string;
-  accounts: readonly unknown[];
+  /** Owner, or any account with a linked provider (OAuth or password). */
+  blocked: boolean;
 };
 
+type Lookup =
+  | { failed: false; candidate: OtpCandidate | null }
+  | { failed: true };
+
+/** Error name and message, with the address removed in case a driver echoes it. */
+function describeLookupError(error: unknown, email: string) {
+  const name = error instanceof Error ? error.name : typeof error;
+  const message = error instanceof Error ? error.message : "";
+  return { name, message: message.split(email).join("[redacted]") };
+}
+
 /**
- * Loads the user for an email, then that user's accounts by `userId`. Returns
- * null when no user has the email.
+ * Loads the user for an email, that user's accounts by `userId`, and the
+ * owner membership check. Returns null when no user has the email. The
+ * membership check runs inside the retry too, so a membership store failure
+ * is answered like a lookup failure, not as a server error that would reveal
+ * the account exists.
  */
 async function findOtpCandidate(
   ctx: GuardContext,
@@ -200,46 +219,43 @@ async function findOtpCandidate(
   if (!found) return null;
   const userId = found.user.id;
   const accounts = await internal.findAccounts(userId);
-  return { userId, accounts };
+  const blocked =
+    accounts.length > 0 || (await isOtpSignInBlockedForUser(userId));
+  return { userId, blocked };
 }
 
 /**
- * Retries the user and account lookup once. If every attempt fails, the error
- * is logged and rethrown, so the request fails and the send or sign-in is
- * denied. The email is not logged.
+ * Retries the lookup once. If every attempt fails, the guard logs the failure
+ * by hash and returns `{ failed: true }`. The caller then answers as if the
+ * address were unlisted, so a lookup failure does not reveal that the address
+ * is listed. The raw email is never logged.
  */
 async function lookupOtpCandidate(
   ctx: GuardContext,
   email: string,
-): Promise<OtpCandidate | null> {
+  logSecret: string | undefined,
+): Promise<Lookup> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= LOOKUP_ATTEMPTS; attempt += 1) {
     try {
-      return await findOtpCandidate(ctx, email);
+      return { failed: false, candidate: await findOtpCandidate(ctx, email) };
     } catch (error) {
       lastError = error;
     }
   }
   console.error("otp_guard_lookup_failed", {
     attempts: LOOKUP_ATTEMPTS,
-    error: lastError,
+    emailHash: otpEmailLogHash(email, logSecret),
+    error: describeLookupError(lastError, email),
   });
-  throw lastError;
+  return { failed: true };
 }
 
-/**
- * True when an email code must not open this address's existing account: the
- * owner, or anyone who already signs in another way (OAuth or password). A
- * user created by email OTP has no linked accounts, so it keeps using codes.
- */
-async function isOtpBlockedForEmail(
-  ctx: GuardContext,
-  email: string,
-): Promise<boolean> {
-  const candidate = await lookupOtpCandidate(ctx, email);
-  if (!candidate) return false;
-  if (candidate.accounts.length > 0) return true;
-  return isOtpSignInBlockedForUser(candidate.userId);
+function invalidOtpError(): APIError {
+  return APIError.from("BAD_REQUEST", {
+    code: "INVALID_OTP",
+    message: "Invalid OTP",
+  });
 }
 
 /**
@@ -248,46 +264,69 @@ async function isOtpBlockedForEmail(
  * user created by email OTP has a fresh id with no membership, so it is
  * un-invited until the owner invites it as a `wearer` (`user_byok`); it can
  * never pick up `platform_env`.
+ *
+ * `logSecret` keys the email hash in logs. Pass the same Better Auth secret
+ * given to `createEmailOtpPlugins`.
+ *
+ * Blocked accounts can never use a code, so no code is stored or emailed for
+ * them. A lookup that fails after the retry is answered the same way as an
+ * unlisted address, so a failure does not reveal that the address is listed.
+ * Sign-in answers blocked and failed lookups with the same INVALID_OTP as a
+ * wrong code.
  */
-export const otpOwnerGuardPlugin = {
-  id: "email-otp-owner-guard",
-  hooks: {
-    before: [
-      {
-        // Blocked accounts can never use a code, so none is stored or emailed.
-        // The endpoint's own success body is returned early, after the same
-        // CSRF check the endpoint runs, so the response matches an unlisted
-        // address.
-        matcher: (ctx) => ctx.path === "/email-otp/send-verification-otp",
-        handler: createAuthMiddleware(async (ctx) => {
-          const body = ctx.body as
-            | { email?: unknown; type?: unknown }
-            | undefined;
-          if (body?.type !== "sign-in" || typeof body.email !== "string") {
-            return;
-          }
-          if (!(await isOtpBlockedForEmail(ctx, normalizeOtpEmail(body.email)))) {
-            return;
-          }
-          await formCsrfMiddleware(ctx);
-          return ctx.json({ success: true });
-        }),
-      },
-      {
-        matcher: (ctx) => ctx.path === "/sign-in/email-otp",
-        handler: createAuthMiddleware(async (ctx) => {
-          const body = ctx.body as { email?: unknown } | undefined;
-          if (typeof body?.email !== "string") return;
-          // Same error as every other OTP failure, so a blocked email is
-          // indistinguishable from a wrong code.
-          if (await isOtpBlockedForEmail(ctx, normalizeOtpEmail(body.email))) {
-            throw APIError.from("BAD_REQUEST", {
-              code: "INVALID_OTP",
-              message: "Invalid OTP",
-            });
-          }
-        }),
-      },
-    ],
-  },
-} satisfies BetterAuthPlugin;
+export function createOtpOwnerGuardPlugin(
+  options: { logSecret?: string } = {},
+): BetterAuthPlugin {
+  const { logSecret } = options;
+  return {
+    id: "email-otp-owner-guard",
+    hooks: {
+      before: [
+        {
+          matcher: (ctx) => ctx.path === "/email-otp/send-verification-otp",
+          handler: createAuthMiddleware(async (ctx) => {
+            const body = ctx.body as
+              | { email?: unknown; type?: unknown }
+              | undefined;
+            if (body?.type !== "sign-in" || typeof body.email !== "string") {
+              return;
+            }
+            const email = normalizeOtpEmail(body.email);
+            const lookup = await lookupOtpCandidate(ctx, email, logSecret);
+            if (!lookup.failed && !lookup.candidate?.blocked) return;
+            if (!lookup.failed && lookup.candidate) {
+              logOtpFailure("otp_account_blocked", {
+                email,
+                userId: lookup.candidate.userId,
+                logSecret,
+              });
+            }
+            // Blocked and failed lookups take the same path as an unlisted
+            // address: the CSRF check the endpoint would run, then its success
+            // body. No code is stored or emailed.
+            await formCsrfMiddleware(ctx);
+            return ctx.json({ success: true });
+          }),
+        },
+        {
+          matcher: (ctx) => ctx.path === "/sign-in/email-otp",
+          handler: createAuthMiddleware(async (ctx) => {
+            const body = ctx.body as { email?: unknown } | undefined;
+            if (typeof body?.email !== "string") return;
+            const email = normalizeOtpEmail(body.email);
+            const lookup = await lookupOtpCandidate(ctx, email, logSecret);
+            if (lookup.failed) throw invalidOtpError();
+            if (lookup.candidate?.blocked) {
+              logOtpFailure("otp_account_blocked", {
+                email,
+                userId: lookup.candidate.userId,
+                logSecret,
+              });
+              throw invalidOtpError();
+            }
+          }),
+        },
+      ],
+    },
+  } satisfies BetterAuthPlugin;
+}

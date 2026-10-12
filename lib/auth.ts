@@ -8,9 +8,10 @@ import {
 import {
   createAuth,
   getEnabledSocialProviders,
+  requireBetterAuthSecret,
 } from "@/lib/auth/create-auth";
 import { isEmailOtpEnabled } from "@/lib/auth/email-otp";
-import { otpOwnerGuardPlugin } from "@/lib/auth/membership";
+import { createOtpOwnerGuardPlugin } from "@/lib/auth/membership";
 
 export type { SocialProviderId } from "@/lib/auth/create-auth";
 
@@ -39,7 +40,12 @@ export const auth = createAuth({
   database,
   productionUrl: AUTH_PRODUCTION_URL,
   previewOrigin: AUTH_PREVIEW_ORIGIN,
-  extraPlugins: [otpOwnerGuardPlugin],
+  // Same secret as createAuth, so the guard's log hashes match the OTP plugin's.
+  extraPlugins: [
+    createOtpOwnerGuardPlugin({
+      logSecret: requireBetterAuthSecret(process.env),
+    }),
+  ],
 });
 
 /** RSC-safe session read — never refreshes cookies (see proxy /auth routes). */

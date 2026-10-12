@@ -148,7 +148,8 @@ export function createAuth({
   // both use Redis when it is configured and fall back to memory otherwise.
   const rateLimitStore = createAuthRateLimitStore({
     env,
-    defaultPrefix: rateLimitPrefixFromAppName(appName),
+    appSlug: rateLimitPrefixFromAppName(appName),
+    secret,
   });
 
   return betterAuth({
@@ -190,7 +191,8 @@ export function createAuth({
               store: rateLimitStore,
               normalizeEmail: normalizeOtpEmail,
             }),
-            ...createEmailOtpPlugins(emailOtp, appName),
+            // The auth secret keys the email hash in OTP failure logs.
+            ...createEmailOtpPlugins(emailOtp, appName, { logSecret: secret }),
           ]
         : []),
       ...extraPlugins,

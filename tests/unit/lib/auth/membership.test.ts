@@ -14,11 +14,14 @@ vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
 
-import { createEmailOtpPlugins } from "@/lib/auth/email-otp";
 import {
+  createEmailOtpPlugins,
+  otpEmailLogHash,
+} from "@/lib/auth/email-otp";
+import {
+  createOtpOwnerGuardPlugin,
   getMembershipPolicy,
   isOtpSignInBlockedForUser,
-  otpOwnerGuardPlugin,
   membershipAllowsPlatformCredentials,
   membershipFromRow,
   MembershipStoreUnavailableError,
@@ -386,7 +389,9 @@ function flakyMemoryAdapter(
   };
 }
 
-describe("otpOwnerGuardPlugin", () => {
+const AUTH_SECRET = "test-better-auth-secret-at-least-32-characters";
+
+describe("createOtpOwnerGuardPlugin", () => {
   const originalOwnerId = process.env.APP_OWNER_USER_ID;
 
   beforeEach(() => {
@@ -440,7 +445,7 @@ describe("otpOwnerGuardPlugin", () => {
     };
     const auth = betterAuth({
       baseURL: "http://localhost:3000",
-      secret: "test-better-auth-secret-at-least-32-characters",
+      secret: AUTH_SECRET,
       database: failures
         ? flakyMemoryAdapter(db, failures)
         : memoryAdapter(db),
@@ -452,8 +457,9 @@ describe("otpOwnerGuardPlugin", () => {
             resendApiKey: "re_test",
           },
           "Project Blue Jeans",
+          { logSecret: AUTH_SECRET },
         ),
-        otpOwnerGuardPlugin,
+        createOtpOwnerGuardPlugin({ logSecret: AUTH_SECRET }),
       ],
     });
     const post = (path: string, body: unknown) =>
@@ -713,5 +719,88 @@ describe("otpOwnerGuardPlugin", () => {
     const logged = JSON.stringify(error.mock.calls);
     expect(logged).not.toContain("bot@example.com");
     error.mockRestore();
+  });
+  it("answers a send lookup failure like an unlisted address, with no code and no raw email logged", async () => {
+    const failures = { remaining: 0 };
+    const { post, db } = buildGuardedAuth("bot-1", undefined, failures);
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const unlisted = await post("/email-otp/send-verification-otp", {
+      email: "intruder@example.com",
+      type: "sign-in",
+    });
+
+    failures.remaining = 2;
+    const failed = await post("/email-otp/send-verification-otp", {
+      email: "bot@example.com",
+      type: "sign-in",
+    });
+
+    expect(failed.status).toBe(unlisted.status);
+    expect(await failed.json()).toEqual(await unlisted.json());
+    expect(db.verification).toHaveLength(0);
+    expect(resendSend).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(
+      "otp_guard_lookup_failed",
+      expect.objectContaining({
+        attempts: 2,
+        emailHash: otpEmailLogHash("bot@example.com", AUTH_SECRET),
+      }),
+    );
+    const logged = JSON.stringify([...error.mock.calls, ...warn.mock.calls]);
+    expect(logged).not.toContain("bot@example.com");
+    error.mockRestore();
+    warn.mockRestore();
+  });
+
+  it("answers a sign-in lookup failure with the same INVALID_OTP as a wrong code", async () => {
+    const failures = { remaining: 0 };
+    const { auth, post, db } = buildGuardedAuth("bot-1", undefined, failures);
+    await auth.api.createVerificationOTP({
+      body: { email: "bot@example.com", type: "sign-in" },
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const wrong = await post("/sign-in/email-otp", {
+      email: "bot@example.com",
+      otp: "000000",
+    });
+    const otp = await auth.api.createVerificationOTP({
+      body: { email: "bot@example.com", type: "sign-in" },
+    });
+    failures.remaining = 2;
+    const failed = await post("/sign-in/email-otp", {
+      email: "bot@example.com",
+      otp,
+    });
+
+    expect(failed.status).toBe(wrong.status);
+    expect(await failed.json()).toEqual(await wrong.json());
+    expect(failed.headers.get("set-cookie")).toBeNull();
+    expect(db.session).toHaveLength(0);
+    const logged = JSON.stringify([...error.mock.calls, ...warn.mock.calls]);
+    expect(logged).not.toContain("bot@example.com");
+    error.mockRestore();
+    warn.mockRestore();
+  });
+
+  it("logs blocked owner sign-ins by reason and email hash, never the raw email", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const { response } = await signInWithCode("owner-1");
+
+    expect(response.status).toBe(400);
+    expect(warn).toHaveBeenCalledWith(
+      "otp_sign_in_failed",
+      expect.objectContaining({
+        reason: "otp_account_blocked",
+        emailHash: otpEmailLogHash("bot@example.com", AUTH_SECRET),
+      }),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("bot@example.com");
+    warn.mockRestore();
   });
 });
