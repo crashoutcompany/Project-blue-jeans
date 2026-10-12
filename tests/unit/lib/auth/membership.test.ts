@@ -376,7 +376,10 @@ describe("otpOwnerGuardPlugin", () => {
     }
   });
 
-  async function signInWithCode(existingUserId?: string) {
+  async function signInWithCode(
+    existingUserId?: string,
+    signInEmail = "bot@example.com",
+  ) {
     const db: Record<string, unknown[]> = {
       user: existingUserId
         ? [
@@ -430,7 +433,7 @@ describe("otpOwnerGuardPlugin", () => {
       /\b(\d{6})\b/,
     )?.[1];
     const response = await post("/sign-in/email-otp", {
-      email: "bot@example.com",
+      email: signInEmail,
       otp,
     });
     return { response, db };
@@ -440,6 +443,20 @@ describe("otpOwnerGuardPlugin", () => {
     process.env.APP_OWNER_USER_ID = "owner-1";
 
     const { response, db } = await signInWithCode("owner-1");
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "INVALID_OTP",
+      message: "Invalid OTP",
+    });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(db.session).toHaveLength(0);
+  });
+
+  it("refuses an owner email with surrounding whitespace as INVALID_OTP", async () => {
+    process.env.APP_OWNER_USER_ID = "owner-1";
+
+    const { response, db } = await signInWithCode("owner-1", "  bot@example.com  ");
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({

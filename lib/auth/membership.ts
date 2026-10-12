@@ -188,7 +188,7 @@ export const otpOwnerGuardPlugin = {
           const body = ctx.body as { email?: unknown } | undefined;
           if (typeof body?.email !== "string") return;
           const existing = await ctx.context.internalAdapter.findUserByEmail(
-            body.email.toLowerCase(),
+            body.email.trim().toLowerCase(),
           );
           // Same error as every other OTP failure, so an allowlisted owner
           // email is indistinguishable from a wrong code.
