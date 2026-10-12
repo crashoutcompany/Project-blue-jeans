@@ -46,8 +46,18 @@ allowlist can use it; everyone else keeps using OAuth. Logic lives in
 - A send request for a non-listed email stores nothing, sends nothing, and returns the same `{ "success": true }`, so the list can't be probed. Redeeming a code for a non-listed email is rejected.
 - Email OTP sign-in never opens the owner account (`APP_OWNER_USER_ID` or an `owner` membership row) or any account with a linked OAuth or password provider, even if that email is listed (`otpOwnerGuardPlugin` in `lib/auth/membership.ts`). Those addresses get the same `{ "success": true }` on send but no code is stored or emailed. Every sign-in failure (wrong, expired, or over-attempted code, unlisted or blocked email, or a membership or account lookup that fails after one retry) returns the same 400 `INVALID_OTP`, and a store failure denies sign-in without issuing a session. Lookup failures are logged as `otp_guard_lookup_failed` without the email.
 - If Resend rejects a code email, the error is logged as `[auth] sign-in code email failed` and the caller still gets `{ "success": true }`, so failures don't reveal the list.
-- Rate limiting relies on Better Auth's defaults, which are in memory per server instance (not shared across instances).
+- Rate limiting has two layers, in `lib/auth/rate-limit.ts` (`shared:auth-rate-limit v1`, byte-for-byte with Project-Z) and wired in `lib/auth/create-auth.ts`. Per-IP limits are Better Auth's defaults for the OTP routes. Per-email lockout counts every address, listed or not: 5 sends per 15 minutes (over the limit, the route returns the same `{ "success": true }` and sends nothing) and 10 sign-in attempts per 15 minutes (429 `TOO_MANY_REQUESTS`). The lockout runs before the allowlist and owner guard. Keys are SHA-256 digests.
+- Counters live in Upstash Redis when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are both set, and in memory per server instance otherwise. If Redis errors or takes over 1 second, that request falls back to memory and `auth_rate_limit_redis_unavailable` is logged (at most once a minute).
 - A user created by email OTP has no membership, so it is "not admitted" until the owner invites it (Settings → Invites) and it accepts the invite link while signed in as that email. It then becomes a `wearer` with `user_byok` credentials, never `platform_env`.
+
+## Auth rate limiting (optional Upstash Redis)
+
+| Variable | Description |
+| --- | --- |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST endpoint and token for shared auth rate-limit counters. Both must be set to use Redis. |
+| `AUTH_RATE_LIMIT_PREFIX` | Namespace for rate-limit keys when several apps share one database. Default: the app name slug (`project-blue-jeans`). |
+
+Rate limits are enabled only when `NODE_ENV=production`, matching Better Auth's default in dev and unit tests.
 
 ## CI / Playwright only
 Copy this policy to Z / RDC. App-specific `createTestSession` bodies may differ; the gate must not.
