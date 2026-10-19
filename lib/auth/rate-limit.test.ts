@@ -35,6 +35,13 @@ const redis = vi.hoisted(() => {
 
   class Redis {
     constructor(config: Config) {
+      // The real client throws UrlError for a value that is not a URL, such as
+      // the "[SENSITIVE]" placeholder Vercel writes for Sensitive variables.
+      if (!config.url.startsWith("https://")) {
+        const error = new Error("Upstash Redis client was passed an invalid URL");
+        error.name = "UrlError";
+        throw error;
+      }
       state.constructed.push(config);
     }
 
@@ -190,14 +197,43 @@ describe("createAuthRateLimitStore", () => {
     });
   });
 
-  it("passes retries: 0 to the Redis client so a timed-out call is not retried", () => {
-    createAuthRateLimitStore({
+  it("passes retries: 0 to the Redis client so a timed-out call is not retried", async () => {
+    const store = createAuthRateLimitStore({
       env: UPSTASH_ENV,
       appSlug: "project-z",
       secret: SECRET,
     });
 
+    await store.consume("1.2.3.4|/sign-in/email-otp", { window: 60, max: 3 });
+
     expect(redis.state.constructed[0]?.retry).toEqual({ retries: 0 });
+  });
+
+  it("does not throw at creation on a placeholder URL, and falls back to memory on first use", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const store = createAuthRateLimitStore({
+      env: {
+        UPSTASH_REDIS_REST_URL: "[SENSITIVE]",
+        UPSTASH_REDIS_REST_TOKEN: "[SENSITIVE]",
+      },
+      appSlug: "project-z",
+      secret: SECRET,
+    });
+    const rule = { window: 60, max: 1 };
+
+    expect(await store.consume("1.2.3.4|/sign-in/email-otp", rule)).toEqual({
+      allowed: true,
+      retryAfter: null,
+    });
+    expect(await store.consume("1.2.3.4|/sign-in/email-otp", rule)).toEqual({
+      allowed: false,
+      retryAfter: expect.any(Number),
+    });
+    expect(redis.state.constructed).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith("auth_rate_limit_redis_unavailable", {
+      reason: "error",
+      errorName: "UrlError",
+    });
   });
 
   it("falls back to the KV_REST_API_* names when the UPSTASH_* pair is unset", async () => {
@@ -219,8 +255,8 @@ describe("createAuthRateLimitStore", () => {
     expect(redis.state.keys.size).toBe(1);
   });
 
-  it("prefers the UPSTASH_* pair over the KV_REST_API_* pair", () => {
-    createAuthRateLimitStore({
+  it("prefers the UPSTASH_* pair over the KV_REST_API_* pair", async () => {
+    const store = createAuthRateLimitStore({
       env: {
         ...UPSTASH_ENV,
         KV_REST_API_URL: "https://kv.upstash.io",
@@ -229,6 +265,8 @@ describe("createAuthRateLimitStore", () => {
       appSlug: "project-z",
       secret: SECRET,
     });
+
+    await store.consume("1.2.3.4|/sign-in/email-otp", { window: 60, max: 3 });
 
     expect(redis.state.constructed[0]).toMatchObject({
       url: UPSTASH_ENV.UPSTASH_REDIS_REST_URL,
