@@ -335,11 +335,16 @@ export function createAuthRateLimitStore({
   if (!credentials) return memory;
 
   const prefix = resolveRateLimitPrefix(env, appSlug);
-  const redis = new Redis({
-    url: credentials.url,
-    token: credentials.token,
-    retry: { retries: 0 },
-  });
+  // Created on first use, not at import: the URL can be invalid at build time
+  // (Vercel pulls Sensitive variables as "[SENSITIVE]"), and a bad URL should
+  // fall back to the memory store like any other Redis failure.
+  let redis: Redis | undefined;
+  const getRedis = () =>
+    (redis ??= new Redis({
+      url: credentials.url,
+      token: credentials.token,
+      retry: { retries: 0 },
+    }));
 
   let lastLoggedAt = Number.NEGATIVE_INFINITY;
   function logUnavailable(error: unknown): void {
@@ -358,7 +363,7 @@ export function createAuthRateLimitStore({
       const storageKey = `${prefix}:${STORAGE_NAMESPACE}:${hashKey(secret, key)}`;
       try {
         return await withTimeout(
-          redisConsume(redis, storageKey, rule),
+          redisConsume(getRedis(), storageKey, rule),
           REDIS_TIMEOUT_MS,
         );
       } catch (error) {
