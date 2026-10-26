@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   ci:
-    uses: crashoutcompany/.github/.github/workflows/ci.yml@v1
+    uses: crashoutcompany/.github/.github/workflows/ci.yml@4b12aa1219d314a94d0c3a69c4b30258a8aa3561 # v1.1.0
     with:
       has-e2e: true
       e2e-secrets: AUTH_GOOGLE_ID AUTH_GOOGLE_SECRET AUTH_GITHUB_ID AUTH_GITHUB_SECRET
