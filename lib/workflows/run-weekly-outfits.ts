@@ -1,6 +1,7 @@
 import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
 import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
+import { isOutfitPlanError } from "@/lib/ai/lookbook/plan-error";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
@@ -308,6 +309,7 @@ async function planClaimedWeek(
       : await getWearerLocation(input.userId),
   );
 
+  let currentDay: { weekday: string; garmentCount: number } | undefined;
   try {
     for (const day of daysToPlan) {
       const available = availableGarments(garments, lockedTopIds);
@@ -324,6 +326,7 @@ async function planClaimedWeek(
       }
 
       const validIds = new Set(available.map((g) => g.id));
+      currentDay = { weekday: day.weekday, garmentCount: available.length };
       const plan = await runStep1PlanWithRetry({
         apiKey: gemini.apiKey,
         lookCount: 1,
@@ -372,10 +375,16 @@ async function planClaimedWeek(
       lockLookTops(look.garmentIds ?? [], categoryById, lockedTopIds);
     }
   } catch (e) {
-    logServerError("runWeeklyOutfitsJob step1", e);
+    const where = currentDay
+      ? ` day=${currentDay.weekday} garments=${currentDay.garmentCount} plannedDays=${looksForDb.length}`
+      : "";
+    logServerError(`runWeeklyOutfitsJob step1${where}`, e);
     return {
       ok: false,
-      error: WEEKLY_JOB_FAILED_PUBLIC,
+      error:
+        isOutfitPlanError(e) && currentDay
+          ? `Couldn't plan ${currentDay.weekday}. ${e.publicMessage}`
+          : WEEKLY_JOB_FAILED_PUBLIC,
       planId: row?.id,
     };
   }
