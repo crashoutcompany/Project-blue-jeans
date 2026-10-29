@@ -217,6 +217,9 @@ CREATE TABLE IF NOT EXISTS provider_credentials (
   iv bytea NOT NULL,
   auth_tag bytea NOT NULL,
   encryption_key_version integer NOT NULL CHECK (encryption_key_version > 0),
+  -- Deprecated, always NULL: keys are write-only, so no last-4 hint is kept.
+  -- Kept only so deployments that still SELECT it keep working; a follow-up
+  -- drops it (see docs/byok-foundation.md).
   secret_hint text,
   tested_at timestamptz NOT NULL,
   revoked_at timestamptz,
@@ -227,6 +230,21 @@ CREATE TABLE IF NOT EXISTS provider_credentials (
 CREATE UNIQUE INDEX IF NOT EXISTS provider_credentials_active_connection_uidx
   ON provider_credentials (connection_id)
   WHERE revoked_at IS NULL;
+
+-- Scrub last-4 hints written before keys became write-only. Safe to re-run,
+-- and a no-op once the column is dropped.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'provider_credentials'
+      AND column_name = 'secret_hint'
+  ) THEN
+    UPDATE provider_credentials SET secret_hint = NULL
+    WHERE secret_hint IS NOT NULL;
+  END IF;
+END $$;
 
 -- Fixed-window BYOK validation counter; see lib/credentials/validation-rate-limit.ts.
 CREATE TABLE IF NOT EXISTS provider_validation_attempts (
