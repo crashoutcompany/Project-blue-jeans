@@ -52,6 +52,8 @@ vi.mock("@/lib/outfits/existing-outfit-heroes", async (importOriginal) => {
 });
 
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
+import { OutfitPlanError } from "@/lib/ai/lookbook/plan-error";
+import { logServerError } from "@/lib/server/safe-client-error";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { requireSql } from "@/lib/db";
@@ -547,6 +549,30 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     expect(hero).not.toHaveBeenCalled();
     expect(
       calls.some((c) => c.text.includes("DELETE FROM weekly_plan_claims")),
+    ).toBe(false);
+  });
+
+  it("names the failed day and logs closet context when the plan cannot be read", async () => {
+    const calls: SqlCall[] = [];
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    vi.mocked(logServerError).mockClear();
+    step1.mockRejectedValueOnce(
+      new OutfitPlanError("no-object", "did not match schema"),
+    );
+
+    const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toMatch(/^Couldn't plan Friday\. /);
+      expect(res.error).not.toMatch(/server logs/i);
+    }
+    expect(vi.mocked(logServerError)).toHaveBeenCalledWith(
+      expect.stringMatching(/day=Friday garments=\d+ plannedDays=0/),
+      expect.any(OutfitPlanError),
+    );
+    expect(
+      calls.some((c) => c.text.includes("INSERT INTO weekly_outfit_plans")),
     ).toBe(false);
   });
 
