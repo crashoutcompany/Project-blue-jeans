@@ -27,7 +27,15 @@ function clampMonthYear(sp: Search) {
 
 function CalendarFallback() {
   // Static placeholder month for the prerendered shell (no Date.now()).
-  return <OutfitCalendar year={2026} month={1} saved={[]} weeklyDrafts={[]} />;
+  return (
+    <OutfitCalendar
+      year={2026}
+      month={1}
+      saved={[]}
+      weeklyDrafts={[]}
+      isPlaceholder
+    />
+  );
 }
 
 async function CalendarContent({
