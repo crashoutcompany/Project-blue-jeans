@@ -128,4 +128,120 @@ describe("OutfitCalendar", () => {
       document.querySelectorAll("img[src^='https://cdn.example.com/g']"),
     ).toHaveLength(2);
   });
+
+  describe("grid rows", () => {
+    // 7 weekday headers + one cell per grid slot.
+    const gridCells = () =>
+      screen.getByTestId("calendar-grid").children.length - 7;
+
+    it.each([
+      ["Feb 2026 (starts Sunday, 28 days)", 2026, 2, 28],
+      ["Oct 2026 (ends on Saturday the 31st)", 2026, 10, 35],
+      ["Aug 2026 (starts Saturday, 31 days)", 2026, 8, 42],
+    ])("renders only the weeks %s needs", (_label, year, month, expected) => {
+      render(
+        <OutfitCalendar
+          year={year}
+          month={month}
+          saved={[]}
+          weeklyDrafts={[]}
+        />,
+      );
+      expect(gridCells()).toBe(expected);
+    });
+
+    it("does not spill into the next month", () => {
+      render(
+        <OutfitCalendar year={2026} month={10} saved={[]} weeklyDrafts={[]} />,
+      );
+      const grid = screen.getByTestId("calendar-grid");
+      expect(grid).toHaveTextContent("31");
+      expect(grid).not.toHaveTextContent(/\b(32|33)\b/);
+      // The last row is the 25th-31st week, not a blank week of Nov 1-7.
+      expect(grid.lastElementChild).toHaveTextContent("31");
+    });
+  });
+
+  it("gives day cells a visible border and fill", () => {
+    render(
+      <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
+    );
+    const cell = document.querySelector('[aria-current="date"]');
+    expect(cell).toHaveClass("border", "border-foreground/10", "bg-muted/60");
+  });
+
+  describe("empty state", () => {
+    it("tells the user when nothing is planned this month", () => {
+      render(
+        <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
+      );
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "No looks planned yet",
+      );
+      expect(
+        screen.getByRole("link", { name: /go to today/i }),
+      ).toHaveAttribute("href", "/");
+    });
+
+    it("is hidden once the month has a weekly draft", () => {
+      render(
+        <OutfitCalendar
+          year={2025}
+          month={1}
+          saved={[]}
+          weeklyDrafts={[
+            {
+              wornOn: "2025-01-06",
+              planLookId: PLAN_LOOK_ID,
+              title: "Weekly",
+              heroImageUrl: null,
+              garmentIds: [],
+              garmentThumbs: [],
+            },
+          ]}
+        />,
+      );
+      expect(
+        screen.queryByText("No looks planned yet"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("is hidden once the month has a saved outfit", () => {
+      render(
+        <OutfitCalendar
+          year={2025}
+          month={1}
+          saved={[
+            {
+              id: GARMENT_ID,
+              wornOn: "2025-01-08",
+              imageUrl: null,
+              name: "Brunch",
+              occasion: "casual",
+              garmentThumbs: [],
+            },
+          ]}
+          weeklyDrafts={[]}
+        />,
+      );
+      expect(
+        screen.queryByText("No looks planned yet"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("is skipped on the prerendered placeholder shell", () => {
+      render(
+        <OutfitCalendar
+          year={2026}
+          month={1}
+          saved={[]}
+          weeklyDrafts={[]}
+          isPlaceholder
+        />,
+      );
+      expect(
+        screen.queryByText("No looks planned yet"),
+      ).not.toBeInTheDocument();
+    });
+  });
 });

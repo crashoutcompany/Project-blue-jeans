@@ -51,8 +51,9 @@ function buildMonthCells(year: number, month: number) {
   const cells: ({ type: "empty" } | { type: "day"; day: number })[] = [];
   for (let i = 0; i < pad; i++) cells.push({ type: "empty" });
   for (let d = 1; d <= daysInMonth; d++) cells.push({ type: "day", day: d });
+  // Only complete the final week; padding to a fixed 6 rows rendered a whole
+  // extra week of blanks for months that fit in 4 or 5.
   while (cells.length % 7 !== 0) cells.push({ type: "empty" });
-  while (cells.length < 42) cells.push({ type: "empty" });
   return cells;
 }
 
@@ -111,11 +112,14 @@ export function OutfitCalendar({
   month,
   saved,
   weeklyDrafts,
+  isPlaceholder = false,
 }: {
   year: number;
   month: number;
   saved: CalendarSavedOutfit[];
   weeklyDrafts: CalendarWeeklyLook[];
+  /** Prerendered shell with no real data yet; skip the empty state. */
+  isPlaceholder?: boolean;
 }) {
   const router = useRouter();
   const [pendingLookId, setPendingLookId] = useState<string | null>(null);
@@ -140,6 +144,8 @@ export function OutfitCalendar({
   }, [weeklyDrafts]);
 
   const cells = useMemo(() => buildMonthCells(year, month), [year, month]);
+  const isMonthEmpty =
+    !isPlaceholder && saved.length === 0 && weeklyDrafts.length === 0;
 
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
@@ -168,7 +174,7 @@ export function OutfitCalendar({
   );
 
   return (
-    <div className="flex min-h-[min(720px,78svh)] flex-col gap-5">
+    <div className="mx-auto flex min-h-[min(720px,78svh)] w-full max-w-[88rem] flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-serif text-3xl tracking-tight text-foreground md:text-4xl">
@@ -212,7 +218,27 @@ export function OutfitCalendar({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+      {isMonthEmpty ? (
+        <div className="px-1 py-6 text-center" role="status">
+          <p className="text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            No looks planned yet
+          </p>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+            Commit a look from Today or plan the week and it will show up here.
+          </p>
+          <Link
+            href="/"
+            className={cn(buttonVariants({ size: "sm" }), "mt-4 rounded-none")}
+          >
+            Go to Today
+          </Link>
+        </div>
+      ) : null}
+
+      <div
+        data-testid="calendar-grid"
+        className="grid grid-cols-7 gap-1 sm:gap-1.5"
+      >
         {WEEKDAY_LABELS.map((d) => (
           <div
             key={d}
@@ -250,7 +276,7 @@ export function OutfitCalendar({
               aria-current={isToday ? "date" : undefined}
               className={cn(
                 CELL_ASPECT,
-                "relative min-w-0 overflow-hidden rounded-xl bg-muted/30",
+                "relative min-w-0 overflow-hidden rounded-xl border border-foreground/10 bg-muted/60",
                 isToday && "ring-1 ring-inset ring-primary/35",
               )}
             >
