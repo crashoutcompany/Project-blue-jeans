@@ -1,5 +1,6 @@
 "use client";
 
+import { TriangleAlert } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -7,6 +8,7 @@ import { useState, useTransition } from "react";
 
 import {
   planMyWeek,
+  regenerateDay,
   unwearDayForUser,
   wearThisFit,
 } from "@/app/actions/today";
@@ -64,12 +66,15 @@ export function DayLookView({
   }
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [regenerating, startRegenerate] = useTransition();
   const [manualChangeLookOpen, setManualChangeLookOpen] = useState(false);
 
   const look =
     data.weekLooks[selectedWornOn] ??
     (selectedWornOn === data.todayIso ? data.look : null);
   const canEdit = selectedWornOn >= data.todayIso;
+  const dayFailure = look ? null : (data.failedDays[selectedWornOn] ?? null);
+  const busy = pending || regenerating;
   const changeLookOpen =
     canEdit && (changeLookFromUrl || manualChangeLookOpen);
   const isTodaySelected = selectedWornOn === data.todayIso;
@@ -82,6 +87,15 @@ export function DayLookView({
       ),
     )
     .map((g) => g.id);
+
+  function regenerateSelectedDay() {
+    setError(null);
+    startRegenerate(async () => {
+      const res = await regenerateDay(selectedWornOn);
+      if (!res.ok) setError(res.message);
+      router.refresh();
+    });
+  }
 
   function setChangeLookOpen(open: boolean) {
     if (open) {
@@ -204,7 +218,7 @@ export function DayLookView({
                 {look.kind === "fit" && look.planLookId ? (
                   <Button
                     size="lg"
-                    disabled={pending}
+                    disabled={busy}
                     className={PRESS}
                     onClick={() => {
                       setError(null);
@@ -225,11 +239,24 @@ export function DayLookView({
                 <Button
                   variant={look.kind === "outfit" ? "default" : "outline"}
                   size="lg"
+                  disabled={regenerating}
                   className={PRESS}
                   onClick={() => setChangeLookOpen(true)}
                 >
                   Change look
                 </Button>
+
+                {look.kind === "fit" ? (
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    disabled={busy}
+                    className={PRESS}
+                    onClick={regenerateSelectedDay}
+                  >
+                    {regenerating ? "Regenerating…" : "Regenerate this day"}
+                  </Button>
+                ) : null}
 
                 {look.kind === "outfit" ? (
                   <Button
@@ -288,12 +315,32 @@ export function DayLookView({
               ? "No look for today yet."
               : "No look for this day yet."}
           </h1>
-          {error ? (
+          {error || dayFailure ? (
             <p className="text-sm text-destructive" role="alert">
-              {error}
+              {error ?? dayFailure}
             </p>
           ) : null}
-          {isTodaySelected ? (
+          {dayFailure && canEdit ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="lg"
+                disabled={busy}
+                className={PRESS}
+                onClick={regenerateSelectedDay}
+              >
+                {regenerating ? "Regenerating…" : "Regenerate this day"}
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                disabled={regenerating}
+                className={PRESS}
+                onClick={() => setChangeLookOpen(true)}
+              >
+                Change look
+              </Button>
+            </div>
+          ) : isTodaySelected ? (
             <Button
               size="lg"
               disabled={pending}
@@ -370,6 +417,7 @@ export function DayLookView({
             const isToday = day.wornOn === data.todayIso;
             const isSelected = day.wornOn === selectedWornOn;
             const hasLook = day.kind !== "empty";
+            const failed = Boolean(day.failed);
             return (
               <li key={day.wornOn} className="flex flex-col items-center gap-2">
                 <span
@@ -390,9 +438,12 @@ export function DayLookView({
                 </span>
                 <button
                   type="button"
-                  aria-label={`Show look for ${formatProductDateLong(day.wornOn)}`}
+                  aria-label={`Show look for ${formatProductDateLong(day.wornOn)}${failed ? " (couldn't plan)" : ""}`}
                   aria-current={isSelected ? "true" : undefined}
-                  onClick={() => setSelectedWornOn(day.wornOn)}
+                  onClick={() => {
+                    setError(null);
+                    setSelectedWornOn(day.wornOn);
+                  }}
                   className={cn(
                     "relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-muted",
                     "outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -410,6 +461,10 @@ export function DayLookView({
                       sizes="64px"
                       unoptimized={shouldBypassImageOptimizer(day.heroImageUrl)}
                     />
+                  ) : failed ? (
+                    <span className="absolute inset-0 flex items-center justify-center text-destructive">
+                      <TriangleAlert className="size-4" aria-hidden />
+                    </span>
                   ) : (
                     <span className="sr-only">
                       {hasLook ? day.kind : "empty"}

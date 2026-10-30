@@ -12,6 +12,10 @@ vi.mock("@/app/actions/outfits", () => ({
   approveWeeklyPlanLook: vi.fn(),
 }));
 
+vi.mock("@/lib/workflows/regenerate-weekly-day", () => ({
+  regenerateWeeklyDay: vi.fn(),
+}));
+
 vi.mock("@/lib/workflows/run-weekly-outfits", () => ({
   runWeeklyOutfitsJob: vi.fn(),
 }));
@@ -35,10 +39,12 @@ import {
 } from "@/tests/helpers/admission";
 import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
 import { unwearDay } from "@/lib/outfits/persist-generator-outfit";
+import { regenerateWeeklyDay } from "@/lib/workflows/regenerate-weekly-day";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
 import { approveWeeklyPlanLook } from "@/app/actions/outfits";
 import {
   planMyWeek,
+  regenerateDay,
   unwearDayForUser,
   wearThisFit,
 } from "@/app/actions/today";
@@ -46,6 +52,7 @@ import {
 const gate = vi.mocked(assertAdmittedForServerAction);
 const unwear = vi.mocked(unwearDay);
 const runJob = vi.mocked(runWeeklyOutfitsJob);
+const regenerate = vi.mocked(regenerateWeeklyDay);
 const approve = vi.mocked(approveWeeklyPlanLook);
 const revalidateTagMock = vi.mocked(revalidateTag);
 
@@ -171,5 +178,53 @@ describe("unwearDayForUser", () => {
       message: "Nothing is worn that day.",
     });
     expect(revalidateTagMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("regenerateDay", () => {
+  it("returns the admission error without planning", async () => {
+    gate.mockResolvedValue(notAdmitted);
+
+    await expect(regenerateDay("2026-08-12")).resolves.toEqual({
+      ok: false,
+      message: NOT_ADMITTED_MESSAGE,
+    });
+    expect(regenerate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed date", async () => {
+    await expect(regenerateDay("Wednesday")).resolves.toEqual({
+      ok: false,
+      message: "Invalid date.",
+    });
+    expect(regenerate).not.toHaveBeenCalled();
+  });
+
+  it("replans one day of the current week with the Plan my week defaults", async () => {
+    regenerate.mockResolvedValue({ ok: true });
+
+    await expect(regenerateDay("2026-08-12")).resolves.toEqual({ ok: true });
+    expect(regenerate).toHaveBeenCalledWith({
+      userId: "u1",
+      weekStart: "2026-08-09",
+      wornOn: "2026-08-12",
+      climate: "Temperate",
+      context: "Everyday week",
+      narrative: "",
+    });
+    expect(revalidateTagMock).toHaveBeenCalled();
+  });
+
+  it("passes the per-day error through and still refreshes Today", async () => {
+    regenerate.mockResolvedValue({
+      ok: false,
+      message: "Couldn't plan Wednesday. Try again in a moment.",
+    });
+
+    await expect(regenerateDay("2026-08-12")).resolves.toEqual({
+      ok: false,
+      message: "Couldn't plan Wednesday. Try again in a moment.",
+    });
+    expect(revalidateTagMock).toHaveBeenCalled();
   });
 });

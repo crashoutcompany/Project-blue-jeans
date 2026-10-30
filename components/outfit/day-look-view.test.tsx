@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("@/app/actions/today", () => ({
   planMyWeek: vi.fn(),
+  regenerateDay: vi.fn(),
   unwearDayForUser: vi.fn(),
   wearThisFit: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParamsHolder.current,
 }));
 
+import { regenerateDay } from "@/app/actions/today";
 import { DayLookView } from "@/components/outfit/day-look-view";
 import type { TodayPageData } from "@/lib/outfits/today-data";
 
@@ -113,6 +115,7 @@ function baseData(overrides: Partial<TodayPageData> = {}): TodayPageData {
         heroImageUrl: null,
       },
     ],
+    failedDays: {},
     hasWearerPhoto: true,
     weatherLine: "New York, NY",
     ...overrides,
@@ -227,6 +230,72 @@ describe("DayLookView", () => {
     );
 
     expect(screen.getByText("Tuesday, August 11")).toBeInTheDocument();
+    expect(screen.getByText("Tuesday fit")).toBeInTheDocument();
+  });
+
+  it("shows the per-day error and Regenerate only on a failed day", async () => {
+    const user = userEvent.setup();
+    const failure =
+      "Couldn't plan Wednesday. The stylist couldn't put an outfit together this time. Try again in a moment.";
+    const base = baseData();
+    vi.mocked(regenerateDay).mockResolvedValue({ ok: true });
+    render(
+      <DayLookView
+        data={{
+          ...base,
+          failedDays: { "2026-08-12": failure },
+          weekPeek: base.weekPeek.map((d) =>
+            d.wornOn === "2026-08-12" ? { ...d, failed: true } : d,
+          ),
+        }}
+        closetGarments={[]}
+      />,
+    );
+
+    // Today (an Outfit) and Tuesday (a Fit) show no error.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: /Show look for Tuesday, August 11/i }),
+    );
+    expect(screen.getByText("Tuesday fit")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Show look for Wednesday, August 12 (couldn't plan)",
+      }),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(failure);
+
+    await user.click(
+      screen.getByRole("button", { name: "Regenerate this day" }),
+    );
+    expect(regenerateDay).toHaveBeenCalledWith("2026-08-12");
+  });
+
+  it("offers Regenerate this day on a Fit but not on an Outfit", async () => {
+    const user = userEvent.setup();
+    render(<DayLookView data={baseData()} closetGarments={[]} />);
+
+    expect(
+      screen.queryByRole("button", { name: "Regenerate this day" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /Show look for Tuesday, August 11/i }),
+    );
+    vi.mocked(regenerateDay).mockResolvedValue({
+      ok: false,
+      message: "Couldn't plan Tuesday. Try again in a moment.",
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Regenerate this day" }),
+    );
+
+    expect(regenerateDay).toHaveBeenCalledWith("2026-08-11");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't plan Tuesday. Try again in a moment.",
+    );
     expect(screen.getByText("Tuesday fit")).toBeInTheDocument();
   });
 });
