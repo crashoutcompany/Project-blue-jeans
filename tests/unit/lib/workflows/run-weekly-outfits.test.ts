@@ -52,6 +52,8 @@ vi.mock("@/lib/outfits/existing-outfit-heroes", async (importOriginal) => {
 });
 
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
+import { OutfitPlanError } from "@/lib/ai/lookbook/plan-error";
+import { logServerError } from "@/lib/server/safe-client-error";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { requireSql } from "@/lib/db";
@@ -310,7 +312,7 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     expect(hero).toHaveBeenCalledTimes(2);
   });
 
-  it("does not persist if a later day's step-1 fails", async () => {
+  it("keeps the planned day when a later day's step-1 fails", async () => {
     const calls: SqlCall[] = [];
     requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
     step1
@@ -329,13 +331,19 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
 
     const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
 
-    expect(res.ok).toBe(false);
-    expect(
-      calls.some((c) => c.text.includes("INSERT INTO weekly_outfit_plans")),
-    ).toBe(false);
-    expect(
-      calls.some((c) => c.text.includes("INSERT INTO weekly_plan_looks")),
-    ).toBe(false);
+    expect(res).toEqual({
+      ok: true,
+      planId: PLAN_ID,
+      skipped: false,
+      failedDays: [
+        { sortOrder: 6, message: "Couldn't plan Saturday. Try again in a moment." },
+      ],
+    });
+    const lookInserts = calls.filter((c) =>
+      c.text.includes("INSERT INTO weekly_plan_looks"),
+    );
+    expect(lookInserts.map((c) => c.values[1])).toEqual([5]);
+    expect(hero).toHaveBeenCalledTimes(1);
   });
 
   it("omits Outfit-locked garments from the first remaining day", async () => {
@@ -468,7 +476,7 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     expect(urls).toContain("https://cdn.example.com/hero.jpg");
   });
 
-  it("does not persist if the first remaining day is not a valid stack", async () => {
+  it("does not persist when no remaining day is a valid stack", async () => {
     const calls: SqlCall[] = [];
     requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
     step1.mockResolvedValue({
@@ -486,7 +494,9 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
 
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.error).toBe("Each look needs a bottom.");
+    if (!res.ok) {
+      expect(res.error).toBe("Couldn't plan Friday. Each look needs a bottom.");
+    }
     expect(
       calls.some((c) => c.text.includes("INSERT INTO weekly_outfit_plans")),
     ).toBe(false);
@@ -547,6 +557,30 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     expect(hero).not.toHaveBeenCalled();
     expect(
       calls.some((c) => c.text.includes("DELETE FROM weekly_plan_claims")),
+    ).toBe(false);
+  });
+
+  it("names the failed day and logs closet context when the plan cannot be read", async () => {
+    const calls: SqlCall[] = [];
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    vi.mocked(logServerError).mockClear();
+    step1.mockRejectedValueOnce(
+      new OutfitPlanError("no-object", "did not match schema"),
+    );
+
+    const res = await runWeeklyOutfitsJob(input, FRIDAY_NOON_UTC);
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toMatch(/^Couldn't plan Friday\. /);
+      expect(res.error).not.toMatch(/server logs/i);
+    }
+    expect(vi.mocked(logServerError)).toHaveBeenCalledWith(
+      expect.stringMatching(/day=Friday garments=\d+ plannedDays=0/),
+      expect.any(OutfitPlanError),
+    );
+    expect(
+      calls.some((c) => c.text.includes("INSERT INTO weekly_outfit_plans")),
     ).toBe(false);
   });
 

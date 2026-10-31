@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { EmailOtpForm } from "@/components/auth/email-otp-form";
+import { AuthDivider, ProviderIcon } from "@/components/auth/sign-in-parts";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/client";
 import {
@@ -16,8 +18,11 @@ const PROVIDER_LABELS: Record<SocialProvider, string> = {
 
 export function SignInButtons({
   providers,
+  emailOtpEnabled = false,
 }: {
   providers: SocialProvider[];
+  /** Server-computed; the email OTP form is not rendered when false. */
+  emailOtpEnabled?: boolean;
 }) {
   const [pendingProvider, setPendingProvider] =
     useState<SocialProvider | null>(null);
@@ -40,6 +45,13 @@ export function SignInButtons({
   }
 
   if (providers.length === 0) {
+    if (emailOtpEnabled) {
+      return (
+        <div className="mt-9">
+          <EmailOtpForm callbackURL="/" />
+        </div>
+      );
+    }
     return (
       <p role="status" className="mt-9 text-sm text-muted-foreground">
         No social sign-in providers are currently configured.
@@ -53,10 +65,13 @@ export function SignInButtons({
         <Button
           key={provider}
           type="button"
-          className="h-12 w-full rounded-full"
+          className="h-12 w-full gap-3 rounded-full"
           disabled={pendingProvider !== null}
           onClick={() => void signIn(provider)}
         >
+          <span className="flex size-6 items-center justify-center rounded-full bg-white text-[#181717]">
+            <ProviderIcon provider={provider} className="size-4" />
+          </span>
           {pendingProvider === provider
             ? "Redirecting…"
             : `Sign in with ${PROVIDER_LABELS[provider]}`}
@@ -66,6 +81,12 @@ export function SignInButtons({
         <p role="alert" className="text-sm text-destructive">
           {errorMessage}
         </p>
+      ) : null}
+      {emailOtpEnabled ? (
+        <div className="mt-3 flex flex-col gap-5">
+          <AuthDivider />
+          <EmailOtpForm callbackURL="/" />
+        </div>
       ) : null}
     </div>
   );
