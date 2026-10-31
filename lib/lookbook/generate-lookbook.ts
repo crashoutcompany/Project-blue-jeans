@@ -1,4 +1,5 @@
 import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
+import { isOutfitPlanError } from "@/lib/ai/lookbook/plan-error";
 import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
 import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
 import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
@@ -307,7 +308,9 @@ export async function generateLookbook(
       message: safeClientMessage(
         "generateLookbook",
         e,
-        "We could not generate your lookbook. Try again in a moment.",
+        isOutfitPlanError(e)
+          ? e.publicMessage
+          : "We could not generate your lookbook. Try again in a moment.",
       ),
     };
   }

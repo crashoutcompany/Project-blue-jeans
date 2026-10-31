@@ -1,38 +1,16 @@
-import { formatClosetCatalog } from "@/lib/ai/lookbook/catalog";
-import { mapWithConcurrency } from "@/lib/async/map-with-concurrency";
 import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
-import { runStep1PlanWithRetry } from "@/lib/ai/lookbook/step1-retry";
-import { runHeroImageStep } from "@/lib/ai/lookbook/step2-image";
-import { createHeroImageStore } from "@/lib/media/hero-assets";
-import { getWearerPhoto } from "@/lib/wearer/profile";
-import {
-  resolveGarmentImageSourcesForAi,
-  resolveOwnedImageFetchUrl,
-} from "@/lib/media/owned-image";
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
-import {
-  loadGarmentCatalog,
-  loadGarmentsByIds,
-} from "@/lib/garments/load-catalog";
+import { loadGarmentCatalog } from "@/lib/garments/load-catalog";
 import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
 import {
-  existingHeroForGarments,
-  findExistingOutfitHeroUrls,
-} from "@/lib/outfits/existing-outfit-heroes";
-import {
-  availableGarments,
   lockLookTops,
   todaySortOrder,
   weeklyDaysToPlan,
 } from "@/lib/outfits/weekly-plan-catalog";
-import {
-  catalogCanFormLook,
-  categoryByIdFromCatalog,
-  countLookSlots,
-  lookStackError,
-} from "@/lib/outfits/look-composition";
+import type { FailedPlanDay } from "@/lib/outfits/weekly-plan-failures";
+import { categoryByIdFromCatalog } from "@/lib/outfits/look-composition";
 import { getWearerLocation } from "@/lib/wearer/preferences";
 import { logServerError } from "@/lib/server/safe-client-error";
 import {
@@ -41,23 +19,33 @@ import {
   productTodayIso,
 } from "@/lib/time/product-timezone";
 import type { WeeklyOutfitsInput } from "@/lib/workflows/types";
+import {
+  WEEK_ALREADY_PLANNING_PUBLIC,
+  withWeekClaim,
+} from "@/lib/workflows/weekly-plan-claim";
+import {
+  garmentNamesForIds,
+  planWeeklyDay,
+  renderWeeklyLookHeroes,
+  type WeeklyLook,
+  type WeeklyStyleInput,
+} from "@/lib/workflows/weekly-plan-day";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
 import { z } from "zod";
-
-/**
- * A full week is 7 looks, and each hero is a multimodal generation plus up to
- * 15 image fetches. Firing all of them at once spikes provider rate limits and
- * memory; the generator path is effectively capped at 3 for the same reason.
- */
-const HERO_IMAGE_CONCURRENCY = 3;
 
 const WEEKLY_JOB_FAILED_PUBLIC =
   "Weekly outfits job failed. Check server logs for details.";
 
 export type WeeklyOutfitsJobResult =
   | { ok: true; planId: string; skipped: true }
-  | { ok: true; planId: string; skipped: false }
+  | {
+      ok: true;
+      planId: string;
+      skipped: false;
+      /** Days that could not be planned; the rest of the week was saved. */
+      failedDays: FailedPlanDay[];
+    }
   | { ok: false; error: string; planId?: string };
 
 const MAX_NARRATIVE = MAX_NARRATIVE_LEN;
@@ -91,7 +79,10 @@ async function markPlanFailed(planId: string, message: string): Promise<void> {
   `;
 }
 
-function buildWeeklyStep1Raw(plans: LookbookPlan[]) {
+function buildWeeklyStep1Raw(
+  plans: LookbookPlan[],
+  failedDays: FailedPlanDay[],
+) {
   const curatorNote = plans
     .map((p) => p.curatorNote?.trim())
     .filter(Boolean)
@@ -100,69 +91,14 @@ function buildWeeklyStep1Raw(plans: LookbookPlan[]) {
     source: "weekly_sequential_step1" as const,
     plans,
     curatorNote: curatorNote.length > 0 ? curatorNote : undefined,
+    failedDays,
   };
-}
-
-function garmentNamesForIds(
-  ids: string[],
-  byId: Map<string, { name: string | null }>,
-): string[] {
-  return ids.map((id) => byId.get(id)?.name?.trim() || "Untitled");
-}
-
-/** Longer than any run can take, so a crashed run cannot block the week for long. */
-const WEEK_CLAIM_LEASE_SECONDS = 10 * 60;
-
-const WEEK_ALREADY_PLANNING_PUBLIC =
-  "Your week is already being planned. Give it a minute, then refresh.";
-
-/**
- * Lease (user_id, week_start) so concurrent "Plan my week" calls (double
- * click, two tabs) cannot both pay for a full Gemini run only for the second
- * to fail on UNIQUE (user_id, week_start). Returns the claim token, or null
- * when another run holds an unexpired lease.
- */
-async function claimWeek(
-  userId: string,
-  weekStart: string,
-): Promise<string | null> {
-  const sql = requireSql();
-  const rows = (await sql`
-    INSERT INTO weekly_plan_claims (user_id, week_start, token, expires_at)
-    VALUES (
-      ${userId},
-      ${weekStart}::date,
-      gen_random_uuid(),
-      now() + make_interval(secs => ${WEEK_CLAIM_LEASE_SECONDS}::double precision)
-    )
-    ON CONFLICT (user_id, week_start) DO UPDATE SET
-      token = EXCLUDED.token,
-      expires_at = EXCLUDED.expires_at
-    WHERE weekly_plan_claims.expires_at <= now()
-    RETURNING token::text AS token
-  `) as Array<{ token: string }>;
-  return rows[0]?.token ?? null;
-}
-
-/** Release only our own claim; an expired lease may already belong to a newer run. */
-async function releaseWeek(
-  userId: string,
-  weekStart: string,
-  token: string,
-): Promise<void> {
-  const sql = requireSql();
-  await sql`
-    DELETE FROM weekly_plan_claims
-    WHERE user_id = ${userId}
-      AND week_start = ${weekStart}::date
-      AND token = ${token}::uuid
-  `;
 }
 
 /**
  * Plan my week: sequential step-1 (tops stay unique; bottoms, shoes,
- * repeat), then bounded hero-image calls. Looks whose garment set already has
- * a stored Outfit hero reuse that image instead of generating.
+ * repeat), then bounded hero-image calls. A day the model cannot plan is
+ * recorded in `step1_raw.failedDays` and the other days still save.
  */
 export async function runWeeklyOutfitsJob(
   input: WeeklyOutfitsInput,
@@ -172,18 +108,16 @@ export async function runWeeklyOutfitsJob(
     return { ok: false, error: "Missing user id." };
   }
 
-  const token = await claimWeek(input.userId, input.weekStart);
-  if (!token) {
+  const claimed = await withWeekClaim(
+    input.userId,
+    input.weekStart,
+    "runWeeklyOutfitsJob",
+    () => planClaimedWeek(input, now),
+  );
+  if (claimed.busy) {
     return { ok: false, error: WEEK_ALREADY_PLANNING_PUBLIC };
   }
-
-  try {
-    return await planClaimedWeek(input, now);
-  } finally {
-    await releaseWeek(input.userId, input.weekStart, token).catch((e) => {
-      logServerError("runWeeklyOutfitsJob release", e);
-    });
-  }
+  return claimed.value;
 }
 
 async function planClaimedWeek(
@@ -266,13 +200,8 @@ async function planClaimedWeek(
   }
   const alreadyPlanned: AlreadyPlannedLook[] = [];
   const plans: LookbookPlan[] = [];
-  const looksForDb: {
-    sortOrder: number;
-    title: string;
-    description: string;
-    tags: string[];
-    garmentIds: string[];
-  }[] = [];
+  const looksForDb: WeeklyLook[] = [];
+  const failedDays: FailedPlanDay[] = [];
 
   if (row) {
     const retainedRaw = await sql`
@@ -302,85 +231,69 @@ async function planClaimedWeek(
     }
   }
 
-  const location = resolveOutfitLocation(
-    input.location?.trim()
-      ? input.location
-      : await getWearerLocation(input.userId),
-  );
+  const style: WeeklyStyleInput = {
+    apiKey: gemini.apiKey,
+    climate,
+    context,
+    narrative,
+    location: resolveOutfitLocation(
+      input.location?.trim()
+        ? input.location
+        : await getWearerLocation(input.userId),
+    ),
+  };
 
-  try {
-    for (const day of daysToPlan) {
-      const available = availableGarments(garments, lockedTopIds);
-      if (!catalogCanFormLook(available)) {
-        if (looksForDb.length === 0) {
-          return {
-            ok: false,
-            error:
-              "Need a top, bottom, and shoes still available to finish the week. Add clothes or Change look on a day.",
-            planId: row?.id,
-          };
-        }
-        break;
-      }
-
-      const validIds = new Set(available.map((g) => g.id));
-      const plan = await runStep1PlanWithRetry({
-        apiKey: gemini.apiKey,
-        lookCount: 1,
-        climate,
-        context,
-        narrative,
-        catalogText: formatClosetCatalog(available),
-        validIds,
-        location,
-        weekly: true,
-        weeklyWeekday: day.weekday,
-        alreadyPlanned: alreadyPlanned.slice(),
-      });
-      const look = plan.looks[0];
-      if (!look) {
+  for (const day of daysToPlan) {
+    const result = await planWeeklyDay(
+      style,
+      day,
+      garments,
+      categoryById,
+      lockedTopIds,
+      alreadyPlanned,
+    );
+    if (result.status === "closet-exhausted") {
+      if (looksForDb.length === 0 && failedDays.length === 0) {
         return {
           ok: false,
-          error: `Day ${day.weekday} returned no look.`,
+          error:
+            "Need a top, bottom, and shoes still available to finish the week. Add clothes or Change look on a day.",
           planId: row?.id,
         };
       }
-      const stackErr = lookStackError(
-        countLookSlots(look.garmentIds ?? [], categoryById),
-      );
-      if (stackErr) {
-        return {
-          ok: false,
-          error: stackErr,
-          planId: row?.id,
-        };
-      }
-
-      plans.push(plan);
-      looksForDb.push({
-        sortOrder: day.sortOrder,
-        title: look.title,
-        description: look.description,
-        tags: look.tags,
-        garmentIds: look.garmentIds ?? [],
-      });
-      alreadyPlanned.push({
-        weekday: day.weekday,
-        title: look.title,
-        garmentNames: garmentNamesForIds(look.garmentIds ?? [], garmentsById),
-      });
-      lockLookTops(look.garmentIds ?? [], categoryById, lockedTopIds);
+      break;
     }
-  } catch (e) {
-    logServerError("runWeeklyOutfitsJob step1", e);
+    if (result.status === "failed") {
+      logServerError(
+        `runWeeklyOutfitsJob step1 day=${day.weekday} garments=${result.garmentCount} plannedDays=${looksForDb.length}`,
+        result.error,
+      );
+      failedDays.push({ sortOrder: day.sortOrder, message: result.message });
+      continue;
+    }
+
+    const { plan, look } = result;
+    plans.push(plan);
+    looksForDb.push(look);
+    alreadyPlanned.push({
+      weekday: day.weekday,
+      title: look.title,
+      garmentNames: garmentNamesForIds(look.garmentIds, garmentsById),
+    });
+    lockLookTops(look.garmentIds, categoryById, lockedTopIds);
+  }
+
+  // Nothing planned: keep any earlier plan untouched and name the first
+  // failed day, as before partial weeks existed.
+  if (looksForDb.length === 0) {
     return {
       ok: false,
-      error: WEEKLY_JOB_FAILED_PUBLIC,
+      error: failedDays[0]?.message ?? WEEKLY_JOB_FAILED_PUBLIC,
       planId: row?.id,
     };
   }
 
-  const step1Raw = buildWeeklyStep1Raw(plans);
+  const step1Raw = buildWeeklyStep1Raw(plans, failedDays);
   let planId: string | undefined;
 
   try {
@@ -440,89 +353,10 @@ async function planClaimedWeek(
       `;
     }
 
-    const [existingHeroes, wearerPhoto] = await Promise.all([
-      findExistingOutfitHeroUrls(
-        input.userId,
-        looksForDb.map((look) => look.garmentIds),
-      ),
-      getWearerPhoto(input.userId),
-    ]);
-    const needsGeneratedHero = looksForDb.some(
-      (look) =>
-        look.garmentIds.length > 0 &&
-        !existingHeroForGarments(existingHeroes, look.garmentIds),
-    );
-    const wearer = needsGeneratedHero ? wearerPhoto : null;
-    const storeHeroImage = createHeroImageStore(input.userId);
-    const heroOutcomes = await mapWithConcurrency(
+    const heroOutcomes = await renderWeeklyLookHeroes(
+      input.userId,
+      style,
       looksForDb,
-      HERO_IMAGE_CONCURRENCY,
-      async (look) => {
-        const ids = look.garmentIds;
-        if (ids.length === 0) {
-          return {
-            sortOrder: look.sortOrder,
-            url: null as string | null,
-            missingGarments: true as const,
-          };
-        }
-        const reused = existingHeroForGarments(existingHeroes, ids);
-        if (reused) {
-          return {
-            sortOrder: look.sortOrder,
-            url: reused,
-            missingGarments: false as const,
-          };
-        }
-        const rows = await loadGarmentsByIds(input.userId, ids);
-        const idOrder = new Map(ids.map((id, j) => [id, j]));
-        rows.sort(
-          (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
-        );
-        try {
-          const garments = await resolveGarmentImageSourcesForAi(
-            input.userId,
-            rows,
-          );
-          if (garments.length === 0) {
-            return {
-              sortOrder: look.sortOrder,
-              url: null as string | null,
-              missingGarments: false as const,
-            };
-          }
-          const wearerPhotoUrl = wearer
-            ? await resolveOwnedImageFetchUrl(
-                input.userId,
-                {
-                  mediaAssetId: wearer.mediaAssetId,
-                  imageUrl: wearer.imageUrl,
-                },
-              )
-            : null;
-          const heroImage = await runHeroImageStep({
-            apiKey: gemini.apiKey,
-            title: look.title,
-            description: look.description,
-            climate,
-            context,
-            narrative,
-            garments,
-            wearerPhotoUrl,
-          });
-          return {
-            sortOrder: look.sortOrder,
-            url: heroImage ? await storeHeroImage(heroImage) : null,
-            missingGarments: false as const,
-          };
-        } catch {
-          return {
-            sortOrder: look.sortOrder,
-            url: null,
-            missingGarments: false as const,
-          };
-        }
-      },
     );
 
     const missing = heroOutcomes.find((o) => o.missingGarments);
@@ -555,7 +389,7 @@ async function planClaimedWeek(
       WHERE id = ${planId}
     `;
 
-    return { ok: true, planId, skipped: false };
+    return { ok: true, planId, skipped: false, failedDays };
   } catch (e) {
     logServerError("runWeeklyOutfitsJob", e);
     if (planId) {

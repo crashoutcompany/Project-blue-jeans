@@ -8,12 +8,17 @@ import {
 import {
   createAuth,
   getEnabledSocialProviders,
+  requireBetterAuthSecret,
 } from "@/lib/auth/create-auth";
+import { isEmailOtpEnabled } from "@/lib/auth/email-otp";
+import { createOtpOwnerGuardPlugin } from "@/lib/auth/membership";
 
 export type { SocialProviderId } from "@/lib/auth/create-auth";
 
 export const enabledSocialProviders = getEnabledSocialProviders();
 export const providers = enabledSocialProviders;
+/** Allowlisted email OTP sign-in (bots). The UI hides the form when false. */
+export const emailOtpEnabled = isEmailOtpEnabled();
 
 const globalForAuth = globalThis as typeof globalThis & {
   blueJeansAuthPool?: Pool;
@@ -35,6 +40,12 @@ export const auth = createAuth({
   database,
   productionUrl: AUTH_PRODUCTION_URL,
   previewOrigin: AUTH_PREVIEW_ORIGIN,
+  // Same secret as createAuth, so the guard's log hashes match the OTP plugin's.
+  extraPlugins: [
+    createOtpOwnerGuardPlugin({
+      logSecret: requireBetterAuthSecret(process.env),
+    }),
+  ],
 });
 
 /** RSC-safe session read — never refreshes cookies (see proxy /auth routes). */

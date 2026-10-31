@@ -12,9 +12,17 @@ import {
   productTodayIso,
   sundayWeekStartIso,
 } from "@/lib/time/product-timezone";
+import { regenerateWeeklyDay } from "@/lib/workflows/regenerate-weekly-day";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
 
 const wornOnSchema = z.iso.date();
+
+/** Same defaults as "Plan my week", so a regenerated day matches the rest. */
+const WEEK_STYLE = {
+  climate: "Temperate",
+  context: "Everyday week",
+  narrative: "",
+} as const;
 
 /**
  * Empty Today CTA — generate Weekly Fits for the current Sunday-start week.
@@ -32,9 +40,7 @@ export async function planMyWeek(): Promise<
     const result = await runWeeklyOutfitsJob({
       userId: gate.userId,
       weekStart,
-      climate: "Temperate",
-      context: "Everyday week",
-      narrative: "",
+      ...WEEK_STYLE,
     });
 
     if (!result.ok) {
@@ -48,6 +54,39 @@ export async function planMyWeek(): Promise<
     return {
       ok: false,
       message: "Could not plan your week. Try again in a moment.",
+    };
+  }
+}
+
+/**
+ * Regenerate this day — replan one day of this week's Fits without touching
+ * the other days.
+ */
+export async function regenerateDay(
+  wornOn: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const gate = await assertAdmittedForServerAction();
+  if (!gate.ok) return { ok: false, message: gate.message };
+
+  const parsed = wornOnSchema.safeParse(wornOn);
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid date." };
+  }
+
+  try {
+    const result = await regenerateWeeklyDay({
+      userId: gate.userId,
+      weekStart: sundayWeekStartIso(productTodayIso()),
+      wornOn: parsed.data,
+      ...WEEK_STYLE,
+    });
+    revalidateOutfitSurfaces(gate.userId);
+    return result;
+  } catch (e) {
+    logServerError("regenerateDay", e);
+    return {
+      ok: false,
+      message: "Could not regenerate this day. Try again in a moment.",
     };
   }
 }
