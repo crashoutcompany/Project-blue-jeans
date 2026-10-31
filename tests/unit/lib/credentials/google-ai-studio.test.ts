@@ -89,7 +89,7 @@ describe("Google AI Studio BYOK mutations", () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
-  it("validates then encrypts a Wearer key with a hint, never storing on failure", async () => {
+  it("validates then encrypts a Wearer key without keeping any hint, never storing on failure", async () => {
     validateMock.mockResolvedValueOnce({
       ok: false,
       message: "That Google AI Studio key could not be verified.",
@@ -111,15 +111,15 @@ describe("Google AI Studio BYOK mutations", () => {
 
     await expect(
       saveGoogleAiStudioByok("wearer-1", wearer, "AIza-good-key-1234"),
-    ).resolves.toEqual({ ok: true, secretHint: "…1234" });
+    ).resolves.toEqual({ ok: true });
     expect(saveMock).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "wearer-1",
         provider: "google_ai_studio",
         secret: { apiKey: "AIza-good-key-1234" },
-        secretHint: "…1234",
       }),
     );
+    expect(saveMock.mock.calls[0]![0]).not.toHaveProperty("secretHint");
   });
 
   it("does not revoke the platform-funded owner connection", async () => {
@@ -144,7 +144,6 @@ describe("Google AI Studio BYOK mutations", () => {
       funding: "byok",
       canEdit: true,
       connected: false,
-      secretHint: null,
       testedAt: null,
     });
 
@@ -156,7 +155,48 @@ describe("Google AI Studio BYOK mutations", () => {
 
     await expect(
       saveGoogleAiStudioByok("wearer-1", mislabeled, "AIza-wearer-key-9999"),
-    ).resolves.toEqual({ ok: true, secretHint: "…9999" });
+    ).resolves.toEqual({ ok: true });
     expect(saveMock).toHaveBeenCalled();
   });
+
+  it("derives connected from an active connection with a stored credential", async () => {
+    vi.mocked(getByokConnectionPublic).mockResolvedValue({
+      connectionId: "c1",
+      status: "active",
+      hasCredential: true,
+      testedAt: "2026-08-18T12:00:00.000Z",
+    });
+
+    const view = await getGoogleAiStudioSettings("wearer-1", wearer);
+    expect(view).toEqual({
+      funding: "byok",
+      canEdit: true,
+      connected: true,
+      testedAt: "2026-08-18T12:00:00.000Z",
+    });
+    expect(view).not.toHaveProperty("secretHint");
+  });
+
+  it.each([
+    { status: "active" as const, hasCredential: false },
+    { status: "action_required" as const, hasCredential: true },
+    { status: "disabled" as const, hasCredential: true },
+  ])(
+    "is not connected when status is $status and hasCredential is $hasCredential",
+    async ({ status, hasCredential }) => {
+      vi.mocked(getByokConnectionPublic).mockResolvedValue({
+        connectionId: "c1",
+        status,
+        hasCredential,
+        testedAt: "2026-08-18T12:00:00.000Z",
+      });
+
+      await expect(getGoogleAiStudioSettings("wearer-1", wearer)).resolves.toEqual({
+        funding: "byok",
+        canEdit: true,
+        connected: false,
+        testedAt: null,
+      });
+    },
+  );
 });
