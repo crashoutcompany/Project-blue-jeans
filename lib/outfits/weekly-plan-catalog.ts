@@ -1,4 +1,5 @@
 import type { CatalogGarment } from "@/lib/ai/lookbook/catalog";
+import type { DayForecast } from "@/lib/ai/weather/fetch-weather";
 import { isWeeklyUniqueCategory } from "@/lib/outfits/look-composition";
 import {
   addDaysIso,
@@ -9,6 +10,8 @@ export type WeeklyPlanDay = {
   iso: string;
   sortOrder: number;
   weekday: string;
+  /** That day's forecast at plan time, when the weather service answered. */
+  forecast?: DayForecast;
 };
 
 const WEEK_LENGTH = 7;

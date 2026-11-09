@@ -101,6 +101,7 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; archi
 - Under the **Today** hero: **garments used** first (compact strip), then a thin **week peek** of other days (secondary; **Calendar** remains the week/month map)
 - **Week peek** days with a Fit/Outfit are tappable: swap the home hero in place (no Calendar hop); empty days stay inert
 - Above the home hero: full product-timezone date (e.g. Monday, August 10) and, for **today**, a quiet weather line (`city · 54° rain`). Home city lives in **Settings** (empty → New York, NY). Chat may name a different place for that send only.
+- **Plan my week** plans each day against that day's forecast (Open-Meteo, home city): layers on cold days, no suede or light colors on rainy ones. The week strip shows each day's high; a later day shows its forecast line. If a **Fit**'s forecast later changes enough to matter, Today flags the day and suggests **Regenerate this day**. It never re-plans by itself. No forecast → plan and show as before.
 - Selected day **past**: view-only (no Change look / Wear this / Unwear); **today and future**: full actions for that date (Change look targets that day’s `wornOn`)
 - Tapping a piece in **garments used** opens that **Garment** in the **Digital Closet**
 - **Digital Closet** modes: **Pieces** (**Garments**) and **Outfits** (archived committed looks) — not **Fits**

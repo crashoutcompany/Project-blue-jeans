@@ -109,6 +109,36 @@ export type FetchWeatherInput =
   | { location: string; latitude?: never; longitude?: never }
   | { location?: never; latitude: number; longitude: number };
 
+type ResolvedPlace =
+  | { ok: true; label: string; latitude: number; longitude: number }
+  | { ok: false; error: string };
+
+async function resolvePlace(
+  input: FetchWeatherInput,
+  signal?: AbortSignal,
+): Promise<ResolvedPlace> {
+  if ("location" in input && input.location !== undefined) {
+    return geocodeLocation(input.location, signal);
+  }
+  const { latitude, longitude } = input;
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return { ok: false, error: "Invalid latitude or longitude." };
+  }
+  return {
+    ok: true,
+    label: `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`,
+    latitude,
+    longitude,
+  };
+}
+
 /** Current conditions and today's forecast via Open-Meteo (no API key). */
 export async function fetchWeather(
   input: FetchWeatherInput,
@@ -116,31 +146,9 @@ export async function fetchWeather(
 ): Promise<WeatherSnapshot> {
   const signal = options?.abortSignal;
 
-  let label: string;
-  let latitude: number;
-  let longitude: number;
-
-  if ("location" in input && input.location !== undefined) {
-    const geo = await geocodeLocation(input.location, signal);
-    if (!geo.ok) return geo;
-    label = geo.label;
-    latitude = geo.latitude;
-    longitude = geo.longitude;
-  } else {
-    latitude = input.latitude;
-    longitude = input.longitude;
-    if (
-      !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude) ||
-      latitude < -90 ||
-      latitude > 90 ||
-      longitude < -180 ||
-      longitude > 180
-    ) {
-      return { ok: false, error: "Invalid latitude or longitude." };
-    }
-    label = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
-  }
+  const place = await resolvePlace(input, signal);
+  if (!place.ok) return place;
+  const { label, latitude, longitude } = place;
 
   const url = new URL(FORECAST_URL);
   url.searchParams.set("latitude", String(latitude));
@@ -192,5 +200,89 @@ export async function fetchWeather(
       precipitationChancePercent: daily.precipitation_probability_max?.[0] ?? null,
       condition: wmoCondition(todayCode),
     },
+  };
+}
+
+/** One calendar day of the forecast, in the place's local timezone. */
+export type DayForecast = {
+  /** YYYY-MM-DD */
+  date: string;
+  highC: number;
+  lowC: number;
+  precipitationChancePercent: number | null;
+  /** Open-Meteo WMO weather code. */
+  weatherCode: number;
+  condition: string;
+};
+
+export type DailyForecast =
+  | { ok: true; location: string; timezone: string; days: DayForecast[] }
+  | { ok: false; error: string };
+
+type DailyForecastResponse = {
+  timezone?: string;
+  daily?: {
+    time?: string[];
+    temperature_2m_max?: (number | null)[];
+    temperature_2m_min?: (number | null)[];
+    precipitation_probability_max?: (number | null)[];
+    weather_code?: (number | null)[];
+  };
+};
+
+/** Daily highs, lows, and rain chance for the next `days` days via Open-Meteo. */
+export async function fetchDailyForecast(
+  input: FetchWeatherInput,
+  options?: { abortSignal?: AbortSignal; days?: number },
+): Promise<DailyForecast> {
+  const signal = options?.abortSignal;
+  const forecastDays = Math.min(Math.max(options?.days ?? 7, 1), 16);
+
+  const place = await resolvePlace(input, signal);
+  if (!place.ok) return place;
+
+  const url = new URL(FORECAST_URL);
+  url.searchParams.set("latitude", String(place.latitude));
+  url.searchParams.set("longitude", String(place.longitude));
+  url.searchParams.set(
+    "daily",
+    "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code",
+  );
+  url.searchParams.set("timezone", "auto");
+  url.searchParams.set("forecast_days", String(forecastDays));
+
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    return { ok: false, error: `Weather forecast failed (${res.status}).` };
+  }
+
+  const data = (await res.json()) as DailyForecastResponse;
+  const daily = data.daily;
+  const days: DayForecast[] = [];
+  (daily?.time ?? []).forEach((date, i) => {
+    const highC = daily?.temperature_2m_max?.[i];
+    const lowC = daily?.temperature_2m_min?.[i];
+    // A day without temperatures is no use for dressing; skip it.
+    if (typeof highC !== "number" || typeof lowC !== "number") return;
+    const code = daily?.weather_code?.[i] ?? 0;
+    days.push({
+      date,
+      highC,
+      lowC,
+      precipitationChancePercent:
+        daily?.precipitation_probability_max?.[i] ?? null,
+      weatherCode: code,
+      condition: wmoCondition(code),
+    });
+  });
+
+  if (days.length === 0) {
+    return { ok: false, error: "Weather data was incomplete." };
+  }
+  return {
+    ok: true,
+    location: place.label,
+    timezone: data.timezone ?? "UTC",
+    days,
   };
 }

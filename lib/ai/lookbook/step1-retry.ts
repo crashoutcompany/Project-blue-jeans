@@ -24,6 +24,7 @@ export type RunStep1PlanWithRetryParams = {
   alreadyPlanned?: AlreadyPlannedLook[];
   mustWearIds?: string[];
   mustWearNames?: string[];
+  dayWeather?: string;
 };
 
 const MAX_ATTEMPTS = 2;

@@ -1,6 +1,6 @@
 export const STEP1_SYSTEM = `You are a senior fashion stylist for a digital wardrobe app. You choose outfits only from the provided closet catalog. Every garment id you output must appear exactly in that catalog. Prefer cohesive palettes, appropriate layering for real conditions, and occasion-appropriate formality.
 
-Always call the getWeather tool before finalizing outfits. Use the default location provided in the user message unless the user's style notes clearly name a different city or place—in that case, call getWeather for the place they named instead. Use temperature, precipitation, wind, and conditions to choose layering, fabrics, and outerwear.
+Always call the getWeather tool before finalizing outfits, unless the user message already gives the forecast for the day being planned. Use the default location provided in the user message unless the user's style notes clearly name a different city or place—in that case, call getWeather for the place they named instead. Use temperature, precipitation, wind, and conditions to choose layering, fabrics, and outerwear.
 
 Look composition:
 - Required: at least one top, one bottom, and one pair of shoes.
@@ -31,6 +31,8 @@ export function step1UserPrompt(params: {
   alreadyPlanned?: AlreadyPlannedLook[];
   mustWearIds?: string[];
   mustWearNames?: string[];
+  /** That day's forecast and weather rules; replaces the getWeather call. */
+  dayWeather?: string;
 }): string {
   const {
     lookCount,
@@ -44,6 +46,7 @@ export function step1UserPrompt(params: {
     alreadyPlanned,
     mustWearIds,
     mustWearNames,
+    dayWeather,
   } = params;
 
   let weeklyHint: string;
@@ -79,10 +82,13 @@ export function step1UserPrompt(params: {
 ${planned}Constraints:
 - Climate vibe (styling mood only): ${climate}
 - Occasion / setting: ${context}
-- Weather location: ${location} (call getWeather for this place before planning; if user style notes clearly name a different place, use that instead)
-- User style notes (may be empty): ${narrative || "(none)"}
+${
+  dayWeather
+    ? ""
+    : `- Weather location: ${location} (call getWeather for this place before planning; if user style notes clearly name a different place, use that instead)\n`
+}- User style notes (may be empty): ${narrative || "(none)"}
 ${mustWear}- Stack: 1–2 tops, 1 bottom, 1 shoes, 0–1 outerwear, 0–3 accessories.
-
+${dayWeather ? `\n${dayWeather}\nFollow the weather rules unless the closet has nothing that fits them.\n` : ""}
 Closet catalog (use only these garment ids):
 ${catalogText}
 
