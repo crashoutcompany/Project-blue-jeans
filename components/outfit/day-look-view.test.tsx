@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/app/actions/today", () => ({
+  markDayWorn: vi.fn(),
   planMyWeek: vi.fn(),
   regenerateDay: vi.fn(),
   unwearDayForUser: vi.fn(),
@@ -25,7 +26,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParamsHolder.current,
 }));
 
-import { regenerateDay } from "@/app/actions/today";
+import { markDayWorn, regenerateDay } from "@/app/actions/today";
 import { DayLookView } from "@/components/outfit/day-look-view";
 import type { TodayPageData } from "@/lib/outfits/today-data";
 
@@ -116,6 +117,7 @@ function baseData(overrides: Partial<TodayPageData> = {}): TodayPageData {
       },
     ],
     failedDays: {},
+    lastWeek: [],
     hasWearerPhoto: true,
     weatherLine: "New York, NY",
     ...overrides,
@@ -297,5 +299,101 @@ describe("DayLookView", () => {
       "Couldn't plan Tuesday. Try again in a moment.",
     );
     expect(screen.getByText("Tuesday fit")).toBeInTheDocument();
+  });
+
+  describe("last week review before Plan my week", () => {
+    const lastWeek = [
+      {
+        wornOn: "2026-08-03",
+        outfitId: "c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33",
+        title: "Monday denim",
+        heroImageUrl: "https://cdn.example.com/last-mon.jpg",
+        garments: [],
+        worn: false,
+      },
+      {
+        wornOn: "2026-08-04",
+        outfitId: "d3eebc99-9c0b-4ef8-bb6d-6bb9bd380a44",
+        title: "Tuesday knit",
+        heroImageUrl: null,
+        garments: [],
+        worn: true,
+      },
+    ];
+
+    it("lists last week's Outfits with Wore this above Plan my week", async () => {
+      const user = userEvent.setup();
+      vi.mocked(markDayWorn).mockResolvedValue({ ok: true });
+      render(
+        <DayLookView
+          data={baseData({ look: null, weekLooks: {}, lastWeek })}
+          closetGarments={[]}
+        />,
+      );
+
+      const review = screen.getByRole("region", { name: "Last week" });
+      expect(review).toHaveTextContent("Monday denim");
+      expect(review).toHaveTextContent("Tuesday knit");
+      expect(
+        screen.getByRole("button", { name: "Plan my week" }),
+      ).toBeInTheDocument();
+
+      const worn = screen.getByRole("button", {
+        name: "Worn on Tue, Aug 4. Tap to undo",
+      });
+      expect(worn).toHaveAttribute("aria-pressed", "true");
+
+      await user.click(
+        screen.getByRole("button", { name: "Wore this on Mon, Aug 3" }),
+      );
+      expect(markDayWorn).toHaveBeenCalledWith("2026-08-03", true);
+    });
+
+    it("undoes a Worn day", async () => {
+      const user = userEvent.setup();
+      vi.mocked(markDayWorn).mockResolvedValue({ ok: true });
+      render(
+        <DayLookView
+          data={baseData({ look: null, weekLooks: {}, lastWeek })}
+          closetGarments={[]}
+        />,
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Worn on Tue, Aug 4. Tap to undo" }),
+      );
+      expect(markDayWorn).toHaveBeenCalledWith("2026-08-04", false);
+    });
+
+    it("shows the error and reverts when marking fails", async () => {
+      const user = userEvent.setup();
+      vi.mocked(markDayWorn).mockResolvedValue({
+        ok: false,
+        message: "Could not update this day. Try again.",
+      });
+      render(
+        <DayLookView
+          data={baseData({ look: null, weekLooks: {}, lastWeek })}
+          closetGarments={[]}
+        />,
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Wore this on Mon, Aug 3" }),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Could not update this day. Try again.",
+      );
+      expect(
+        screen.getByRole("button", { name: "Wore this on Mon, Aug 3" }),
+      ).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("is hidden when today already has a look", () => {
+      render(
+        <DayLookView data={baseData({ lastWeek })} closetGarments={[]} />,
+      );
+      expect(
+        screen.queryByRole("region", { name: "Last week" }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

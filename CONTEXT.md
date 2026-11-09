@@ -36,6 +36,14 @@ _Avoid_: Lookbook (marketing); don’t call a Fit an Outfit; duplicate Closet ca
 The AI-produced set of **Fits** for the remaining days of the current calendar week (Sunday-start; today through Saturday — never days before today).
 _Avoid_: Week Plan (generic), “lookbook” for this object; regenerating past days in the week; Monday-start weeks
 
+**Wore this**:
+The Wearer's tap confirming a day's **Outfit** was actually worn. Committing a day (**Wear this**, Generator approve, **Wear today**) is not wearing it; only a **Wore this** day counts toward last worn and the **repeat window**.
+_Avoid_: Treating a commit as worn; assuming the plan was followed
+
+**Repeat window**:
+Days (default 7, a Settings value; 0 = off) during which **Weekly Fits** won't suggest an **Outfit** marked **Wore this** again. A repeat is the exact garment set; reusing one piece is not a repeat.
+_Avoid_: Blocking single pieces; counting unconfirmed days
+
 **Today**:
 The post-login home surface that presents (or helps create) the **Outfit** for the current day.
 _Avoid_: Dashboard, home-as-closet
@@ -129,6 +137,10 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; archi
 - Calendar day detail (non-today): **past = view only**; **future = can Wear this** on a Fit for that date — not full Today parity on Calendar (Change look / Unwear for future days live on the **home week peek**, not Calendar)
 - Future day that already has an **Outfit**: changeable from **home** (week peek → hero); Calendar remains overview / map
 - **Add clothes** lives on **Closet** (FAB / add flow); **Today** zero-garment CTA only navigates to Closet — no second upload surface
+- Empty **Today** above **Plan my week**: **Last week** review of Outfits from last week's Sunday through yesterday, each with **Wore this** (tap again to undo)
+- **Calendar** shows **Wore this** on any day up to today that has an **Outfit**
+- **Weekly Fits** skip Outfits worn inside the **repeat window**. If the closet can't form enough other looks, the oldest wears are allowed again first; a day is never left empty only to avoid a repeat
+- Closet → **Outfits** last worn = latest **Wore this** day ("Not worn yet" before the first)
 - **Plan my week**: stay on **Today** with loading on the button; success → today’s **Fit**; failure → empty state + error + retry (no full-screen block, no Calendar hop, no optimistic fake hero)
 - If the **Fit**/**Outfit** is ready but the hero image is not: show **Today** immediately with a garment collage / skeleton in the hero; swap in try-on or editorial when ready (don’t block CTAs or the whole screen)
 - Name / rename an **Outfit** only in Closet → **Outfits** detail (not on Today)

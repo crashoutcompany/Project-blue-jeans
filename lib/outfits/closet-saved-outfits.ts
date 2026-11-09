@@ -6,8 +6,8 @@ import { mediaAssetDisplayPath } from "@/lib/media/display";
 
 export type ClosetSavedOutfit = {
   id: string;
-  /** Last worn calendar day (YYYY-MM-DD). */
-  wornOn: string;
+  /** Last confirmed-worn calendar day (YYYY-MM-DD); null if not worn yet. */
+  wornOn: string | null;
   imageUrl: string | null;
   /** First linked garment image when `image_url` is null. */
   fallbackGarmentImageUrl: string | null;
@@ -37,7 +37,8 @@ export async function loadSavedOutfitsForCloset(
     const rows = (await sql`
       SELECT
         o.id,
-        coalesce(max(w.worn_on), o.worn_on)::text AS last_worn,
+        (max(w.worn_on) FILTER (WHERE w.worn_confirmed_at IS NOT NULL))::text
+          AS last_worn,
         o.image_url,
         o.name,
         o.occasion::text AS occasion,
@@ -75,7 +76,7 @@ export async function loadSavedOutfitsForCloset(
       LIMIT ${safeLimit}
     `) as {
       id: string;
-      last_worn: string;
+      last_worn: string | null;
       image_url: string | null;
       name: string | null;
       occasion: string;

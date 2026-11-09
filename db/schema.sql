@@ -4,7 +4,8 @@
 -- Every statement is idempotent, so re-running it is safe, but it only creates
 -- what is missing: it will not alter an existing table, column, or constraint.
 -- Changing an existing database means hand-writing that ALTER and applying it
--- to each Neon branch alongside the edit here.
+-- to each Neon branch alongside the edit here. Those one-off ALTERs live in
+-- db/migrations/ (applied by hand, in file-name order).
 --
 -- Images: rows store owned `/api/media/<media_assets.id>` display paths;
 -- `uploadthing_key` / `media_assets.provider_file_key` address the file in
@@ -327,17 +328,22 @@ COMMENT ON TABLE wearer_profile IS 'Per-account body/reference photo for try-on 
 CREATE TABLE IF NOT EXISTS wearer_preferences (
   user_id text PRIMARY KEY,
   location text,
+  -- Days before Plan my week may suggest a worn Outfit again; 0 = off.
+  repeat_window_days integer NOT NULL DEFAULT 7
+    CONSTRAINT wearer_preferences_repeat_window_days_check
+    CHECK (repeat_window_days BETWEEN 0 AND 30),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE wearer_preferences IS 'Per-account home-base city for weather-aware planning. Empty falls back to New York, NY.';
+COMMENT ON TABLE wearer_preferences IS 'Per-account home-base city for weather-aware planning (empty falls back to New York, NY) and the Outfit repeat window.';
 
 -- Outfit: unique garment-set recipe (Closet → Outfits). Days live in outfit_wears.
 CREATE TABLE IF NOT EXISTS outfits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   image_url text,
-  -- Denormalized last-worn date (max of outfit_wears.worn_on).
-  worn_on date NOT NULL,
+  -- Denormalized last-worn date (latest confirmed outfit_wears.worn_on);
+  -- NULL until the Wearer taps "Wore this".
+  worn_on date,
   occasion outfit_occasion NOT NULL DEFAULT 'casual',
   name text,
   -- Sorted unique garment UUID string; same clothes = same Outfit (per user).
@@ -374,6 +380,8 @@ CREATE TABLE IF NOT EXISTS outfit_wears (
   outfit_id uuid NOT NULL,
   user_id text NOT NULL,
   worn_on date NOT NULL,
+  -- "Wore this" tap. NULL = committed to the day but not confirmed worn.
+  worn_confirmed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (user_id, worn_on),
   FOREIGN KEY (outfit_id, user_id) REFERENCES outfits (id, user_id) ON DELETE CASCADE
@@ -382,6 +390,9 @@ CREATE TABLE IF NOT EXISTS outfit_wears (
 CREATE INDEX IF NOT EXISTS outfit_wears_outfit_idx ON outfit_wears (outfit_id);
 CREATE INDEX IF NOT EXISTS outfit_wears_worn_on_idx ON outfit_wears (worn_on DESC);
 CREATE INDEX IF NOT EXISTS outfit_wears_user_id_idx ON outfit_wears (user_id);
+CREATE INDEX IF NOT EXISTS outfit_wears_user_confirmed_idx
+  ON outfit_wears (user_id, worn_on DESC)
+  WHERE worn_confirmed_at IS NOT NULL;
 
 -- Weekly AI plan: step 1 (structured looks) + a hero image per day.
 CREATE TABLE IF NOT EXISTS weekly_outfit_plans (
@@ -439,8 +450,8 @@ COMMENT ON COLUMN garments.description IS 'Stylist-facing text for AI outfit sel
 COMMENT ON TABLE garments IS 'Clothing pieces; category enum; is_favorite for closet highlights.';
 COMMENT ON TABLE outfits IS 'Unique garment-set look in Closet → Outfits; worn_on is last worn; days in outfit_wears.';
 COMMENT ON COLUMN outfits.garment_set_key IS 'Sorted unique garment UUIDs; Closet Outfits uniqueness key.';
-COMMENT ON COLUMN outfits.worn_on IS 'Denormalized last-worn date (max outfit_wears.worn_on).';
+COMMENT ON COLUMN outfits.worn_on IS 'Denormalized last-worn date (max confirmed outfit_wears.worn_on); NULL if never confirmed worn.';
 COMMENT ON TABLE outfit_garments IS 'Links outfits to every garment in the look (required usage: insert one row per piece).';
-COMMENT ON TABLE outfit_wears IS 'Day assignment of a shared Outfit (one wear per calendar day).';
+COMMENT ON TABLE outfit_wears IS 'Day assignment of a shared Outfit (one per calendar day); worn_confirmed_at marks it actually worn.';
 COMMENT ON TABLE weekly_outfit_plans IS 'One row per calendar week (week_start = Sunday); AI weekly outfit pipeline. Monday cron deletes plans older than the current week.';
 COMMENT ON TABLE weekly_plan_looks IS 'Rows per plan (sort_order 0–6 = Sunday–Saturday); garment_ids from step 1; hero_image_url is an owned /api/media path.';

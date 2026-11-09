@@ -14,6 +14,7 @@ import {
 import { garmentSetKey } from "@/lib/outfits/garment-set-key";
 import { outfitOccasionSchema } from "@/lib/outfits/occasions";
 import { assertMutableWornOn } from "@/lib/time/mutable-calendar-day";
+import { productTodayIso } from "@/lib/time/product-timezone";
 
 export const approveGeneratorPayloadSchema = z.object({
   wornOn: z.iso.date(),
@@ -132,7 +133,8 @@ async function wornOutfitIdForDay(
 
 /**
  * Point (user_id, worn_on) at an Outfit. Relies on UNIQUE (user_id, worn_on);
- * see db/schema.sql.
+ * see db/schema.sql. Committing a day is not wearing it: a new day starts
+ * unconfirmed, and swapping in a different Outfit clears the "Wore this".
  */
 function upsertWearQuery(
   sql: Sql,
@@ -144,17 +146,26 @@ function upsertWearQuery(
     INSERT INTO outfit_wears (outfit_id, user_id, worn_on)
     VALUES (${outfitId}::uuid, ${userId}, ${wornOn}::date)
     ON CONFLICT (user_id, worn_on)
-    DO UPDATE SET outfit_id = EXCLUDED.outfit_id
+    DO UPDATE SET
+      outfit_id = EXCLUDED.outfit_id,
+      worn_confirmed_at = CASE
+        WHEN outfit_wears.outfit_id = EXCLUDED.outfit_id
+          THEN outfit_wears.worn_confirmed_at
+        ELSE NULL
+      END
   `;
 }
 
+/** Last worn = latest day the Wearer confirmed with "Wore this". */
 function syncLastWornQuery(sql: Sql, outfitId: string) {
   return sql`
     UPDATE outfits o
     SET
-      worn_on = coalesce(
-        (SELECT max(w.worn_on) FROM outfit_wears w WHERE w.outfit_id = o.id),
-        o.worn_on
+      worn_on = (
+        SELECT max(w.worn_on)
+        FROM outfit_wears w
+        WHERE w.outfit_id = o.id
+          AND w.worn_confirmed_at IS NOT NULL
       ),
       updated_at = now()
     WHERE o.id = ${outfitId}::uuid
@@ -191,7 +202,8 @@ function releasedOutfitQueries(
 }
 
 /**
- * Commit a garment set to a calendar day for one Wearer account.
+ * Commit a garment set to a calendar day for one Wearer account. This does
+ * not mark it worn (no last-worn change); that is `setDayWorn`.
  */
 export async function commitOutfitForDay(input: {
   userId: string;
@@ -233,7 +245,7 @@ export async function commitOutfitForDay(input: {
       WITH upserted AS (
         INSERT INTO outfits (worn_on, occasion, name, image_url, garment_set_key, user_id)
         VALUES (
-          ${input.wornOn}::date,
+          NULL,
           ${occasion}::outfit_occasion,
           NULL,
           ${imageUrl},
@@ -265,18 +277,13 @@ export async function commitOutfitForDay(input: {
       WHERE o.user_id = ${input.userId}
         AND o.garment_set_key = ${setKey}
       ON CONFLICT (user_id, worn_on)
-      DO UPDATE SET outfit_id = EXCLUDED.outfit_id
-    `,
-    sql`
-      UPDATE outfits o
-      SET
-        worn_on = coalesce(
-          (SELECT max(w.worn_on) FROM outfit_wears w WHERE w.outfit_id = o.id),
-          o.worn_on
-        ),
-        updated_at = now()
-      WHERE o.user_id = ${input.userId}
-        AND o.garment_set_key = ${setKey}
+      DO UPDATE SET
+        outfit_id = EXCLUDED.outfit_id,
+        worn_confirmed_at = CASE
+          WHEN outfit_wears.outfit_id = EXCLUDED.outfit_id
+            THEN outfit_wears.worn_confirmed_at
+          ELSE NULL
+        END
     `,
     ...releasedOutfitQueries(sql, input.userId, priorOutfitId),
   ]);
@@ -316,7 +323,6 @@ export async function assignOutfitToDay(input: {
 
     await runInTransaction(sql, [
       upsertWearQuery(sql, input.userId, input.wornOn, input.outfitId),
-      syncLastWornQuery(sql, input.outfitId),
       ...releasedOutfitQueries(
         sql,
         input.userId,
@@ -355,6 +361,47 @@ export async function unwearDay(
   } catch (e) {
     logServerError("unwearDay", e);
     return { ok: false, message: "Could not unwear this look." };
+  }
+}
+
+/**
+ * "Wore this": confirm (or undo) that the day's Outfit was actually worn.
+ * Only today and past days; this is what Plan my week's repeat guard and
+ * Closet's last worn read.
+ */
+export async function setDayWorn(
+  userId: string,
+  wornOn: string,
+  worn: boolean,
+  now = new Date(),
+): Promise<ApproveOutfitResult> {
+  if (wornOn > productTodayIso(now)) {
+    return { ok: false, message: "You can only mark today or earlier as worn." };
+  }
+  try {
+    const sql = requireSql();
+    const outfitId = await wornOutfitIdForDay(sql, userId, wornOn);
+    if (!outfitId) {
+      return { ok: false, message: "There is no Outfit on that day." };
+    }
+
+    await runInTransaction(sql, [
+      sql`
+        UPDATE outfit_wears
+        SET worn_confirmed_at = CASE
+          WHEN ${worn} THEN coalesce(worn_confirmed_at, now())
+          ELSE NULL
+        END
+        WHERE user_id = ${userId}
+          AND worn_on = ${wornOn}::date
+      `,
+      syncLastWornQuery(sql, outfitId),
+    ]);
+
+    return { ok: true, outfitId };
+  } catch (e) {
+    logServerError("setDayWorn", e);
+    return { ok: false, message: "Could not update this day. Try again." };
   }
 }
 

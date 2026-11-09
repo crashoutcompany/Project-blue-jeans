@@ -8,6 +8,12 @@ vi.mock("@/app/actions/outfits", () => ({
   approveWeeklyPlanLook: (...args: unknown[]) => approveWeeklyPlanLook(...args),
 }));
 
+const markDayWorn = vi.fn();
+
+vi.mock("@/app/actions/today", () => ({
+  markDayWorn: (...args: unknown[]) => markDayWorn(...args),
+}));
+
 vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/lib/time/product-timezone")>();
@@ -219,6 +225,7 @@ describe("OutfitCalendar", () => {
               name: "Brunch",
               occasion: "casual",
               garmentThumbs: [],
+              worn: false,
             },
           ]}
           weeklyDrafts={[]}
@@ -242,6 +249,66 @@ describe("OutfitCalendar", () => {
       expect(
         screen.queryByText("No looks planned yet"),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Wore this", () => {
+    function savedOn(wornOn: string, worn: boolean) {
+      return {
+        id: GARMENT_ID,
+        wornOn,
+        imageUrl: null,
+        name: `Look ${wornOn}`,
+        occasion: "casual",
+        garmentThumbs: [],
+        worn,
+      };
+    }
+
+    it("offers Wore this on past and current days only", () => {
+      render(
+        <OutfitCalendar
+          year={2025}
+          month={3}
+          saved={[
+            savedOn("2025-03-08", false),
+            savedOn("2025-03-10", false),
+            savedOn("2025-03-12", false),
+          ]}
+          weeklyDrafts={[]}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Wore this on Sat, Mar 8" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Wore this on Mon, Mar 10" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Wed, Mar 12/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("marks a day worn and undoes it", async () => {
+      const user = userEvent.setup();
+      markDayWorn.mockResolvedValue({ ok: true });
+      render(
+        <OutfitCalendar
+          year={2025}
+          month={3}
+          saved={[savedOn("2025-03-08", false), savedOn("2025-03-09", true)]}
+          weeklyDrafts={[]}
+        />,
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Wore this on Sat, Mar 8" }),
+      );
+      expect(markDayWorn).toHaveBeenCalledWith("2025-03-08", true);
+
+      await user.click(
+        screen.getByRole("button", { name: "Worn on Sun, Mar 9. Tap to undo" }),
+      );
+      expect(markDayWorn).toHaveBeenCalledWith("2025-03-09", false);
     });
   });
 });

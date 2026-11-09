@@ -180,7 +180,9 @@ export function OutfitDetailSheet({
                         {title}
                       </SheetTitle>
                       <SheetDescription>
-                        Last worn {formatProductWornOn(outfit.wornOn)}
+                        {outfit.wornOn
+                          ? `Last worn ${formatProductWornOn(outfit.wornOn)}`
+                          : "Not worn yet"}
                       </SheetDescription>
                       <button
                         type="button"

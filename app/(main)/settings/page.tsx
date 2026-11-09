@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { GoogleAiStudioCard } from "@/components/settings/google-ai-studio-card";
 import { InvitesCard } from "@/components/settings/invites-card";
 import { LocationCard } from "@/components/settings/location-card";
+import { RepeatWindowCard } from "@/components/settings/repeat-window-card";
 import { UploadThingCard } from "@/components/settings/uploadthing-card";
 import { WearerPhotoCard } from "@/components/settings/wearer-photo-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,7 +17,10 @@ import { AUTH_SIGN_IN_PATH } from "@/lib/auth/config";
 import { getWearerUserId } from "@/lib/auth/wearer";
 import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
 import { getUploadThingSettings } from "@/lib/credentials/uploadthing";
-import { getWearerLocation } from "@/lib/wearer/preferences";
+import {
+  getRepeatWindowDays,
+  getWearerLocation,
+} from "@/lib/wearer/preferences";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 
 function SettingsHeader() {
@@ -75,16 +79,18 @@ async function SettingsContent() {
   const membership = data?.user
     ? await getMembershipPolicyForUser(data.user)
     : null;
-  const [photo, googleAiStudio, uploadthing, location] = await Promise.all([
-    photoPromise,
-    membership
-      ? getGoogleAiStudioSettings(userId, membership)
-      : Promise.resolve(null),
-    membership
-      ? getUploadThingSettings(userId, membership)
-      : Promise.resolve(null),
-    getWearerLocation(userId),
-  ]);
+  const [photo, googleAiStudio, uploadthing, location, repeatWindowDays] =
+    await Promise.all([
+      photoPromise,
+      membership
+        ? getGoogleAiStudioSettings(userId, membership)
+        : Promise.resolve(null),
+      membership
+        ? getUploadThingSettings(userId, membership)
+        : Promise.resolve(null),
+      getWearerLocation(userId),
+      getRepeatWindowDays(userId),
+    ]);
 
   return (
     <>
@@ -120,6 +126,13 @@ async function SettingsContent() {
           Home city
         </h2>
         <LocationCard initialLocation={location ?? ""} />
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          Outfit repeats
+        </h2>
+        <RepeatWindowCard initialDays={repeatWindowDays} />
       </div>
 
       <WearerPhotoSection imageUrl={photo?.imageUrl ?? null} />

@@ -51,6 +51,7 @@ describe("loadOutfitsInRange / loadFitsInRange", () => {
               image_url: null,
               occasion: "casual",
               garment_ids: [GARMENT_ID],
+              worn: true,
             },
           ]);
         }
@@ -67,6 +68,7 @@ describe("loadOutfitsInRange / loadFitsInRange", () => {
         imageUrl: null,
         occasion: "casual",
         garmentIds: [GARMENT_ID],
+        worn: true,
       },
     ]);
   });
