@@ -26,6 +26,10 @@ vi.mock("@/lib/wearer/profile", () => ({
   getWearerPhoto: vi.fn(),
 }));
 
+vi.mock("@/lib/workflows/repeat-window", () => ({
+  loadRepeatWindow: vi.fn(async () => ({ wears: [], windowDays: 7 })),
+}));
+
 vi.mock("@/lib/wearer/preferences", () => ({
   getWearerLocation: vi.fn(),
 }));
@@ -67,6 +71,7 @@ import { garmentSetKey } from "@/lib/outfits/garment-set-key";
 import { getWearerPhoto } from "@/lib/wearer/profile";
 import { getWearerLocation } from "@/lib/wearer/preferences";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
+import { loadRepeatWindow } from "@/lib/workflows/repeat-window";
 
 const resolveGemini = vi.mocked(resolveGeminiApiKey);
 const loadCatalog = vi.mocked(loadGarmentCatalog);
@@ -78,6 +83,7 @@ const wearerLocation = vi.mocked(getWearerLocation);
 const requireSqlMock = vi.mocked(requireSql);
 const loadOutfits = vi.mocked(loadOutfitsInRange);
 const existingHeroes = vi.mocked(findExistingOutfitHeroUrls);
+const repeatWindow = vi.mocked(loadRepeatWindow);
 
 const TOP_A = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 const TOP_B = "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22";
@@ -241,6 +247,34 @@ describe("runWeeklyOutfitsJob sequential uniqueness", () => {
     expect(res).toEqual({ ok: true, planId: "", skipped: true });
     expect(step1).not.toHaveBeenCalled();
     expect(resolveGemini).not.toHaveBeenCalled();
+  });
+
+  it("keeps Outfits worn in the repeat window out of the plan", async () => {
+    const calls: SqlCall[] = [];
+    requireSqlMock.mockReturnValue(mockSql({ calls }) as never);
+    repeatWindow.mockResolvedValueOnce({
+      windowDays: 7,
+      wears: [{ wornOn: "2026-08-12", garmentIds: [TOP_A, BOTTOM_A, SHOE_A] }],
+    });
+    step1.mockResolvedValue({
+      looks: [
+        {
+          title: "Saturday errands",
+          description: "d",
+          tags: [],
+          garmentIds: [TOP_B, BOTTOM_B, SHOE_A],
+        },
+      ],
+      curatorNote: "",
+    });
+
+    const res = await runWeeklyOutfitsJob(input, SATURDAY_NOON_UTC);
+
+    expect(res.ok).toBe(true);
+    expect(repeatWindow).toHaveBeenCalledWith(USER_ID, "2026-08-15");
+    expect(step1.mock.calls[0]![0].avoidOutfits).toEqual([
+      ["Polo", "Grey trousers", "Sneakers"],
+    ]);
   });
 
   it("plans remaining days sequentially with a shrinking catalog", async () => {

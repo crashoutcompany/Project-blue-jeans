@@ -18,6 +18,7 @@ import type { TodayPageData } from "@/lib/outfits/today-data";
 import { formatProductDateLong } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 import { GeneratorSheet } from "@/components/outfit/generator-sheet";
+import { LastWeekReview } from "@/components/outfit/last-week-review";
 import { ProviderSetupBanner } from "@/components/settings/provider-setup-banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 
@@ -352,6 +353,9 @@ export function DayLookView({
             <p className="text-sm text-destructive" role="alert">
               {error ?? dayFailure}
             </p>
+          ) : null}
+          {isTodaySelected && !dayFailure ? (
+            <LastWeekReview items={data.lastWeek} />
           ) : null}
           {dayFailure && canEdit ? (
             <div className="flex flex-wrap items-center gap-2">

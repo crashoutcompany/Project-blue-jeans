@@ -25,6 +25,11 @@ import {
   lookStackError,
 } from "@/lib/outfits/look-composition";
 import {
+  isRepeatOf,
+  repeatGuardForDay,
+  type RecentWear,
+} from "@/lib/outfits/repeat-guard";
+import {
   availableGarments,
   type WeeklyPlanDay,
 } from "@/lib/outfits/weekly-plan-catalog";
@@ -38,6 +43,18 @@ import { getWearerPhoto } from "@/lib/wearer/profile";
 const HERO_IMAGE_CONCURRENCY = 3;
 
 const DAY_RETRY_PUBLIC = "Try again in a moment.";
+
+/** Plans per day when the model keeps picking an Outfit worn recently. */
+const MAX_REPEAT_ATTEMPTS = 2;
+
+const REPEAT_HINT =
+  "\n\nIMPORTANT: Your last outfit was one of the recently worn outfits. Pick a different combination: change at least one piece.";
+
+/** Confirmed wears and the Wearer's repeat window, for the repeat guard. */
+export type RepeatWindowInput = {
+  wears: readonly RecentWear[];
+  windowDays: number;
+};
 
 export type WeeklyLook = {
   sortOrder: number;
@@ -91,6 +108,12 @@ class DayStackError extends Error {
  * for a model failure: the caller keeps the other days and shows `message`
  * on this one. With `day.forecast`, the model gets that day's weather rules
  * (see `dayWeatherRules`) and wet days leave suede out of the catalog.
+ *
+ * Repeat guard: Outfits confirmed worn inside the repeat window are named in
+ * the prompt, and a plan that still repeats one exactly is asked for again
+ * once. A closet too small to avoid them all releases the oldest wears first
+ * (see `repeatGuardForDay`), and a model that repeats twice keeps its look
+ * rather than leave the day empty.
  */
 export async function planWeeklyDay(
   style: WeeklyStyleInput,
@@ -99,6 +122,7 @@ export async function planWeeklyDay(
   categoryById: ReadonlyMap<string, string>,
   lockedTopIds: ReadonlySet<string>,
   alreadyPlanned: AlreadyPlannedLook[],
+  repeat?: RepeatWindowInput,
 ): Promise<PlanWeeklyDayResult> {
   const available = weatherSafeGarments(
     availableGarments(garments, lockedTopIds),
@@ -106,25 +130,46 @@ export async function planWeeklyDay(
   );
   if (!catalogCanFormLook(available)) return { status: "closet-exhausted" };
 
+  const { avoid } = repeat
+    ? repeatGuardForDay({
+        wears: repeat.wears,
+        dayIso: day.iso,
+        windowDays: repeat.windowDays,
+        available,
+      })
+    : { avoid: [] };
+  const garmentsById = new Map(garments.map((g) => [g.id, g]));
+  const avoidOutfits = avoid.map((w) =>
+    garmentNamesForIds(w.garmentIds, garmentsById),
+  );
+
   try {
-    const plan = await runStep1PlanWithRetry({
-      apiKey: style.apiKey,
-      lookCount: 1,
-      climate: style.climate,
-      context: style.context,
-      narrative: style.narrative,
-      catalogText: formatClosetCatalog(available),
-      validIds: new Set(available.map((g) => g.id)),
-      location: style.location,
-      weekly: true,
-      weeklyWeekday: day.weekday,
-      dayWeather: day.forecast
-        ? dayWeatherPrompt(day.forecast, day.weekday, style.location)
-        : undefined,
-      alreadyPlanned: alreadyPlanned.slice(),
-    });
-    const look = plan.looks[0];
-    if (!look) throw new Error(`Day ${day.weekday} returned no look.`);
+    let plan: LookbookPlan | undefined;
+    let narrative = style.narrative;
+    for (let attempt = 1; attempt <= MAX_REPEAT_ATTEMPTS; attempt++) {
+      plan = await runStep1PlanWithRetry({
+        apiKey: style.apiKey,
+        lookCount: 1,
+        climate: style.climate,
+        context: style.context,
+        narrative,
+        catalogText: formatClosetCatalog(available),
+        validIds: new Set(available.map((g) => g.id)),
+        location: style.location,
+        weekly: true,
+        weeklyWeekday: day.weekday,
+        dayWeather: day.forecast
+          ? dayWeatherPrompt(day.forecast, day.weekday, style.location)
+          : undefined,
+        alreadyPlanned: alreadyPlanned.slice(),
+        avoidOutfits: avoidOutfits.length > 0 ? avoidOutfits : undefined,
+      });
+      const ids = plan.looks[0]?.garmentIds ?? [];
+      if (!isRepeatOf(ids, avoid)) break;
+      narrative = style.narrative + REPEAT_HINT;
+    }
+    const look = plan?.looks[0];
+    if (!plan || !look) throw new Error(`Day ${day.weekday} returned no look.`);
     const garmentIds = look.garmentIds ?? [];
     const stackErr = lookStackError(countLookSlots(garmentIds, categoryById));
     if (stackErr) throw new DayStackError(stackErr);

@@ -29,6 +29,8 @@ export function step1UserPrompt(params: {
   /** Weekday name for a single-day weekly plan, e.g. "Wednesday". */
   weeklyWeekday?: string;
   alreadyPlanned?: AlreadyPlannedLook[];
+  /** Garment names of Outfits worn recently; don't repeat these exact sets. */
+  avoidOutfits?: string[][];
   mustWearIds?: string[];
   mustWearNames?: string[];
   /** That day's forecast and weather rules; replaces the getWeather call. */
@@ -44,6 +46,7 @@ export function step1UserPrompt(params: {
     weekly,
     weeklyWeekday,
     alreadyPlanned,
+    avoidOutfits,
     mustWearIds,
     mustWearNames,
     dayWeather,
@@ -68,6 +71,13 @@ export function step1UserPrompt(params: {
           .join("\n")}\n\n`
       : "";
 
+  const wornRecently =
+    avoidOutfits && avoidOutfits.length > 0
+      ? `Worn recently (do not suggest any of these exact outfits again; reusing one or two of the pieces is fine, as long as the full set differs):\n${avoidOutfits
+          .map((names) => `- ${names.join(", ") || "—"}`)
+          .join("\n")}\n\n`
+      : "";
+
   const mustWear =
     mustWearIds && mustWearIds.length > 0
       ? `- Must-wear garment ids (every look must include all of these): ${mustWearIds.join(", ")}${
@@ -79,7 +89,7 @@ export function step1UserPrompt(params: {
 
   return `${weeklyHint}
 
-${planned}Constraints:
+${planned}${wornRecently}Constraints:
 - Climate vibe (styling mood only): ${climate}
 - Occasion / setting: ${context}
 ${

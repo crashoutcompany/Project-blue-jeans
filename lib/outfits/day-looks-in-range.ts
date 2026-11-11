@@ -11,6 +11,7 @@ const outfitWearRowSchema = z.object({
   image_url: z.string().nullable(),
   occasion: z.string().optional().default("casual"),
   garment_ids: z.array(z.string()).nullable().optional(),
+  worn: z.boolean().optional().default(false),
 });
 
 const fitRowSchema = z.object({
@@ -28,6 +29,8 @@ export type OutfitInRange = {
   imageUrl: string | null;
   occasion: string;
   garmentIds: string[];
+  /** The Wearer tapped "Wore this" for this day. */
+  worn: boolean;
 };
 
 export type FitInRange = {
@@ -62,6 +65,7 @@ function parseOutfitRows(raw: unknown): OutfitInRange[] {
     imageUrl: row.image_url,
     occasion: row.occasion,
     garmentIds: asIdList(row.garment_ids),
+    worn: row.worn,
   }));
 }
 
@@ -106,7 +110,8 @@ export async function loadOutfitsInRange(
                 array_agg(og.garment_id::text ORDER BY og.sort_order)
                   FILTER (WHERE og.garment_id IS NOT NULL),
                 '{}'
-              ) AS garment_ids
+              ) AS garment_ids,
+              bool_or(w.worn_confirmed_at IS NOT NULL) AS worn
             FROM outfit_wears w
             INNER JOIN outfits o ON o.id = w.outfit_id
             LEFT JOIN outfit_garments og ON og.outfit_id = o.id
@@ -128,7 +133,8 @@ export async function loadOutfitsInRange(
                 array_agg(og.garment_id::text ORDER BY og.sort_order)
                   FILTER (WHERE og.garment_id IS NOT NULL),
                 '{}'
-              ) AS garment_ids
+              ) AS garment_ids,
+              bool_or(w.worn_confirmed_at IS NOT NULL) AS worn
             FROM outfit_wears w
             INNER JOIN outfits o ON o.id = w.outfit_id
             LEFT JOIN outfit_garments og ON og.outfit_id = o.id

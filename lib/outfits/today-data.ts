@@ -55,6 +55,17 @@ export type TodayWeekPeekDay = {
   failed?: boolean;
 };
 
+/** A past day's Outfit in the "what did you wear?" review before planning. */
+export type TodayWornReviewItem = {
+  wornOn: string;
+  outfitId: string;
+  title: string | null;
+  heroImageUrl: string | null;
+  garments: TodayGarmentThumb[];
+  /** Already confirmed with "Wore this". */
+  worn: boolean;
+};
+
 export type TodayPageData = {
   todayIso: string;
   weekStartIso: string;
@@ -66,6 +77,11 @@ export type TodayPageData = {
   weekPeek: TodayWeekPeekDay[];
   /** Days with no look that planning failed on, keyed by wornOn. */
   failedDays: Record<string, string>;
+  /**
+   * Outfits from last week's Sunday through yesterday, oldest first, so the
+   * Wearer can tap "Wore this" before Plan my week.
+   */
+  lastWeek: TodayWornReviewItem[];
   /** Soft prompt when missing; try-on heroes when present. */
   hasWearerPhoto: boolean;
   /** Quiet line under today's date, e.g. "New York, NY · 54° rain". */
@@ -160,6 +176,7 @@ export async function loadTodayPageData(
       weekLooks: {},
       weekPeek: [],
       failedDays: {},
+      lastWeek: [],
       hasWearerPhoto: false,
       weatherLine: resolveOutfitLocation(),
       weekWeather: {},
@@ -207,6 +224,9 @@ export async function loadTodayPageData(
   const weekEndIso = addDaysIso(weekStartIso, 6);
   const outfitsPromise = loadOutfitsByDay(userId, weekStartIso, weekEndIso);
   const fitsPromise = loadFitsByDay(userId, weekStartIso, weekEndIso);
+  const reviewStartIso = addDaysIso(weekStartIso, -7);
+  const yesterdayIso = addDaysIso(todayIso, -1);
+  const reviewPromise = loadOutfitsByDay(userId, reviewStartIso, yesterdayIso);
 
   const [
     garmentCount,
@@ -215,6 +235,7 @@ export async function loadTodayPageData(
     fitsByDay,
     weatherLine,
     failedByDay,
+    reviewByDay,
     weekWeatherInput,
   ] = await Promise.all([
     garmentCountPromise,
@@ -223,6 +244,7 @@ export async function loadTodayPageData(
     fitsPromise,
     weatherLinePromise,
     loadFailedPlanDaysByDay(userId, weekStartIso),
+    reviewPromise,
     weekWeatherPromise,
   ]);
 
@@ -233,6 +255,9 @@ export async function loadTodayPageData(
     const fit = fitsByDay.get(wornOn);
     const ids = outfit?.garmentIds ?? fit?.garmentIds ?? [];
     for (const id of ids) referencedIds.add(id);
+  }
+  for (const outfit of reviewByDay.values()) {
+    for (const id of outfit.garmentIds) referencedIds.add(id);
   }
 
   let thumbs: TodayGarmentThumb[] = [];
@@ -268,6 +293,19 @@ export async function loadTodayPageData(
     });
   }
 
+  const lastWeek: TodayWornReviewItem[] = [...reviewByDay.values()]
+    .sort((a, b) => a.wornOn.localeCompare(b.wornOn))
+    .map((outfit) => {
+      const look = lookFromOutfit(outfit, thumbsById);
+      return {
+        wornOn: outfit.wornOn,
+        outfitId: outfit.id,
+        title: look.title,
+        heroImageUrl: look.heroImageUrl,
+        garments: look.garments,
+        worn: outfit.worn,
+      };
+    });
   const fitDays = new Set(
     Object.entries(weekLooks)
       .filter(([, look]) => look.kind === "fit")
@@ -282,6 +320,7 @@ export async function loadTodayPageData(
     weekLooks,
     weekPeek,
     failedDays,
+    lastWeek,
     hasWearerPhoto: Boolean(wearerPhoto?.imageUrl),
     weatherLine,
     weekWeather: buildWeekWeather({

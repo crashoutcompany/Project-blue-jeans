@@ -12,6 +12,7 @@ import {
 import type { FailedPlanDay } from "@/lib/outfits/weekly-plan-failures";
 import { categoryByIdFromCatalog } from "@/lib/outfits/look-composition";
 import { getWearerLocation } from "@/lib/wearer/preferences";
+import { loadRepeatWindow } from "@/lib/workflows/repeat-window";
 import { logServerError } from "@/lib/server/safe-client-error";
 import {
   addDaysIso,
@@ -238,16 +239,18 @@ async function planClaimedWeek(
     }
   }
 
+  const [storedLocation, repeat] = await Promise.all([
+    input.location?.trim()
+      ? Promise.resolve(input.location)
+      : getWearerLocation(input.userId),
+    loadRepeatWindow(input.userId, todayIso),
+  ]);
   const style: WeeklyStyleInput = {
     apiKey: gemini.apiKey,
     climate,
     context,
     narrative,
-    location: resolveOutfitLocation(
-      input.location?.trim()
-        ? input.location
-        : await getWearerLocation(input.userId),
-    ),
+    location: resolveOutfitLocation(storedLocation),
   };
 
   // One forecast for the week; an outage plans without weather.
@@ -261,6 +264,7 @@ async function planClaimedWeek(
       categoryById,
       lockedTopIds,
       alreadyPlanned,
+      repeat,
     );
     if (result.status === "closet-exhausted") {
       if (looksForDb.length === 0 && failedDays.length === 0) {

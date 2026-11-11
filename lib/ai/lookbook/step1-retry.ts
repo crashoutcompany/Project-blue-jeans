@@ -22,6 +22,7 @@ export type RunStep1PlanWithRetryParams = {
   weekly?: boolean;
   weeklyWeekday?: string;
   alreadyPlanned?: AlreadyPlannedLook[];
+  avoidOutfits?: string[][];
   mustWearIds?: string[];
   mustWearNames?: string[];
   dayWeather?: string;

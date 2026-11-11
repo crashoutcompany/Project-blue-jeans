@@ -5,6 +5,7 @@ vi.mock("@/lib/auth/admitted", () => ({
 }));
 
 vi.mock("@/lib/outfits/persist-generator-outfit", () => ({
+  setDayWorn: vi.fn(),
   unwearDay: vi.fn(),
 }));
 
@@ -38,11 +39,15 @@ import {
   notAdmitted,
 } from "@/tests/helpers/admission";
 import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
-import { unwearDay } from "@/lib/outfits/persist-generator-outfit";
+import {
+  setDayWorn,
+  unwearDay,
+} from "@/lib/outfits/persist-generator-outfit";
 import { regenerateWeeklyDay } from "@/lib/workflows/regenerate-weekly-day";
 import { runWeeklyOutfitsJob } from "@/lib/workflows/run-weekly-outfits";
 import { approveWeeklyPlanLook } from "@/app/actions/outfits";
 import {
+  markDayWorn,
   planMyWeek,
   regenerateDay,
   unwearDayForUser,
@@ -51,6 +56,7 @@ import {
 
 const gate = vi.mocked(assertAdmittedForServerAction);
 const unwear = vi.mocked(unwearDay);
+const setWorn = vi.mocked(setDayWorn);
 const runJob = vi.mocked(runWeeklyOutfitsJob);
 const regenerate = vi.mocked(regenerateWeeklyDay);
 const approve = vi.mocked(approveWeeklyPlanLook);
@@ -226,5 +232,50 @@ describe("regenerateDay", () => {
       message: "Couldn't plan Wednesday. Try again in a moment.",
     });
     expect(revalidateTagMock).toHaveBeenCalled();
+  });
+});
+
+describe("markDayWorn", () => {
+  const OUTFIT_ID = "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22";
+
+  it("returns the admission error without writing", async () => {
+    gate.mockResolvedValue(notAdmitted);
+
+    await expect(markDayWorn("2026-08-08", true)).resolves.toEqual({
+      ok: false,
+      message: NOT_ADMITTED_MESSAGE,
+    });
+    expect(setWorn).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed date", async () => {
+    await expect(markDayWorn("08/08/2026", true)).resolves.toEqual({
+      ok: false,
+      message: "Invalid date.",
+    });
+    expect(setWorn).not.toHaveBeenCalled();
+  });
+
+  it("marks a past day worn and refreshes Outfit surfaces", async () => {
+    setWorn.mockResolvedValue({ ok: true, outfitId: OUTFIT_ID });
+
+    await expect(markDayWorn("2026-08-08", true)).resolves.toEqual({
+      ok: true,
+    });
+    expect(setWorn).toHaveBeenCalledWith("u1", "2026-08-08", true);
+    expect(revalidateTagMock).toHaveBeenCalled();
+  });
+
+  it("passes a failure through without revalidating", async () => {
+    setWorn.mockResolvedValue({
+      ok: false,
+      message: "You can only mark today or earlier as worn.",
+    });
+
+    await expect(markDayWorn("2026-08-12", true)).resolves.toEqual({
+      ok: false,
+      message: "You can only mark today or earlier as worn.",
+    });
+    expect(revalidateTagMock).not.toHaveBeenCalled();
   });
 });

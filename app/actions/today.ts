@@ -5,7 +5,10 @@ import { z } from "zod";
 import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
 import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces";
 import { logServerError } from "@/lib/server/safe-client-error";
-import { unwearDay } from "@/lib/outfits/persist-generator-outfit";
+import {
+  setDayWorn,
+  unwearDay,
+} from "@/lib/outfits/persist-generator-outfit";
 import { approveWeeklyPlanLook } from "@/app/actions/outfits";
 import { assertMutableWornOn } from "@/lib/time/mutable-calendar-day";
 import {
@@ -120,6 +123,28 @@ export async function unwearDayForUser(
   if (!mutable.ok) return mutable;
 
   const result = await unwearDay(gate.userId, parsed.data);
+  if (!result.ok) return result;
+  revalidateOutfitSurfaces(gate.userId);
+  return { ok: true };
+}
+
+/**
+ * Wore this — confirm (or undo) that a day's Outfit was actually worn. Only
+ * confirmed days count toward last worn and Plan my week's repeat guard.
+ */
+export async function markDayWorn(
+  wornOn: string,
+  worn: boolean,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const gate = await assertAdmittedForServerAction();
+  if (!gate.ok) return { ok: false, message: gate.message };
+
+  const parsed = wornOnSchema.safeParse(wornOn);
+  if (!parsed.success || typeof worn !== "boolean") {
+    return { ok: false, message: "Invalid date." };
+  }
+
+  const result = await setDayWorn(gate.userId, parsed.data, worn);
   if (!result.ok) return result;
   revalidateOutfitSurfaces(gate.userId);
   return { ok: true };

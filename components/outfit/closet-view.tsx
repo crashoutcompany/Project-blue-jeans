@@ -653,7 +653,9 @@ export function ClosetView({
                         </p>
                         <p className="mt-0.5 flex items-center gap-1 text-[0.65rem] uppercase tracking-[0.08em] text-muted-foreground">
                           <CalendarDays className="size-3" />
-                          Last worn {formatProductWornOn(o.wornOn)}
+                          {o.wornOn
+                            ? `Last worn ${formatProductWornOn(o.wornOn)}`
+                            : "Not worn yet"}
                         </p>
                       </div>
                     </button>

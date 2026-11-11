@@ -16,10 +16,12 @@ import {
 } from "@/lib/outfits/weekly-plan-failures";
 import { logServerError } from "@/lib/server/safe-client-error";
 import { getWearerLocation } from "@/lib/wearer/preferences";
+import { loadRepeatWindow } from "@/lib/workflows/repeat-window";
 import { assertMutableWornOn } from "@/lib/time/mutable-calendar-day";
 import {
   addDaysIso,
   formatProductWeekday,
+  productTodayIso,
 } from "@/lib/time/product-timezone";
 import type { WeeklyOutfitsInput } from "@/lib/workflows/types";
 import {
@@ -90,7 +92,7 @@ export async function regenerateWeeklyDay(
     "regenerateWeeklyDay",
     async () => {
       try {
-        return await regenerateClaimedDay(input, sortOrder);
+        return await regenerateClaimedDay(input, sortOrder, now);
       } catch (e) {
         logServerError("regenerateWeeklyDay", e);
         return { ok: false as const, message: REGENERATE_FAILED_PUBLIC };
@@ -104,6 +106,7 @@ export async function regenerateWeeklyDay(
 async function regenerateClaimedDay(
   input: RegenerateWeeklyDayInput,
   sortOrder: number,
+  now: Date,
 ): Promise<RegenerateWeeklyDayResult> {
   const sql = requireSql();
   const weekday = formatProductWeekday(input.wornOn);
@@ -173,16 +176,18 @@ async function regenerateClaimedDay(
     lockLookTops(ids, categoryById, lockedTopIds);
   }
 
+  const [storedLocation, repeat] = await Promise.all([
+    input.location?.trim()
+      ? Promise.resolve(input.location)
+      : getWearerLocation(input.userId),
+    loadRepeatWindow(input.userId, productTodayIso(now)),
+  ]);
   const style: WeeklyStyleInput = {
     apiKey: gemini.apiKey,
     climate: input.climate.trim().slice(0, 80),
     context: input.context.trim().slice(0, 80),
     narrative: input.narrative.trim().slice(0, MAX_NARRATIVE_LEN),
-    location: resolveOutfitLocation(
-      input.location?.trim()
-        ? input.location
-        : await getWearerLocation(input.userId),
-    ),
+    location: resolveOutfitLocation(storedLocation),
   };
 
   const forecast = (await loadDayForecasts(style.location)).get(input.wornOn);
@@ -193,6 +198,7 @@ async function regenerateClaimedDay(
     categoryById,
     lockedTopIds,
     alreadyPlanned,
+    repeat,
   );
 
   const failedDays = parseFailedPlanDays(plan.step1_raw);

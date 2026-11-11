@@ -12,6 +12,7 @@ import type {
   CalendarSavedOutfit,
   CalendarWeeklyLook,
 } from "@/lib/outfits/calendar-data";
+import { WoreThisButton } from "@/components/outfit/wore-this-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import {
@@ -182,7 +183,7 @@ export function OutfitCalendar({
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Saved looks by day. Weekly AI plans show here until you approve them
-            into your archive.
+            into your archive. Tap Wore this on a day you actually wore it.
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-2xl border border-border/70 bg-muted/30 p-1">
@@ -269,6 +270,8 @@ export function OutfitCalendar({
             primary?.name?.trim() || primary?.occasion || weekly?.title || null;
           const canApprove = Boolean(weekly) && outfits.length === 0;
           const isSaved = Boolean(primary);
+          // Only a day that has happened can be marked worn.
+          const canMarkWorn = Boolean(primary) && key <= todayIso;
 
           return (
             <div
@@ -321,7 +324,7 @@ export function OutfitCalendar({
                 ) : null}
               </div>
 
-              {label || canApprove ? (
+              {label || canApprove || canMarkWorn ? (
                 <div
                   className={cn(
                     "absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 p-1.5 pt-8",
@@ -354,6 +357,15 @@ export function OutfitCalendar({
                         ? "Saving…"
                         : "Approve"}
                     </Button>
+                  ) : null}
+                  {canMarkWorn && primary ? (
+                    <WoreThisButton
+                      wornOn={key}
+                      worn={primary.worn}
+                      size="xs"
+                      className="h-6 w-full rounded-md text-[0.65rem] shadow-sm"
+                      onError={setActionError}
+                    />
                   ) : null}
                 </div>
               ) : null}

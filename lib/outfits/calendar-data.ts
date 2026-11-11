@@ -21,6 +21,8 @@ export type CalendarSavedOutfit = {
   name: string | null;
   occasion: string;
   garmentThumbs: CalendarLookThumb[];
+  /** Confirmed with "Wore this". */
+  worn: boolean;
 };
 
 export type CalendarWeeklyLook = {
@@ -100,6 +102,7 @@ export async function loadCalendarMonthData(
       name: r.name,
       occasion: r.occasion,
       garmentIds: r.garmentIds,
+      worn: r.worn,
     }));
 
     const daysWithSaved = new Set(savedDrafts.map((s) => s.wornOn));
@@ -154,6 +157,7 @@ export async function loadCalendarMonthData(
       name: s.name,
       occasion: s.occasion,
       garmentThumbs: thumbsForIds(s.garmentIds, thumbById),
+      worn: s.worn,
     }));
 
     const weeklyDrafts: CalendarWeeklyLook[] = weeklyDraftsRaw.map((w) => ({

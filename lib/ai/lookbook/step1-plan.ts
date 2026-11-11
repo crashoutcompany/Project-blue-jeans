@@ -31,6 +31,7 @@ export type RunOutfitPlanStepParams = {
   weekly?: boolean;
   weeklyWeekday?: string;
   alreadyPlanned?: AlreadyPlannedLook[];
+  avoidOutfits?: string[][];
   mustWearIds?: string[];
   mustWearNames?: string[];
   dayWeather?: string;
@@ -94,6 +95,7 @@ export async function runOutfitPlanStep(
         weekly: params.weekly,
         weeklyWeekday: params.weeklyWeekday,
         alreadyPlanned: params.alreadyPlanned,
+        avoidOutfits: params.avoidOutfits,
         mustWearIds: params.mustWearIds,
         mustWearNames: params.mustWearNames,
         dayWeather: params.dayWeather,

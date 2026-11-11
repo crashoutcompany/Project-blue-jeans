@@ -25,6 +25,7 @@ import {
   commitOutfitForDay,
   executeApproveGeneratorOutfit,
   ownedHeroImagePath,
+  setDayWorn,
   unwearDay,
 } from "@/lib/outfits/persist-generator-outfit";
 
@@ -154,7 +155,7 @@ describe("commitOutfitForDay", () => {
     expect(commit).toContain("INSERT INTO outfit_garments");
   });
 
-  it("commits the outfit, its wear, and last-worn sync in one transaction", async () => {
+  it("commits the outfit and its day in one transaction", async () => {
     const { sql, direct, transactions } = txSql(commitHandler());
     sqlRequire.mockReturnValue(sql as never);
 
@@ -168,10 +169,36 @@ describe("commitOutfitForDay", () => {
     expect(direct).toHaveLength(1);
     expect(transactions).toHaveLength(1);
     const texts = transactions[0]!.map((q) => q.text);
-    expect(texts).toHaveLength(3);
+    expect(texts).toHaveLength(2);
     expect(texts[1]).toContain("INSERT INTO outfit_wears");
     expect(texts[1]).toContain("ON CONFLICT (user_id, worn_on)");
-    expect(texts[2]).toContain("UPDATE outfits o");
+  });
+
+  /** #61: accepting a look is not wearing it; only "Wore this" is. */
+  it("does not mark the committed outfit as worn", async () => {
+    const { sql, direct, transactions } = txSql(commitHandler());
+    sqlRequire.mockReturnValue(sql as never);
+
+    await commitOutfitForDay({
+      userId: "u1",
+      wornOn: "2025-01-01",
+      garmentIds: [gid],
+    });
+
+    const all = [...direct, ...transactions.flat()];
+    // A new Outfit starts with no last worn date...
+    const insert = transactions[0]![0]!;
+    expect(insert.text).toMatch(/VALUES \(\s*NULL,/);
+    // ...committing never sets a "Wore this" or syncs last worn...
+    for (const q of all) {
+      expect(q.text).not.toMatch(/worn_confirmed_at\s*=\s*now\(\)/);
+      expect(q.text).not.toMatch(/UPDATE outfits o\s+SET\s+worn_on/);
+    }
+    // ...and a different Outfit taking the day clears the old confirmation.
+    const wear = transactions[0]![1]!.text;
+    expect(wear).toMatch(
+      /worn_confirmed_at = CASE\s+WHEN outfit_wears.outfit_id = EXCLUDED.outfit_id\s+THEN outfit_wears.worn_confirmed_at\s+ELSE NULL/,
+    );
   });
 
   it("releases the day's previous outfit inside the same transaction", async () => {
@@ -185,11 +212,13 @@ describe("commitOutfitForDay", () => {
     });
 
     const tx = transactions[0]!;
-    expect(tx).toHaveLength(5);
-    expect(tx[3]!.text).toContain("UPDATE outfits o");
+    expect(tx).toHaveLength(4);
+    // The released outfit's last worn is recomputed from confirmed days.
+    expect(tx[2]!.text).toContain("UPDATE outfits o");
+    expect(tx[2]!.text).toContain("worn_confirmed_at IS NOT NULL");
+    expect(tx[2]!.values).toContain(priorId);
+    expect(tx[3]!.text).toContain("DELETE FROM outfits o");
     expect(tx[3]!.values).toContain(priorId);
-    expect(tx[4]!.text).toContain("DELETE FROM outfits o");
-    expect(tx[4]!.values).toContain(priorId);
   });
 
   it("keeps an existing hero when committing without a new image", async () => {
@@ -243,10 +272,13 @@ describe("assignOutfitToDay", () => {
     });
 
     expect(res).toEqual({ ok: true, outfitId });
-    const texts = transactions[0]!.map((q) => q.text);
-    expect(texts).toHaveLength(4);
-    expect(texts[0]).toContain("INSERT INTO outfit_wears");
-    expect(texts[3]).toContain("DELETE FROM outfits o");
+    const tx = transactions[0]!;
+    expect(tx).toHaveLength(3);
+    expect(tx[0]!.text).toContain("INSERT INTO outfit_wears");
+    // Only the released outfit is re-synced; Wear today is not "Wore this".
+    expect(tx[1]!.text).toContain("UPDATE outfits o");
+    expect(tx[1]!.values).toEqual([priorId]);
+    expect(tx[2]!.text).toContain("DELETE FROM outfits o");
   });
 
   it("does not release an outfit re-worn on the same day", async () => {
@@ -261,7 +293,70 @@ describe("assignOutfitToDay", () => {
 
     await assignOutfitToDay({ userId: "u1", outfitId, wornOn: "2026-08-10" });
 
-    expect(transactions[0]).toHaveLength(2);
+    expect(transactions[0]).toHaveLength(1);
+    expect(transactions[0]![0]!.text).toContain("INSERT INTO outfit_wears");
+  });
+});
+
+describe("setDayWorn", () => {
+  const outfitId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+  const now = new Date("2026-08-10T16:00:00Z");
+
+  function wornDaySql(prior: string | null = outfitId) {
+    return txSql((q) =>
+      q.text.includes("prior_outfit_id") && prior
+        ? [{ prior_outfit_id: prior }]
+        : [],
+    );
+  }
+
+  it("confirms the day and syncs last worn in one transaction", async () => {
+    const { sql, transactions } = wornDaySql();
+    sqlRequire.mockReturnValue(sql as never);
+
+    const res = await setDayWorn("u1", "2026-08-08", true, now);
+
+    expect(res).toEqual({ ok: true, outfitId });
+    const tx = transactions[0]!;
+    expect(tx).toHaveLength(2);
+    expect(tx[0]!.text).toContain("UPDATE outfit_wears");
+    expect(tx[0]!.text).toContain("coalesce(worn_confirmed_at, now())");
+    expect(tx[0]!.values).toEqual([true, "u1", "2026-08-08"]);
+    expect(tx[1]!.text).toContain("worn_confirmed_at IS NOT NULL");
+    expect(tx[1]!.values).toEqual([outfitId]);
+  });
+
+  it("undoes a confirmation", async () => {
+    const { sql, transactions } = wornDaySql();
+    sqlRequire.mockReturnValue(sql as never);
+
+    await setDayWorn("u1", "2026-08-10", false, now);
+
+    expect(transactions[0]![0]!.values[0]).toBe(false);
+  });
+
+  it("refuses future days without touching the database", async () => {
+    const { sql, direct, transactions } = wornDaySql();
+    sqlRequire.mockReturnValue(sql as never);
+
+    const res = await setDayWorn("u1", "2026-08-11", true, now);
+
+    expect(res.ok).toBe(false);
+    expect(direct).toHaveLength(0);
+    expect(transactions).toHaveLength(0);
+  });
+
+  it("fails when the day has no Outfit", async () => {
+    const { sql, transactions } = wornDaySql(null);
+    sqlRequire.mockReturnValue(sql as never);
+
+    const res = await setDayWorn("u1", "2026-08-09", true, now);
+
+    expect(res).toEqual({
+      ok: false,
+      message: "There is no Outfit on that day.",
+    });
+    expect(transactions).toHaveLength(0);
   });
 });
 

@@ -55,6 +55,10 @@ vi.mock("@/lib/wearer/profile", () => ({
   getWearerPhoto: vi.fn(async () => null),
 }));
 
+vi.mock("@/lib/workflows/repeat-window", () => ({
+  loadRepeatWindow: vi.fn(async () => ({ wears: [], windowDays: 7 })),
+}));
+
 vi.mock("@/lib/wearer/preferences", () => ({
   getWearerLocation: vi.fn(async () => null),
 }));
