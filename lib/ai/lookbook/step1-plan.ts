@@ -33,6 +33,7 @@ export type RunOutfitPlanStepParams = {
   alreadyPlanned?: AlreadyPlannedLook[];
   mustWearIds?: string[];
   mustWearNames?: string[];
+  dayWeather?: string;
 };
 
 /** Pull a JSON object out of a reply that may be wrapped in prose or a code fence. */
@@ -73,7 +74,8 @@ export async function runOutfitPlanStep(
     const result = await generateText({
       model: geminiModel(GEMINI_STRUCTURE_MODEL, params.apiKey),
       system: STEP1_SYSTEM,
-      tools: outfitPlanTools,
+      // A given day forecast replaces getWeather, which only knows today.
+      tools: params.dayWeather ? undefined : outfitPlanTools,
       output: Output.object({
         schema: createLookbookModelSchema(lookCount),
         name: "outfit_plan",
@@ -94,6 +96,7 @@ export async function runOutfitPlanStep(
         alreadyPlanned: params.alreadyPlanned,
         mustWearIds: params.mustWearIds,
         mustWearNames: params.mustWearNames,
+        dayWeather: params.dayWeather,
       }),
     });
     output = result.output;

@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchWeather } from "@/lib/ai/weather/fetch-weather";
+import {
+  fetchDailyForecast,
+  fetchWeather,
+} from "@/lib/ai/weather/fetch-weather";
 
 describe("fetchWeather", () => {
   afterEach(() => {
@@ -114,5 +117,69 @@ describe("fetchWeather", () => {
     if (result.ok) {
       expect(result.current.condition).toBe("Clear sky");
     }
+  });
+});
+
+describe("fetchDailyForecast", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns one entry per forecast day and skips days without temperatures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const href = String(url);
+        expect(href).toContain("forecast_days=7");
+        expect(href).not.toContain("current=");
+        return new Response(
+          JSON.stringify({
+            timezone: "America/New_York",
+            daily: {
+              time: ["2026-11-09", "2026-11-10", "2026-11-11"],
+              temperature_2m_max: [12, null, 4],
+              temperature_2m_min: [6, 5, -1],
+              precipitation_probability_max: [20, 30, null],
+              weather_code: [3, 61, 73],
+            },
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    const result = await fetchDailyForecast({ latitude: 40.71, longitude: -74.01 });
+    expect(result).toEqual({
+      ok: true,
+      location: "40.71, -74.01",
+      timezone: "America/New_York",
+      days: [
+        {
+          date: "2026-11-09",
+          highC: 12,
+          lowC: 6,
+          precipitationChancePercent: 20,
+          weatherCode: 3,
+          condition: "Partly cloudy",
+        },
+        {
+          date: "2026-11-11",
+          highC: 4,
+          lowC: -1,
+          precipitationChancePercent: null,
+          weatherCode: 73,
+          condition: "Snow",
+        },
+      ],
+    });
+  });
+
+  it("fails soft on an HTTP error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("down", { status: 503 })),
+    );
+    const result = await fetchDailyForecast({ latitude: 1, longitude: 1 });
+    expect(result).toEqual({ ok: false, error: "Weather forecast failed (503)." });
   });
 });
