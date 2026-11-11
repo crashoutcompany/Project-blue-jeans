@@ -25,6 +25,7 @@ export type RunStep1PlanWithRetryParams = {
   avoidOutfits?: string[][];
   mustWearIds?: string[];
   mustWearNames?: string[];
+  dayWeather?: string;
 };
 
 const MAX_ATTEMPTS = 2;

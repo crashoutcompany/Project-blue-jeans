@@ -1,5 +1,6 @@
 import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
+import { loadDayForecasts } from "@/lib/ai/weather/load-day-forecasts";
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
 import { requireSql } from "@/lib/db";
 import { loadGarmentCatalog } from "@/lib/garments/load-catalog";
@@ -7,6 +8,7 @@ import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import { loadOutfitsInRange } from "@/lib/outfits/day-looks-in-range";
 import { categoryByIdFromCatalog } from "@/lib/outfits/look-composition";
 import { lockLookTops } from "@/lib/outfits/weekly-plan-catalog";
+import { savePlannedDayWeather } from "@/lib/outfits/weekly-plan-weather";
 import {
   parseFailedPlanDays,
   withFailedPlanDay,
@@ -188,9 +190,10 @@ async function regenerateClaimedDay(
     location: resolveOutfitLocation(storedLocation),
   };
 
+  const forecast = (await loadDayForecasts(style.location)).get(input.wornOn);
   const result = await planWeeklyDay(
     style,
-    { iso: input.wornOn, sortOrder, weekday },
+    { iso: input.wornOn, sortOrder, weekday, forecast },
     garments,
     categoryById,
     lockedTopIds,
@@ -250,6 +253,8 @@ async function regenerateClaimedDay(
       hero_image_url = EXCLUDED.hero_image_url
   `;
   await saveFailedDays(plan.id, withFailedPlanDay(failedDays, sortOrder, null));
+  // The new look matches today's forecast, which clears this day's flag.
+  await savePlannedDayWeather(plan.id, sortOrder, forecast);
   return { ok: true };
 }
 

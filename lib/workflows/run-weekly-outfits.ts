@@ -33,6 +33,11 @@ import {
 } from "@/lib/workflows/weekly-plan-day";
 import { MAX_NARRATIVE_LEN } from "@/lib/garments/field-limits";
 import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
+import { loadDayForecasts } from "@/lib/ai/weather/load-day-forecasts";
+import {
+  plannedWeatherForLooks,
+  type PlannedWeather,
+} from "@/lib/outfits/weekly-plan-weather";
 import { z } from "zod";
 
 const WEEKLY_JOB_FAILED_PUBLIC =
@@ -83,6 +88,7 @@ async function markPlanFailed(planId: string, message: string): Promise<void> {
 function buildWeeklyStep1Raw(
   plans: LookbookPlan[],
   failedDays: FailedPlanDay[],
+  plannedWeather: PlannedWeather,
 ) {
   const curatorNote = plans
     .map((p) => p.curatorNote?.trim())
@@ -93,6 +99,7 @@ function buildWeeklyStep1Raw(
     plans,
     curatorNote: curatorNote.length > 0 ? curatorNote : undefined,
     failedDays,
+    plannedWeather,
   };
 }
 
@@ -246,10 +253,13 @@ async function planClaimedWeek(
     location: resolveOutfitLocation(storedLocation),
   };
 
+  // One forecast for the week; an outage plans without weather.
+  const forecastByDay = await loadDayForecasts(style.location);
+
   for (const day of daysToPlan) {
     const result = await planWeeklyDay(
       style,
-      day,
+      { ...day, forecast: forecastByDay.get(day.iso) },
       garments,
       categoryById,
       lockedTopIds,
@@ -297,7 +307,15 @@ async function planClaimedWeek(
     };
   }
 
-  const step1Raw = buildWeeklyStep1Raw(plans, failedDays);
+  const step1Raw = buildWeeklyStep1Raw(
+    plans,
+    failedDays,
+    plannedWeatherForLooks(
+      input.weekStart,
+      looksForDb.map((l) => l.sortOrder),
+      forecastByDay,
+    ),
+  );
   let planId: string | undefined;
 
   try {

@@ -120,6 +120,7 @@ function baseData(overrides: Partial<TodayPageData> = {}): TodayPageData {
     lastWeek: [],
     hasWearerPhoto: true,
     weatherLine: "New York, NY",
+    weekWeather: {},
     ...overrides,
   };
 }
@@ -395,5 +396,49 @@ describe("DayLookView", () => {
         screen.queryByRole("region", { name: "Last week" }),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("shows a later day's forecast and flags a Fit planned for other weather", async () => {
+    const user = userEvent.setup();
+    render(
+      <DayLookView
+        data={baseData({
+          weekWeather: {
+            "2026-08-10": {
+              high: "84°",
+              wet: false,
+              line: "New York, NY · clear sky · 84° / 70° · 0% rain",
+            },
+            "2026-08-11": {
+              high: "64°",
+              wet: true,
+              line: "New York, NY · rain · 64° / 57° · 90% rain",
+              changed:
+                "Forecast changed since this was planned: rain is now in the forecast.",
+            },
+          },
+        })}
+        closetGarments={[]}
+      />,
+    );
+
+    // Today keeps the live line and has no flag.
+    expect(screen.getByText("New York, NY")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Show look for Tuesday, August 11, 64° rain, forecast changed",
+      }),
+    );
+
+    expect(
+      screen.getByText("New York, NY · rain · 64° / 57° · 90% rain"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /rain is now in the forecast\. Regenerate this day/,
+    );
+    // The plan is not rewritten: the same Fit is still shown.
+    expect(screen.getByText("Tuesday fit")).toBeInTheDocument();
   });
 });

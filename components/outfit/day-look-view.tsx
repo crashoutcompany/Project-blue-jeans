@@ -1,6 +1,6 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
+import { CloudAlert, CloudRain, TriangleAlert } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -25,6 +25,40 @@ import { Button, buttonVariants } from "@/components/ui/button";
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PRESS =
   "active:scale-[0.97] transition-transform duration-160 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transform-none";
+
+/** Date, that day's weather, and a note when its forecast changed. */
+function DayHeading({
+  date,
+  weatherLine,
+  forecastChanged,
+}: {
+  date: string;
+  weatherLine: string | undefined;
+  forecastChanged: string | undefined;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        {date}
+      </p>
+      {weatherLine ? (
+        <p className="text-sm text-muted-foreground">{weatherLine}</p>
+      ) : null}
+      {forecastChanged ? (
+        <p
+          className="mt-1 flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-400"
+          role="status"
+        >
+          <CloudAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            {forecastChanged} Regenerate this day to dress for it, or keep the
+            look as is.
+          </span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function initialSelectedDay(
   data: TodayPageData,
@@ -148,6 +182,11 @@ export function DayLookView({
       ? look.garments.slice(0, 4)
       : null;
   const dateHeading = formatProductDateLong(selectedWornOn);
+  const dayWeather = data.weekWeather[selectedWornOn];
+  // Today keeps the live "now" line; later days show their forecast.
+  const weatherLine = isTodaySelected ? data.weatherLine : dayWeather?.line;
+  const forecastChanged =
+    look?.kind === "fit" && canEdit ? dayWeather?.changed : undefined;
 
   return (
     <div className="page-canvas mx-auto flex w-full max-w-3xl flex-col gap-12 pb-16">
@@ -157,14 +196,11 @@ export function DayLookView({
       />
       {look ? (
         <div className="flex flex-col gap-5">
-          <div className="flex flex-col gap-1">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              {dateHeading}
-            </p>
-            {isTodaySelected ? (
-              <p className="text-sm text-muted-foreground">{data.weatherLine}</p>
-            ) : null}
-          </div>
+          <DayHeading
+            date={dateHeading}
+            weatherLine={weatherLine}
+            forecastChanged={forecastChanged}
+          />
 
           <section className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-muted">
             {look.heroImageUrl ? (
@@ -303,14 +339,11 @@ export function DayLookView({
         </div>
       ) : (
         <div className="flex min-h-[36svh] flex-col justify-center gap-5 py-6">
-          <div className="flex flex-col gap-1">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              {dateHeading}
-            </p>
-            {isTodaySelected ? (
-              <p className="text-sm text-muted-foreground">{data.weatherLine}</p>
-            ) : null}
-          </div>
+          <DayHeading
+            date={dateHeading}
+            weatherLine={weatherLine}
+            forecastChanged={forecastChanged}
+          />
           <h1 className="font-serif text-3xl tracking-tight text-foreground">
             {isTodaySelected
               ? "No look for today yet."
@@ -422,6 +455,10 @@ export function DayLookView({
             const isSelected = day.wornOn === selectedWornOn;
             const hasLook = day.kind !== "empty";
             const failed = Boolean(day.failed);
+            const weather = data.weekWeather[day.wornOn];
+            const weatherLabel = weather
+              ? `, ${weather.high}${weather.wet ? " rain" : ""}${weather.changed ? ", forecast changed" : ""}`
+              : "";
             return (
               <li key={day.wornOn} className="flex flex-col items-center gap-2">
                 <span
@@ -442,7 +479,7 @@ export function DayLookView({
                 </span>
                 <button
                   type="button"
-                  aria-label={`Show look for ${formatProductDateLong(day.wornOn)}${failed ? " (couldn't plan)" : ""}`}
+                  aria-label={`Show look for ${formatProductDateLong(day.wornOn)}${weatherLabel}${failed ? " (couldn't plan)" : ""}`}
                   aria-current={isSelected ? "true" : undefined}
                   onClick={() => {
                     setError(null);
@@ -454,6 +491,8 @@ export function DayLookView({
                     "transition-[transform,opacity] duration-160 ease-[cubic-bezier(0.23,1,0.32,1)]",
                     "active:scale-[0.97] motion-reduce:transform-none",
                     isSelected ? "opacity-100" : "opacity-40",
+                    weather?.changed &&
+                      "ring-2 ring-amber-500/70 ring-offset-1 ring-offset-background",
                   )}
                 >
                   {day.heroImageUrl ? (
@@ -475,6 +514,20 @@ export function DayLookView({
                     </span>
                   )}
                 </button>
+                {weather ? (
+                  <span
+                    className={cn(
+                      "flex items-center gap-0.5 text-[0.65rem] tabular-nums",
+                      weather.changed
+                        ? "text-amber-700 dark:text-amber-400"
+                        : "text-muted-foreground",
+                    )}
+                    aria-hidden
+                  >
+                    {weather.wet ? <CloudRain className="size-3" /> : null}
+                    {weather.high}
+                  </span>
+                ) : null}
               </li>
             );
           })}

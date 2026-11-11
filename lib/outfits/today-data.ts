@@ -1,6 +1,7 @@
 import { fetchWeather } from "@/lib/ai/weather/fetch-weather";
 import { formatTodayWeatherLine } from "@/lib/ai/weather/format-today-line";
 import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
+import { loadDayForecasts } from "@/lib/ai/weather/load-day-forecasts";
 import { getSql } from "@/lib/db";
 import { loadGarmentsByIds } from "@/lib/garments/load-catalog";
 import { mediaAssetDisplayPath } from "@/lib/media/display";
@@ -11,6 +12,11 @@ import {
   type OutfitInRange,
 } from "@/lib/outfits/day-looks-in-range";
 import { loadFailedPlanDaysByDay } from "@/lib/outfits/weekly-plan-failures";
+import { loadPlannedWeatherByDay } from "@/lib/outfits/weekly-plan-weather";
+import {
+  buildWeekWeather,
+  type TodayDayWeather,
+} from "@/lib/outfits/week-weather";
 import {
   addDaysIso,
   productTodayIso,
@@ -80,6 +86,8 @@ export type TodayPageData = {
   hasWearerPhoto: boolean;
   /** Quiet line under today's date, e.g. "New York, NY · 54° rain". */
   weatherLine: string;
+  /** Forecast for today and later days, keyed by wornOn; empty if unavailable. */
+  weekWeather: Record<string, TodayDayWeather>;
 };
 
 const WEEKDAY_SHORT = [
@@ -171,6 +179,7 @@ export async function loadTodayPageData(
       lastWeek: [],
       hasWearerPhoto: false,
       weatherLine: resolveOutfitLocation(),
+      weekWeather: {},
     };
   }
 
@@ -188,6 +197,14 @@ export async function loadTodayPageData(
       console.error("[today] weather failed", e);
       return place;
     }
+  });
+  const weekWeatherPromise = locationPromise.then(async (stored) => {
+    const place = resolveOutfitLocation(stored ?? undefined);
+    const [forecastByDay, plannedByDay] = await Promise.all([
+      loadDayForecasts(place),
+      loadPlannedWeatherByDay(userId, weekStartIso),
+    ]);
+    return { place, forecastByDay, plannedByDay };
   });
   const garmentCountPromise = (async () => {
     if (!sql) return 0;
@@ -219,6 +236,7 @@ export async function loadTodayPageData(
     weatherLine,
     failedByDay,
     reviewByDay,
+    weekWeatherInput,
   ] = await Promise.all([
     garmentCountPromise,
     getWearerPhoto(userId),
@@ -227,6 +245,7 @@ export async function loadTodayPageData(
     weatherLinePromise,
     loadFailedPlanDaysByDay(userId, weekStartIso),
     reviewPromise,
+    weekWeatherPromise,
   ]);
 
   const referencedIds = new Set<string>();
@@ -287,6 +306,11 @@ export async function loadTodayPageData(
         worn: outfit.worn,
       };
     });
+  const fitDays = new Set(
+    Object.entries(weekLooks)
+      .filter(([, look]) => look.kind === "fit")
+      .map(([wornOn]) => wornOn),
+  );
 
   return {
     todayIso,
@@ -299,5 +323,11 @@ export async function loadTodayPageData(
     lastWeek,
     hasWearerPhoto: Boolean(wearerPhoto?.imageUrl),
     weatherLine,
+    weekWeather: buildWeekWeather({
+      todayIso,
+      weekStartIso,
+      fitDays,
+      ...weekWeatherInput,
+    }),
   };
 }

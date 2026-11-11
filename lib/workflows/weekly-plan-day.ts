@@ -1,4 +1,8 @@
 import { formatClosetCatalog, type CatalogGarment } from "@/lib/ai/lookbook/catalog";
+import {
+  dayWeatherPrompt,
+  weatherSafeGarments,
+} from "@/lib/ai/weather/day-weather-rules";
 import { isOutfitPlanError } from "@/lib/ai/lookbook/plan-error";
 import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
@@ -102,7 +106,8 @@ class DayStackError extends Error {
 /**
  * Plan one day of the week from the closet minus `lockedTopIds`. Never throws
  * for a model failure: the caller keeps the other days and shows `message`
- * on this one.
+ * on this one. With `day.forecast`, the model gets that day's weather rules
+ * (see `dayWeatherRules`) and wet days leave suede out of the catalog.
  *
  * Repeat guard: Outfits confirmed worn inside the repeat window are named in
  * the prompt, and a plan that still repeats one exactly is asked for again
@@ -119,7 +124,10 @@ export async function planWeeklyDay(
   alreadyPlanned: AlreadyPlannedLook[],
   repeat?: RepeatWindowInput,
 ): Promise<PlanWeeklyDayResult> {
-  const available = availableGarments(garments, lockedTopIds);
+  const available = weatherSafeGarments(
+    availableGarments(garments, lockedTopIds),
+    day.forecast,
+  );
   if (!catalogCanFormLook(available)) return { status: "closet-exhausted" };
 
   const { avoid } = repeat
@@ -150,6 +158,9 @@ export async function planWeeklyDay(
         location: style.location,
         weekly: true,
         weeklyWeekday: day.weekday,
+        dayWeather: day.forecast
+          ? dayWeatherPrompt(day.forecast, day.weekday, style.location)
+          : undefined,
         alreadyPlanned: alreadyPlanned.slice(),
         avoidOutfits: avoidOutfits.length > 0 ? avoidOutfits : undefined,
       });

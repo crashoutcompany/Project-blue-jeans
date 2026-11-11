@@ -215,6 +215,29 @@ describe("runOutfitPlanStep", () => {
   });
 });
 
+describe("runOutfitPlanStep with a day forecast", () => {
+  beforeEach(() => {
+    model.current = undefined;
+  });
+
+  it("puts the forecast in the prompt and offers no getWeather tool", async () => {
+    const mock = useModel([textReply(JSON.stringify({ looks: [look] }))]);
+
+    await runOutfitPlanStep({
+      ...params,
+      dayWeather:
+        "Forecast for Friday in New York, NY: Rain, high 46°F / low 37°F.\nWeather rules for this day:\n- Wet day: avoid suede and nubuck, especially shoes.",
+    });
+
+    const call = mock.doGenerateCalls[0];
+    expect(call?.tools ?? []).toHaveLength(0);
+    const prompt = JSON.stringify(call?.prompt);
+    expect(prompt).toContain("Forecast for Friday in New York, NY");
+    expect(prompt).toContain("avoid suede");
+    expect(prompt).not.toContain("call getWeather for this place");
+  });
+});
+
 describe("extractJsonObject", () => {
   it("returns undefined when there is no object", () => {
     expect(extractJsonObject("no json here")).toBeUndefined();
