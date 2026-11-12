@@ -9,6 +9,9 @@ export const COMPRESS_INITIAL_QUALITY = 0.82;
 /** Skip compression for files already under this size (MB) */
 export const COMPRESS_SKIP_BELOW_MB = 0.35;
 
+/** Worker bundle vendored in /public (a unit test checks it matches the package). */
+const WORKER_LIB_PATH = "/vendor/browser-image-compression.js";
+
 /**
  * Prefer formats that keep an alpha channel when the source has one.
  * JPEG always flattens transparency to an opaque (usually white) background.
@@ -45,6 +48,9 @@ export async function compressImageForUpload(file: File): Promise<File> {
   const options: Parameters<typeof imageCompression>[1] = {
     maxWidthOrHeight: COMPRESS_MAX_EDGE_PX,
     useWebWorker: true,
+    // Self-hosted copy (public/vendor, kept in sync by a unit test) so the CSP
+    // does not need to allow cdn.jsdelivr.net. Workers need an absolute URL.
+    libURL: new URL(WORKER_LIB_PATH, globalThis.location.origin).href,
     initialQuality: COMPRESS_INITIAL_QUALITY,
     maxSizeMB: Math.max(sizeMB, 4),
     fileType,
