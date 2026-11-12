@@ -159,6 +159,29 @@ describe("createAuth email OTP", () => {
   });
 });
 
+describe("createAuth trusted origins", () => {
+  function trustedOrigins(env: { VERCEL_ENV?: string }) {
+    return createAuth({
+      appName: "Project Blue Jeans",
+      database: memoryAdapter({}),
+      env: { BETTER_AUTH_SECRET: SECRET, ...env },
+      productionUrl: ORIGIN,
+      previewOrigin: "https://*-preview.vercel.app",
+    }).options.trustedOrigins;
+  }
+
+  it("trusts the preview wildcard outside production", () => {
+    expect(trustedOrigins({ VERCEL_ENV: "preview" })).toContain(
+      "https://*-preview.vercel.app",
+    );
+    expect(trustedOrigins({})).toContain("https://*-preview.vercel.app");
+  });
+
+  it("does not trust the preview wildcard in production", () => {
+    expect(trustedOrigins({ VERCEL_ENV: "production" })).toEqual([ORIGIN]);
+  });
+});
+
 describe("createAuth rate limiting", () => {
   function buildOtpAuth(extraEnv: { NODE_ENV?: string } = {}) {
     return createAuth({
