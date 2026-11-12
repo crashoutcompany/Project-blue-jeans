@@ -95,6 +95,12 @@ const TOP_B = "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22";
 const BOTTOM = "c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33";
 const SHOE = "e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55";
 const TOP_C = "f5eebc99-9c0b-4ef8-bb6d-6bb9bd380a66";
+// A new plan's id is generated up front; pin it so tests can assert on it.
+vi.mock("node:crypto", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:crypto")>()),
+  randomUUID: () => "11111111-1111-4111-8111-111111111111",
+}));
+
 const PLAN_ID = "11111111-1111-4111-8111-111111111111";
 const USER_ID = "user-1";
 const WEEK_START = "2026-08-09";
@@ -205,7 +211,11 @@ function mockSql(state: {
     }
     return Promise.resolve([]);
   });
-  vi.mocked(requireSql).mockReturnValue(sql as never);
+  vi.mocked(requireSql).mockReturnValue(
+    Object.assign(sql, {
+      transaction: (queries: Promise<unknown>[]) => Promise.all(queries),
+    }) as never,
+  );
 }
 
 const lookInserts = (calls: SqlCall[]) =>
@@ -290,7 +300,7 @@ describe("runWeeklyOutfitsJob with a forecast", () => {
     const [saturday] = promptsFor(mock, "Saturday");
     expect(saturday).toContain("call getWeather for this place");
 
-    const raw = JSON.parse(String(storedStep1Raw(calls)?.values[1]));
+    const raw = JSON.parse(String(storedStep1Raw(calls)?.values[2]));
     expect(raw.plannedWeather).toEqual({ "4": rainyThursday, "5": dryFriday });
   });
 
@@ -312,7 +322,7 @@ describe("runWeeklyOutfitsJob with a forecast", () => {
     expect(res.ok).toBe(true);
     expect(promptsFor(mock, "Thursday")[0]).not.toContain("Forecast for");
     expect(lookInserts(calls)).toHaveLength(2);
-    const raw = JSON.parse(String(storedStep1Raw(calls)?.values[1]));
+    const raw = JSON.parse(String(storedStep1Raw(calls)?.values[2]));
     expect(raw.plannedWeather).toEqual({});
   });
 });
