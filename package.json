@@ -10,6 +10,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "if [ \"$VERCEL_ENV\" = production ] && [ -z \"$GITHUB_ACTIONS\" ]; then pnpm db:migrate; fi && next build",
+    "db:migrate": "tsx scripts/migrate.ts",
     "start": "next start",
     "lint": "eslint",
     "doctor": "react-doctor",
