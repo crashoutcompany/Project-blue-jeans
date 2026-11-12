@@ -14,7 +14,9 @@ export async function POST(request: Request) {
   });
   // 303 so the browser follows the redirect with GET.
   const response = NextResponse.redirect(new URL("/signin", request.url), 303);
-  const setCookie = signOutResponse.headers.get("set-cookie");
-  if (setCookie) response.headers.set("set-cookie", setCookie);
+  // `get("set-cookie")` comma-joins cookies into one invalid header; append each.
+  for (const cookie of signOutResponse.headers.getSetCookie()) {
+    response.headers.append("set-cookie", cookie);
+  }
   return response;
 }
