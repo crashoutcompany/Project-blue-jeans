@@ -1,5 +1,15 @@
 version: 2
 updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Minor and patch bumps share one PR; majors stay separate so they get review.
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
