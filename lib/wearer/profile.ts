@@ -55,8 +55,7 @@ export async function getWearerPhoto(
  * upload that is not theirs is a client error, not a server failure.
  */
 export type WearerPhotoResult =
-  | { ok: true }
-  | { ok: false; message: string; reason: "not_found" | "failed" };
+  { ok: true } | { ok: false; message: string; reason: "not_found" | "failed" };
 
 export async function saveWearerPhoto(input: {
   userId: string;
@@ -89,7 +88,7 @@ export async function saveWearerPhoto(input: {
     const previousAssetId = existing[0]?.media_asset_id?.trim() || null;
     const displayUrl = mediaAssetDisplayPath(asset.id);
 
-    await sql`
+    const upsert = sql`
       INSERT INTO wearer_profile (
         user_id,
         image_url,
@@ -110,8 +109,28 @@ export async function saveWearerPhoto(input: {
         media_asset_id = EXCLUDED.media_asset_id,
         updated_at = now()
     `;
+    const staleFile = Boolean(
+      previousKey && previousKey !== asset.providerFileKey,
+    );
+    const staleAssetId =
+      previousAssetId && previousAssetId !== asset.id ? previousAssetId : null;
 
-    if (previousKey && previousKey !== asset.providerFileKey) {
+    if (!staleFile && staleAssetId) {
+      // No file to delete first, so the profile swap and the old row's
+      // removal commit together.
+      await sql.transaction([
+        upsert,
+        sql`
+          DELETE FROM media_assets
+          WHERE id = ${staleAssetId}::uuid
+            AND user_id = ${input.userId}
+        `,
+      ]);
+      return { ok: true };
+    }
+    await upsert;
+
+    if (previousKey && staleFile) {
       const previous = previousAssetId
         ? await getOwnedMediaAsset(input.userId, previousAssetId)
         : null;
@@ -123,19 +142,13 @@ export async function saveWearerPhoto(input: {
         [previousKey],
         resolved.ok ? resolved.token : null,
       );
-      if (previousAssetId && previousAssetId !== asset.id && deleted) {
+      if (staleAssetId && deleted) {
         await sql`
           DELETE FROM media_assets
-          WHERE id = ${previousAssetId}::uuid
+          WHERE id = ${staleAssetId}::uuid
             AND user_id = ${input.userId}
         `;
       }
-    } else if (previousAssetId && previousAssetId !== asset.id) {
-      await sql`
-        DELETE FROM media_assets
-        WHERE id = ${previousAssetId}::uuid
-          AND user_id = ${input.userId}
-      `;
     }
     return { ok: true };
   } catch (e) {

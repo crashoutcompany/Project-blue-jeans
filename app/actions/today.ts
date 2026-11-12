@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
+import { consumeGeneration } from "@/lib/generation-rate-limit";
 import { revalidateOutfitSurfaces } from "@/lib/cache/revalidate-wearer-surfaces";
 import { logServerError } from "@/lib/server/safe-client-error";
 import {
@@ -35,6 +36,8 @@ export async function planMyWeek(): Promise<
 > {
   const gate = await assertAdmittedForServerAction();
   if (!gate.ok) return { ok: false, message: gate.message };
+  const limit = await consumeGeneration(gate.userId);
+  if (!limit.allowed) return { ok: false, message: limit.message };
 
   const todayIso = productTodayIso();
   const weekStart = sundayWeekStartIso(todayIso);
@@ -75,6 +78,9 @@ export async function regenerateDay(
   if (!parsed.success) {
     return { ok: false, message: "Invalid date." };
   }
+
+  const limit = await consumeGeneration(gate.userId);
+  if (!limit.allowed) return { ok: false, message: limit.message };
 
   try {
     const result = await regenerateWeeklyDay({
