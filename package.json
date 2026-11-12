@@ -29,7 +29,7 @@
     "@neondatabase/serverless": "^1.0.2",
     "@uploadthing/react": "^7.3.3",
     "@upstash/redis": "^1.39.0",
-    "ai": "^6.0.154",
+    "ai": "^7.0.166",
     "better-auth": "^1.7.7",
     "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.1",
