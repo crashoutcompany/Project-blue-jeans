@@ -4,6 +4,10 @@ vi.mock("@/lib/auth/admitted", () => ({
   assertAdmittedForServerAction: vi.fn(),
 }));
 
+vi.mock("@/lib/generation-rate-limit", () => ({
+  consumeGeneration: vi.fn(),
+}));
+
 vi.mock("@/lib/outfits/persist-generator-outfit", () => ({
   setDayWorn: vi.fn(),
   unwearDay: vi.fn(),
@@ -39,6 +43,7 @@ import {
   notAdmitted,
 } from "@/tests/helpers/admission";
 import { assertAdmittedForServerAction } from "@/lib/auth/admitted";
+import { consumeGeneration } from "@/lib/generation-rate-limit";
 import {
   setDayWorn,
   unwearDay,
@@ -55,6 +60,7 @@ import {
 } from "@/app/actions/today";
 
 const gate = vi.mocked(assertAdmittedForServerAction);
+const consume = vi.mocked(consumeGeneration);
 const unwear = vi.mocked(unwearDay);
 const setWorn = vi.mocked(setDayWorn);
 const runJob = vi.mocked(runWeeklyOutfitsJob);
@@ -67,6 +73,7 @@ const PLAN_LOOK_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 beforeEach(() => {
   vi.clearAllMocks();
   gate.mockResolvedValue(admitted("u1"));
+  consume.mockResolvedValue({ allowed: true });
 });
 
 describe("planMyWeek", () => {
@@ -77,6 +84,17 @@ describe("planMyWeek", () => {
       ok: false,
       message: NOT_ADMITTED_MESSAGE,
     });
+    expect(runJob).not.toHaveBeenCalled();
+  });
+
+  it("stops at the generation limit without planning", async () => {
+    consume.mockResolvedValue({ allowed: false, message: "Slow down." });
+
+    await expect(planMyWeek()).resolves.toEqual({
+      ok: false,
+      message: "Slow down.",
+    });
+    expect(consume).toHaveBeenCalledWith("u1");
     expect(runJob).not.toHaveBeenCalled();
   });
 
@@ -194,6 +212,16 @@ describe("regenerateDay", () => {
     await expect(regenerateDay("2026-08-12")).resolves.toEqual({
       ok: false,
       message: NOT_ADMITTED_MESSAGE,
+    });
+    expect(regenerate).not.toHaveBeenCalled();
+  });
+
+  it("stops at the generation limit without replanning", async () => {
+    consume.mockResolvedValue({ allowed: false, message: "Slow down." });
+
+    await expect(regenerateDay("2026-08-12")).resolves.toEqual({
+      ok: false,
+      message: "Slow down.",
     });
     expect(regenerate).not.toHaveBeenCalled();
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PRODUCTION_URL } from "./config";
+import { AUTH_PRODUCTION_URL as PRODUCTION_URL } from "./config";
 import { isLoopbackUrl, resolveAuthBaseUrl } from "./base-url";
 
 describe("isLoopbackUrl", () => {

@@ -162,8 +162,14 @@ export function createAuth({
       customStorage: rateLimitStore,
     },
     baseURL: resolveAuthBaseUrl(productionUrl, env),
+    // The preview wildcard matches every deployment on the team's Vercel
+    // scope, so production must not trust it.
     trustedOrigins: [
-      ...new Set([productionUrl, previewOrigin, ...extraTrustedOrigins]),
+      ...new Set([
+        productionUrl,
+        ...(env.VERCEL_ENV === "production" ? [] : [previewOrigin]),
+        ...extraTrustedOrigins,
+      ]),
     ],
     database,
     secret,

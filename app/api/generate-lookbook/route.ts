@@ -5,6 +5,7 @@ import {
   generateLookbook,
   type GenerateLookbookInput,
 } from "@/lib/lookbook/generate-lookbook";
+import { consumeGeneration } from "@/lib/generation-rate-limit";
 import { safeClientMessage } from "@/lib/server/safe-client-error";
 
 /** Plan + up to 3 parallel hero images. */
@@ -20,6 +21,14 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false as const, message: gate.message },
       { status: gate.status },
+    );
+  }
+
+  const limit = await consumeGeneration(gate.userId);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { ok: false as const, message: limit.message },
+      { status: 429 },
     );
   }
 
