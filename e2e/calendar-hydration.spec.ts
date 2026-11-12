@@ -1,10 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * Regression guard for the /calendar hydration mismatch: React logged
- * "Couldn't find all resumable slots by key/index during replaying" and fell
- * back to client rendering. Production builds minify most React messages, so
- * match the minified hydration error codes (418/419/422/423/425) too.
+ * Regression guard for /calendar hydration. The original bug logged
+ * "Couldn't find all resumable slots by key/index during replaying" on the
+ * server (digest in the Vercel runtime logs), where Playwright can't see it;
+ * its unit-level guard is the clock-read test in outfit-calendar.test.tsx.
+ * This spec covers the browser side: no hydration errors, and the "today"
+ * highlight comes from the server's product-timezone date whatever timezone
+ * the browser is in. Production builds minify most React messages, so match
+ * the minified hydration error codes (418/419/422/423/425) too.
  */
 const HYDRATION_ERROR =
   /hydrat|resumable slots|did(?:n't| not) match|react\.dev\/errors\/(?:418|419|422|423|425)|Minified React error #(?:418|419|422|423|425)/i;
@@ -27,6 +31,16 @@ const CASES = [
   { name: "default month", path: "/calendar" },
   { name: "explicit month", path: "/calendar?year=2025&month=3" },
 ];
+
+function productToday() {
+  const [y, m, d] = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+  })
+    .format(new Date())
+    .split("-")
+    .map(Number);
+  return { y, m, d };
+}
 
 // The product clock is America/New_York; browsers elsewhere must not change
 // what hydrates. Kiritimati (UTC+14) and Honolulu (UTC-10) straddle "today".
@@ -54,6 +68,17 @@ test.describe("calendar hydration (admin)", () => {
           expect(errors).toEqual([]);
         });
       }
+
+      test("highlights product-timezone today", async ({ page }) => {
+        const { y, m, d } = productToday();
+        await page.goto(`/calendar?year=${y}&month=${m}`);
+        await expect(page.getByTestId("calendar-content")).toBeVisible({
+          timeout: 20_000,
+        });
+        const today = page.locator('[aria-current="date"]');
+        await expect(today).toHaveCount(1);
+        await expect(today).toContainText(new RegExp(`^${d}\\b`));
+      });
     });
   }
 });

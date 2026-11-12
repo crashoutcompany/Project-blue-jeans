@@ -15,10 +15,7 @@ import type {
 import { WoreThisButton } from "@/components/outfit/wore-this-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { shouldBypassImageOptimizer } from "@/lib/media/display";
-import {
-  formatProductMonthYear,
-  productTodayIso,
-} from "@/lib/time/product-timezone";
+import { formatProductMonthYear } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = [
@@ -113,12 +110,20 @@ export function OutfitCalendar({
   month,
   saved,
   weeklyDrafts,
+  todayIso,
   isPlaceholder = false,
 }: {
   year: number;
   month: number;
   saved: CalendarSavedOutfit[];
   weeklyDrafts: CalendarWeeklyLook[];
+  /**
+   * Product-timezone today (YYYY-MM-DD), computed once on the server. Never
+   * read the clock here: this runs during prerender and on the client, and a
+   * clock read in the Suspense fallback broke the PPR resume. `null` on the
+   * placeholder, which has no "today".
+   */
+  todayIso: string | null;
   /** Prerendered shell with no real data yet; skip the empty state. */
   isPlaceholder?: boolean;
 }) {
@@ -151,7 +156,6 @@ export function OutfitCalendar({
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
 
-  const todayIso = productTodayIso();
   const title = formatProductMonthYear(year, month);
 
   const onApproveWeekly = useCallback(
@@ -261,7 +265,7 @@ export function OutfitCalendar({
           const key = isoDay(year, month, cell.day);
           const outfits = byDaySaved.get(key) ?? [];
           const weekly = byDayWeekly.get(key) ?? null;
-          const isToday = key === todayIso;
+          const isToday = todayIso !== null && key === todayIso;
           const primary = outfits[0];
           const heroUrl = primary?.imageUrl ?? weekly?.heroImageUrl ?? null;
           const thumbs = primary?.garmentThumbs ?? weekly?.garmentThumbs ?? [];
@@ -271,7 +275,8 @@ export function OutfitCalendar({
           const canApprove = Boolean(weekly) && outfits.length === 0;
           const isSaved = Boolean(primary);
           // Only a day that has happened can be marked worn.
-          const canMarkWorn = Boolean(primary) && key <= todayIso;
+          const canMarkWorn =
+            Boolean(primary) && todayIso !== null && key <= todayIso;
 
           return (
             <div
