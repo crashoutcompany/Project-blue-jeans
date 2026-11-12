@@ -1,10 +1,10 @@
 # Vercel applies .gitignore first — anything Git ignores is not deployed.
 # Use this file only for tracked paths you still want omitted from the deployment
-# bundle (e.g. editor assets, reference SQL, docs).
+# bundle (e.g. editor assets, docs). Keep db/ and scripts/: vercel-build runs
+# scripts/migrate.ts, which reads db/schema.sql and db/migrations/.
 
 .cursor
 .agents
-db
 **/*.md
 .github
 .git
@@ -12,5 +12,4 @@ db
 dist
 Thumbs.db
 
-scripts
 .husky
