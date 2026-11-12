@@ -1,4 +1,4 @@
-import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
+import { createGoogle, google } from "@ai-sdk/google";
 
 /**
  * All Gemini calls in this app use the **Gemini Developer API** (Google AI Studio),
@@ -13,7 +13,7 @@ export function geminiModel(modelId: string, apiKey: string) {
   if (!key) {
     throw new Error("Gemini API key is missing.");
   }
-  return createGoogleGenerativeAI({ apiKey: key })(modelId);
+  return createGoogle({ apiKey: key })(modelId);
 }
 
 /** Built-in Gemini tools (e.g. `urlContext`) from the Google AI SDK provider. */

@@ -95,7 +95,7 @@ export async function runHeroImageStep(
 
   const imageResult = await generateText({
     model: geminiModel(GEMINI_IMAGE_MODEL, params.apiKey),
-    system: tryOn ? STEP2_TRYON_SYSTEM : STEP2_SYSTEM,
+    instructions: tryOn ? STEP2_TRYON_SYSTEM : STEP2_SYSTEM,
     prompt: [
       {
         role: "user" as const,
