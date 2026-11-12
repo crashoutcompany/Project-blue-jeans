@@ -150,7 +150,7 @@ export async function analyzeGarmentFromImageUrl(
   if (productUrls.length > 0) {
     const result = await generateText({
       model,
-      system: SYSTEM,
+      instructions: SYSTEM,
       abortSignal: params.abortSignal,
       tools: urlContextTools,
       output: Output.object({ schema: garmentVisionSchema }),
@@ -163,7 +163,7 @@ export async function analyzeGarmentFromImageUrl(
   } else {
     const result = await generateObject({
       model,
-      system: SYSTEM,
+      instructions: SYSTEM,
       schema: garmentVisionSchema,
       abortSignal: params.abortSignal,
       messages,

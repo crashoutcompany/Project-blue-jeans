@@ -30,6 +30,11 @@ vi.mock("@/lib/workflows/repeat-window", () => ({
   loadRepeatWindow: vi.fn(async () => ({ wears: [], windowDays: 7 })),
 }));
 
+// No location falls back to a default, so the job would call Open-Meteo for real.
+vi.mock("@/lib/ai/weather/load-day-forecasts", () => ({
+  loadDayForecasts: vi.fn(async () => new Map()),
+}));
+
 vi.mock("@/lib/wearer/preferences", () => ({
   getWearerLocation: vi.fn(),
 }));

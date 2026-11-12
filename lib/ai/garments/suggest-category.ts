@@ -20,7 +20,7 @@ export async function suggestGarmentCategory(params: {
 }): Promise<z.infer<typeof garmentCategorySchema>> {
   const result = await generateObject({
     model: geminiModel(GEMINI_STRUCTURE_MODEL, params.apiKey),
-    system: SYSTEM,
+    instructions: SYSTEM,
     schema: z.object({
       category: garmentCategorySchema,
     }),
