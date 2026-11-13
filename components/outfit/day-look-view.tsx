@@ -103,6 +103,15 @@ export function DayLookView({
   const [pending, startTransition] = useTransition();
   const [regenerating, startRegenerate] = useTransition();
   const [manualChangeLookOpen, setManualChangeLookOpen] = useState(false);
+  const [closingSheet, setClosingSheet] = useState(false);
+  const [seenChangeLookParam, setSeenChangeLookParam] =
+    useState(changeLookFromUrl);
+  if (changeLookFromUrl !== seenChangeLookParam) {
+    setSeenChangeLookParam(changeLookFromUrl);
+    if (changeLookFromUrl) {
+      setClosingSheet(false);
+    }
+  }
 
   const look =
     data.weekLooks[selectedWornOn] ??
@@ -111,7 +120,7 @@ export function DayLookView({
   const dayFailure = look ? null : (data.failedDays[selectedWornOn] ?? null);
   const busy = pending || regenerating;
   const changeLookOpen =
-    canEdit && (changeLookFromUrl || manualChangeLookOpen);
+    canEdit && !closingSheet && (changeLookFromUrl || manualChangeLookOpen);
   const isTodaySelected = selectedWornOn === data.todayIso;
   const committedOutfitTopIds = closetGarments
     .filter((g) => g.category === "tops")
@@ -135,11 +144,13 @@ export function DayLookView({
   function setChangeLookOpen(open: boolean) {
     if (open) {
       if (!canEdit) return;
+      setClosingSheet(false);
       setManualChangeLookOpen(true);
       return;
     }
     setManualChangeLookOpen(false);
     if (changeLookFromUrl) {
+      setClosingSheet(true);
       router.replace("/");
     }
   }
