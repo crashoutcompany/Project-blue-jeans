@@ -1,3 +1,5 @@
+import { isTestingApiExposed } from "@/lib/e2e-env";
+
 /** Human-readable condition from Open-Meteo WMO weather codes. */
 function wmoCondition(code: number): string {
   if (code === 0) return "Clear sky";
@@ -63,6 +65,17 @@ type ForecastResponse = {
     weather_code?: number[];
   };
 };
+
+/**
+ * E2E builds (EXPOSE_TESTING_API=1, never on Vercel) skip Open-Meteo. A CI
+ * runner that hangs outbound requests would otherwise hold every Today render
+ * for the full 5s weather timeout and flake the page tests. Callers already
+ * treat an unavailable forecast as "no weather".
+ */
+const WEATHER_OFF_IN_E2E = {
+  ok: false,
+  error: "Weather is off in E2E test builds.",
+} as const;
 
 const GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
@@ -144,6 +157,7 @@ export async function fetchWeather(
   input: FetchWeatherInput,
   options?: { abortSignal?: AbortSignal },
 ): Promise<WeatherSnapshot> {
+  if (isTestingApiExposed()) return WEATHER_OFF_IN_E2E;
   const signal = options?.abortSignal;
 
   const place = await resolvePlace(input, signal);
@@ -235,6 +249,7 @@ export async function fetchDailyForecast(
   input: FetchWeatherInput,
   options?: { abortSignal?: AbortSignal; days?: number },
 ): Promise<DailyForecast> {
+  if (isTestingApiExposed()) return WEATHER_OFF_IN_E2E;
   const signal = options?.abortSignal;
   const forecastDays = Math.min(Math.max(options?.days ?? 7, 1), 16);
 
