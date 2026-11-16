@@ -40,6 +40,13 @@ vi.mock("@/lib/wearer/preferences", () => ({
   getWearerLocation: vi.fn(),
 }));
 
+// The job fetches a 7-day forecast from Open-Meteo. Keep unit tests off the
+// network: without this, each test waits on a real request (up to the 5s
+// forecast timeout), which times out the test where egress hangs, as in CI.
+vi.mock("@/lib/ai/weather/load-day-forecasts", () => ({
+  loadDayForecasts: vi.fn(async () => new Map()),
+}));
+
 vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
