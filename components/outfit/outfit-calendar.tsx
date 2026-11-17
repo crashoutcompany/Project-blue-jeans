@@ -14,8 +14,18 @@ import type {
 } from "@/lib/outfits/calendar-data";
 import { WoreThisButton } from "@/components/outfit/wore-this-button";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { shouldBypassImageOptimizer } from "@/lib/media/display";
-import { formatProductMonthYear } from "@/lib/time/product-timezone";
+import {
+  formatProductMonthYear,
+  formatProductWornOn,
+} from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = [
@@ -59,12 +69,20 @@ function isoDay(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+const CELL_IMAGE_SIZES =
+  "(max-width: 640px) 28vw, (max-width: 1024px) 14vw, 12vw";
+const CELL_THUMB_SIZES = "(max-width: 640px) 14vw, 8vw";
+
 function DayLookMedia({
   heroUrl,
   thumbs,
+  sizes = CELL_IMAGE_SIZES,
+  thumbSizes = CELL_THUMB_SIZES,
 }: {
   heroUrl: string | null;
   thumbs: CalendarLookThumb[];
+  sizes?: string;
+  thumbSizes?: string;
 }) {
   if (heroUrl) {
     return (
@@ -73,7 +91,7 @@ function DayLookMedia({
         alt=""
         fill
         className="object-cover"
-        sizes="(max-width: 640px) 28vw, (max-width: 1024px) 14vw, 12vw"
+        sizes={sizes}
         unoptimized={shouldBypassImageOptimizer(heroUrl) ? true : undefined}
       />
     );
@@ -94,7 +112,7 @@ function DayLookMedia({
             alt=""
             fill
             className="object-cover"
-            sizes="(max-width: 640px) 14vw, 8vw"
+            sizes={thumbSizes}
             unoptimized={
               shouldBypassImageOptimizer(thumb.imageUrl) ? true : undefined
             }
@@ -103,6 +121,77 @@ function DayLookMedia({
       ))}
     </div>
   );
+}
+
+type DayLook = {
+  key: string;
+  outfits: CalendarSavedOutfit[];
+  weekly: CalendarWeeklyLook | null;
+  primary: CalendarSavedOutfit | undefined;
+  heroUrl: string | null;
+  thumbs: CalendarLookThumb[];
+  hasMedia: boolean;
+  label: string | null;
+  canApprove: boolean;
+  canMarkWorn: boolean;
+};
+
+function dayLook(
+  key: string,
+  byDaySaved: Map<string, CalendarSavedOutfit[]>,
+  byDayWeekly: Map<string, CalendarWeeklyLook>,
+  todayIso: string | null,
+): DayLook {
+  const outfits = byDaySaved.get(key) ?? [];
+  const weekly = byDayWeekly.get(key) ?? null;
+  const primary = outfits[0];
+  const heroUrl = primary?.imageUrl ?? weekly?.heroImageUrl ?? null;
+  const thumbs = primary?.garmentThumbs ?? weekly?.garmentThumbs ?? [];
+  return {
+    key,
+    outfits,
+    weekly,
+    primary,
+    heroUrl,
+    thumbs,
+    hasMedia: Boolean(heroUrl) || thumbs.length > 0,
+    label: primary?.name?.trim() || primary?.occasion || weekly?.title || null,
+    canApprove: Boolean(weekly) && outfits.length === 0,
+    // Only a day that has happened can be marked worn.
+    canMarkWorn: Boolean(primary) && todayIso !== null && key <= todayIso,
+  };
+}
+
+/**
+ * Phone-only status mark in a day tile's corner, standing in for the label
+ * and buttons that only fit from `sm` up.
+ */
+function DayStatusMark({ look }: { look: DayLook }) {
+  if (look.primary) {
+    const worn = look.primary.worn;
+    return (
+      <span
+        aria-hidden
+        className={cn(
+          "inline-flex size-4 items-center justify-center rounded-full shadow-sm",
+          worn
+            ? "bg-primary text-primary-foreground"
+            : "bg-black/55 text-white",
+        )}
+      >
+        <Check className="size-2.5" strokeWidth={3} />
+      </span>
+    );
+  }
+  if (look.weekly) {
+    return (
+      <span
+        aria-hidden
+        className="block size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-black/40"
+      />
+    );
+  }
+  return null;
 }
 
 export function OutfitCalendar({
@@ -130,6 +219,8 @@ export function OutfitCalendar({
   const router = useRouter();
   const [pendingLookId, setPendingLookId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  /** Day open in the phone detail sheet (YYYY-MM-DD), if any. */
+  const [openDay, setOpenDay] = useState<string | null>(null);
 
   const byDaySaved = useMemo(() => {
     const m = new Map<string, CalendarSavedOutfit[]>();
@@ -152,6 +243,11 @@ export function OutfitCalendar({
   const cells = useMemo(() => buildMonthCells(year, month), [year, month]);
   const isMonthEmpty =
     !isPlaceholder && saved.length === 0 && weeklyDrafts.length === 0;
+
+  const lookDays = useMemo(() => {
+    const keys = new Set<string>([...byDaySaved.keys(), ...byDayWeekly.keys()]);
+    return [...keys].sort();
+  }, [byDaySaved, byDayWeekly]);
 
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
@@ -188,6 +284,7 @@ export function OutfitCalendar({
           <p className="mt-1 text-sm text-muted-foreground">
             Saved looks by day. Weekly AI plans show here until you approve them
             into your archive. Tap Wore this on a day you actually wore it.
+            <span className="sm:hidden"> Tap a day to open its look.</span>
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-2xl border border-border/70 bg-muted/30 p-1">
@@ -263,20 +360,21 @@ export function OutfitCalendar({
           }
 
           const key = isoDay(year, month, cell.day);
-          const outfits = byDaySaved.get(key) ?? [];
-          const weekly = byDayWeekly.get(key) ?? null;
+          const look = dayLook(key, byDaySaved, byDayWeekly, todayIso);
+          const {
+            outfits,
+            weekly,
+            primary,
+            heroUrl,
+            thumbs,
+            hasMedia,
+            label,
+            canApprove,
+            canMarkWorn,
+          } = look;
           const isToday = todayIso !== null && key === todayIso;
-          const primary = outfits[0];
-          const heroUrl = primary?.imageUrl ?? weekly?.heroImageUrl ?? null;
-          const thumbs = primary?.garmentThumbs ?? weekly?.garmentThumbs ?? [];
-          const hasMedia = Boolean(heroUrl) || thumbs.length > 0;
-          const label =
-            primary?.name?.trim() || primary?.occasion || weekly?.title || null;
-          const canApprove = Boolean(weekly) && outfits.length === 0;
           const isSaved = Boolean(primary);
-          // Only a day that has happened can be marked worn.
-          const canMarkWorn =
-            Boolean(primary) && todayIso !== null && key <= todayIso;
+          const hasLook = isSaved || Boolean(weekly);
 
           return (
             <div
@@ -292,10 +390,11 @@ export function OutfitCalendar({
                 <DayLookMedia heroUrl={heroUrl} thumbs={thumbs} />
               </div>
 
-              <div className="relative z-10 flex items-start justify-between gap-1 p-1.5">
+              <div className="relative z-10 flex items-start justify-between gap-1 p-1 sm:p-1.5">
                 <span
                   className={cn(
                     "text-xs font-semibold tabular-nums",
+                    hasMedia && "max-sm:px-1 max-sm:text-[0.7rem]",
                     hasMedia
                       ? "rounded-md bg-black/45 px-1.5 py-0.5 text-white"
                       : "text-muted-foreground",
@@ -306,7 +405,7 @@ export function OutfitCalendar({
                 {outfits.length > 1 ? (
                   <span
                     className={cn(
-                      "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium",
+                      "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium max-sm:hidden",
                       hasMedia
                         ? "bg-black/45 text-white"
                         : "bg-muted text-muted-foreground",
@@ -317,7 +416,7 @@ export function OutfitCalendar({
                 ) : isSaved ? (
                   <span
                     className={cn(
-                      "inline-flex size-5 items-center justify-center rounded-full",
+                      "inline-flex size-5 items-center justify-center rounded-full max-sm:hidden",
                       hasMedia
                         ? "bg-black/45 text-white"
                         : "bg-muted text-primary",
@@ -332,7 +431,7 @@ export function OutfitCalendar({
               {label || canApprove || canMarkWorn ? (
                 <div
                   className={cn(
-                    "absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 p-1.5 pt-8",
+                    "absolute inset-x-0 bottom-0 z-10 hidden flex-col gap-1.5 p-1.5 pt-8 sm:flex",
                     hasMedia
                       ? "bg-gradient-to-t from-black/75 via-black/35 to-transparent"
                       : null,
@@ -374,10 +473,207 @@ export function OutfitCalendar({
                   ) : null}
                 </div>
               ) : null}
+
+              {hasLook ? (
+                <>
+                  <div className="pointer-events-none absolute right-1 bottom-1 z-10 sm:hidden">
+                    <DayStatusMark look={look} />
+                  </div>
+                  {/* Phones: the whole tile opens the day's detail sheet. */}
+                  <button
+                    type="button"
+                    className="absolute inset-0 z-20 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:hidden"
+                    aria-label={`Open ${formatProductWornOn(key)}${label ? `: ${label}` : ""}`}
+                    aria-haspopup="dialog"
+                    onClick={() => {
+                      setActionError(null);
+                      setOpenDay(key);
+                    }}
+                  />
+                </>
+              ) : null}
             </div>
           );
         })}
       </div>
+
+      {lookDays.length > 0 ? (
+        <div
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:hidden"
+          aria-hidden
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <span className="block size-2.5 rounded-full bg-primary" />
+            Plan to approve
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex size-4 items-center justify-center rounded-full bg-black/55 text-white">
+              <Check className="size-2.5" strokeWidth={3} />
+            </span>
+            Saved
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <Check className="size-2.5" strokeWidth={3} />
+            </span>
+            Worn
+          </span>
+        </div>
+      ) : null}
+
+      <DaySheet
+        openDay={openDay}
+        lookDays={lookDays}
+        onOpenDayChange={(key) => {
+          setActionError(null);
+          setOpenDay(key);
+        }}
+        getLook={(key) => dayLook(key, byDaySaved, byDayWeekly, todayIso)}
+        pendingLookId={pendingLookId}
+        actionError={actionError}
+        onApproveWeekly={onApproveWeekly}
+        onError={setActionError}
+      />
     </div>
+  );
+}
+
+/**
+ * Phone detail sheet for one day: the look's photo and title at a readable
+ * size, with Approve / Wore this as full-width, thumb-sized buttons. Arrows
+ * step through the month's days that have a look.
+ */
+function DaySheet({
+  openDay,
+  lookDays,
+  onOpenDayChange,
+  getLook,
+  pendingLookId,
+  actionError,
+  onApproveWeekly,
+  onError,
+}: {
+  openDay: string | null;
+  lookDays: string[];
+  onOpenDayChange: (key: string | null) => void;
+  getLook: (key: string) => DayLook;
+  pendingLookId: string | null;
+  actionError: string | null;
+  onApproveWeekly: (planLookId: string) => void;
+  onError: (message: string | null) => void;
+}) {
+  const look = openDay ? getLook(openDay) : null;
+  const idx = openDay ? lookDays.indexOf(openDay) : -1;
+  const prevDay = idx > 0 ? lookDays[idx - 1]! : null;
+  const nextDay =
+    idx >= 0 && idx < lookDays.length - 1 ? lookDays[idx + 1]! : null;
+
+  let status: string | null = null;
+  if (look?.primary) {
+    status = look.primary.worn ? "Saved and worn" : "Saved to your archive";
+    if (look.outfits.length > 1) {
+      status += ` (+${look.outfits.length - 1} more this day)`;
+    }
+  } else if (look?.weekly) {
+    status = "Weekly plan, not approved yet";
+  }
+
+  return (
+    <Sheet
+      open={openDay !== null}
+      onOpenChange={(open) => {
+        if (!open) onOpenDayChange(null);
+      }}
+    >
+      <SheetContent
+        side="bottom"
+        className="max-h-[90svh] gap-0 overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))] sm:mx-auto sm:max-w-md"
+      >
+        {look && openDay ? (
+          <>
+            <SheetHeader className="pr-12">
+              <SheetTitle className="text-lg">
+                {formatProductWornOn(openDay)}
+              </SheetTitle>
+              <SheetDescription>{status}</SheetDescription>
+            </SheetHeader>
+
+            <div className="flex items-center gap-2 px-4">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-11 shrink-0 rounded-xl"
+                aria-label="Previous look"
+                disabled={!prevDay}
+                onClick={() => prevDay && onOpenDayChange(prevDay)}
+              >
+                <ChevronLeft className="size-5" />
+              </Button>
+              <div className="relative mx-auto aspect-[3/4] h-[min(46svh,22rem)] overflow-hidden rounded-2xl border border-foreground/10 bg-muted/60">
+                <DayLookMedia
+                  heroUrl={look.heroUrl}
+                  thumbs={look.thumbs}
+                  sizes="70vw"
+                  thumbSizes="35vw"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-11 shrink-0 rounded-xl"
+                aria-label="Next look"
+                disabled={!nextDay}
+                onClick={() => nextDay && onOpenDayChange(nextDay)}
+              >
+                <ChevronRight className="size-5" />
+              </Button>
+            </div>
+
+            {look.label ? (
+              <p className="px-4 pt-3 text-center font-serif text-xl leading-snug text-foreground">
+                {look.label}
+              </p>
+            ) : null}
+
+            {actionError ? (
+              <p
+                className="px-4 pt-2 text-center text-sm text-destructive"
+                role="alert"
+              >
+                {actionError}
+              </p>
+            ) : null}
+
+            <div className="flex flex-col gap-2 p-4">
+              {look.canApprove && look.weekly ? (
+                <Button
+                  type="button"
+                  disabled={pendingLookId === look.weekly.planLookId}
+                  className="h-11 w-full rounded-xl text-sm"
+                  aria-label={`Approve ${look.weekly.title}`}
+                  onClick={() => onApproveWeekly(look.weekly!.planLookId)}
+                >
+                  <Check className="size-4" />
+                  {pendingLookId === look.weekly.planLookId
+                    ? "Saving…"
+                    : "Approve"}
+                </Button>
+              ) : null}
+              {look.canMarkWorn && look.primary ? (
+                <WoreThisButton
+                  wornOn={openDay}
+                  worn={look.primary.worn}
+                  size="sm"
+                  className="h-11 w-full rounded-xl text-sm"
+                  onError={onError}
+                />
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </SheetContent>
+    </Sheet>
   );
 }

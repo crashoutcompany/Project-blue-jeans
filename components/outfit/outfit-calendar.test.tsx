@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const approveWeeklyPlanLook = vi.fn();
@@ -315,7 +315,9 @@ describe("OutfitCalendar", () => {
         screen.getByRole("button", { name: "Wore this on Mon, Mar 10" }),
       ).toBeInTheDocument();
       expect(
-        screen.queryByRole("button", { name: /Wed, Mar 12/ }),
+        screen.queryByRole("button", {
+          name: /^(Wore this|Worn) on Wed, Mar 12/,
+        }),
       ).not.toBeInTheDocument();
     });
 
@@ -340,6 +342,95 @@ describe("OutfitCalendar", () => {
         screen.getByRole("button", { name: "Worn on Sun, Mar 9. Tap to undo" }),
       );
       expect(markDayWorn).toHaveBeenCalledWith("2025-03-09", false);
+    });
+  });
+
+  describe("phone day sheet", () => {
+    const weekly = (wornOn: string, title: string, i: number) => ({
+      wornOn,
+      planLookId: `f47ac10b-58cc-4372-a567-0e02b2c3d47${i}`,
+      title,
+      heroImageUrl: null,
+      garmentIds: [],
+      garmentThumbs: [],
+    });
+
+    it("opens a day's look and approves it from the sheet", async () => {
+      const user = userEvent.setup();
+      approveWeeklyPlanLook.mockResolvedValue({ ok: true, outfitId: "x" });
+      render(
+        <OutfitCalendar
+          todayIso={TODAY}
+          year={2025}
+          month={1}
+          saved={[]}
+          weeklyDrafts={[weekly("2025-01-06", "Monday Kickoff", 0)]}
+        />,
+      );
+      // Closed until a day is tapped: one Approve (the tile's own).
+      expect(screen.getAllByRole("button", { name: /approve/i })).toHaveLength(
+        1,
+      );
+
+      await user.click(
+        screen.getByRole("button", { name: "Open Mon, Jan 6: Monday Kickoff" }),
+      );
+      const sheet = await screen.findByRole("dialog");
+      expect(sheet).toHaveTextContent("Mon, Jan 6");
+      expect(sheet).toHaveTextContent("Monday Kickoff");
+      expect(sheet).toHaveTextContent("Weekly plan, not approved yet");
+
+      const approve = within(sheet).getByRole("button", {
+        name: "Approve Monday Kickoff",
+      });
+      await user.click(approve);
+      expect(approveWeeklyPlanLook).toHaveBeenCalledWith(
+        "f47ac10b-58cc-4372-a567-0e02b2c3d470",
+      );
+    });
+
+    it("steps to the next and previous day with a look", async () => {
+      const user = userEvent.setup();
+      render(
+        <OutfitCalendar
+          todayIso={TODAY}
+          year={2025}
+          month={1}
+          saved={[]}
+          weeklyDrafts={[
+            weekly("2025-01-06", "Monday Kickoff", 0),
+            weekly("2025-01-09", "Thursday Layers", 1),
+          ]}
+        />,
+      );
+      await user.click(
+        screen.getByRole("button", { name: /^Open Mon, Jan 6/ }),
+      );
+      const sheet = await screen.findByRole("dialog");
+      expect(
+        within(sheet).getByRole("button", { name: "Previous look" }),
+      ).toBeDisabled();
+
+      await user.click(
+        within(sheet).getByRole("button", { name: "Next look" }),
+      );
+      expect(sheet).toHaveTextContent("Thursday Layers");
+      expect(
+        within(sheet).getByRole("button", { name: "Next look" }),
+      ).toBeDisabled();
+    });
+
+    it("offers no tap target on days without a look", () => {
+      render(
+        <OutfitCalendar
+          todayIso={TODAY}
+          year={2025}
+          month={1}
+          saved={[]}
+          weeklyDrafts={[weekly("2025-01-06", "Monday Kickoff", 0)]}
+        />,
+      );
+      expect(screen.getAllByRole("button", { name: /^Open / })).toHaveLength(1);
     });
   });
 
