@@ -65,7 +65,7 @@
     "eslint-config-next": "^16.4.6",
     "husky": "^9.1.7",
     "jsdom": "^31.0.1",
-    "neonctl": "^8.0.1",
+    "neonctl": "^9.4.0",
     "react-doctor": "^0.9.22",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
