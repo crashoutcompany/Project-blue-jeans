@@ -183,3 +183,25 @@ describe("fetchDailyForecast", () => {
     expect(result).toEqual({ ok: false, error: "Weather forecast failed (503)." });
   });
 });
+
+describe("weather in E2E test builds", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("skips Open-Meteo when the testing API is exposed", async () => {
+    vi.stubEnv("EXPOSE_TESTING_API", "1");
+    vi.stubEnv("VERCEL", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchWeather({ location: "Chicago" })).resolves.toMatchObject({
+      ok: false,
+    });
+    await expect(
+      fetchDailyForecast({ location: "Chicago" }, { days: 7 }),
+    ).resolves.toMatchObject({ ok: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
