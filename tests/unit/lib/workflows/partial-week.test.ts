@@ -1,4 +1,4 @@
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -7,8 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Gemini call and no database: SQL is a recording fake.
  */
 
-type GenerateResult = Awaited<ReturnType<MockLanguageModelV3["doGenerate"]>>;
-type GenerateOptions = Parameters<MockLanguageModelV3["doGenerate"]>[0];
+type GenerateResult = Awaited<ReturnType<MockLanguageModelV4["doGenerate"]>>;
+type GenerateOptions = Parameters<MockLanguageModelV4["doGenerate"]>[0];
 
 const { model } = vi.hoisted(() => ({
   model: { current: undefined as unknown },
@@ -162,7 +162,7 @@ function weekdayOf(options: GenerateOptions): string {
 function useModel(
   replies: Record<string, (options: GenerateOptions) => GenerateResult>,
 ) {
-  const mock = new MockLanguageModelV3({
+  const mock = new MockLanguageModelV4({
     doGenerate: async (options) => {
       const answer = replies[weekdayOf(options)];
       if (!answer) throw new Error(`unexpected day ${weekdayOf(options)}`);
@@ -174,7 +174,7 @@ function useModel(
 }
 
 /** Prompts the model saw for one weekday (first attempt + any repair). */
-function promptsFor(mock: MockLanguageModelV3, weekday: string): string[] {
+function promptsFor(mock: MockLanguageModelV4, weekday: string): string[] {
   return mock.doGenerateCalls
     .filter((c) => weekdayOf(c) === weekday)
     .map((c) => JSON.stringify(c.prompt));

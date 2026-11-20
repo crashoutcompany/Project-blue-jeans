@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 
 import { geminiModel } from "@/lib/ai/gemini-provider";
@@ -18,11 +18,13 @@ export async function suggestGarmentCategory(params: {
   mediaType: string;
   abortSignal?: AbortSignal;
 }): Promise<z.infer<typeof garmentCategorySchema>> {
-  const result = await generateObject({
+  const result = await generateText({
     model: geminiModel(GEMINI_STRUCTURE_MODEL, params.apiKey),
-    system: SYSTEM,
-    schema: z.object({
-      category: garmentCategorySchema,
+    instructions: SYSTEM,
+    output: Output.object({
+      schema: z.object({
+        category: garmentCategorySchema,
+      }),
     }),
     abortSignal: params.abortSignal,
     messages: [
@@ -42,5 +44,5 @@ export async function suggestGarmentCategory(params: {
       },
     ],
   });
-  return result.object.category;
+  return result.output.category;
 }

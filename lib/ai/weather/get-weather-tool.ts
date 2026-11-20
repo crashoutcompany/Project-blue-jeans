@@ -1,4 +1,4 @@
-import { tool, type ToolSet } from "ai";
+import { tool } from "ai";
 import { z } from "zod";
 
 import { fetchWeather } from "@/lib/ai/weather/fetch-weather";
@@ -47,7 +47,7 @@ const getWeatherTool = tool({
   },
 });
 
-/** Outfit-plan step 1 tools (cast keeps AI SDK ToolSet happy across package versions). */
+/** Outfit-plan step 1 tools. */
 export const outfitPlanTools = {
   getWeather: getWeatherTool,
-} as ToolSet;
+};

@@ -3,7 +3,7 @@ import {
   NoObjectGeneratedError,
   NoOutputGeneratedError,
   Output,
-  stepCountIs,
+  isStepCount,
 } from "ai";
 
 import { geminiModel } from "@/lib/ai/gemini-provider";
@@ -74,14 +74,14 @@ export async function runOutfitPlanStep(
   try {
     const result = await generateText({
       model: geminiModel(GEMINI_STRUCTURE_MODEL, params.apiKey),
-      system: STEP1_SYSTEM,
+      instructions: STEP1_SYSTEM,
       // A given day forecast replaces getWeather, which only knows today.
       tools: params.dayWeather ? undefined : outfitPlanTools,
       output: Output.object({
         schema: createLookbookModelSchema(lookCount),
         name: "outfit_plan",
       }),
-      stopWhen: stepCountIs(MAX_STEPS),
+      stopWhen: isStepCount(MAX_STEPS),
       // The last step must answer; a tool call there leaves no output at all.
       prepareStep: ({ stepNumber }) =>
         stepNumber >= MAX_STEPS - 1 ? { toolChoice: "none" } : undefined,

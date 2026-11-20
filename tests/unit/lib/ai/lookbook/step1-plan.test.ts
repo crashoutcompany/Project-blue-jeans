@@ -1,10 +1,10 @@
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type LanguageModelV3GenerateResult = Awaited<
-  ReturnType<MockLanguageModelV3["doGenerate"]>
+type LanguageModelV4GenerateResult = Awaited<
+  ReturnType<MockLanguageModelV4["doGenerate"]>
 >;
-type LanguageModelV3Content = LanguageModelV3GenerateResult["content"][number];
+type LanguageModelV4Content = LanguageModelV4GenerateResult["content"][number];
 
 const { model } = vi.hoisted(() => ({
   model: { current: undefined as unknown },
@@ -42,9 +42,9 @@ const params = {
 };
 
 function reply(
-  content: LanguageModelV3Content[],
+  content: LanguageModelV4Content[],
   finish: "stop" | "tool-calls" | "length" = "stop",
-): LanguageModelV3GenerateResult {
+): LanguageModelV4GenerateResult {
   return {
     content,
     finishReason: { unified: finish, raw: undefined },
@@ -83,8 +83,8 @@ const look = {
   garmentIds: [TOP, BOTTOM, SHOE],
 };
 
-function useModel(doGenerate: LanguageModelV3GenerateResult[]) {
-  const mock = new MockLanguageModelV3({ doGenerate });
+function useModel(doGenerate: LanguageModelV4GenerateResult[]) {
+  const mock = new MockLanguageModelV4({ doGenerate });
   model.current = mock;
   return mock;
 }

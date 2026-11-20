@@ -1,4 +1,4 @@
-import { generateObject, generateText, Output, type ToolSet } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 
 import { fetchUrlAsImagePart } from "@/lib/ai/fetch-image-part";
@@ -9,10 +9,10 @@ import {
   MAX_PRODUCT_URLS,
 } from "@/lib/ai/garments/extract-product-urls";
 
-/** Provider-defined Google tools; cast keeps AI SDK ToolSet happy across package versions. */
+/** Provider-defined Google tools. */
 const urlContextTools = {
   url_context: googleAi.tools.urlContext({}),
-} as ToolSet;
+};
 
 const garmentVisionSchema = z.object({
   name: z
@@ -145,30 +145,18 @@ export async function analyzeGarmentFromImageUrl(
     },
   ];
 
-  let object: z.infer<typeof garmentVisionSchema>;
-
-  if (productUrls.length > 0) {
-    const result = await generateText({
-      model,
-      system: SYSTEM,
-      abortSignal: params.abortSignal,
-      tools: urlContextTools,
-      output: Output.object({ schema: garmentVisionSchema }),
-      messages,
-    });
-    if (!result.output) {
-      throw new Error("Garment analysis returned no structured output.");
-    }
-    object = result.output;
-  } else {
-    const result = await generateObject({
-      model,
-      system: SYSTEM,
-      schema: garmentVisionSchema,
-      abortSignal: params.abortSignal,
-      messages,
-    });
-    object = result.object;
+  const result = await generateText({
+    model,
+    instructions: SYSTEM,
+    abortSignal: params.abortSignal,
+    // url_context only when there are product pages to read.
+    tools: productUrls.length > 0 ? urlContextTools : undefined,
+    output: Output.object({ schema: garmentVisionSchema }),
+    messages,
+  });
+  const object = result.output;
+  if (!object) {
+    throw new Error("Garment analysis returned no structured output.");
   }
 
   return {
