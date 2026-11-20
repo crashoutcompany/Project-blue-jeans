@@ -30,7 +30,7 @@ importers:
         specifier: ^1.41.0
         version: 1.41.0
       ai:
-        specifier: ^7.0.171
+        specifier: ^7.0.173
         version: 7.0.177(zod@4.6.7)
       better-auth:
         specifier: ^1.7.22
