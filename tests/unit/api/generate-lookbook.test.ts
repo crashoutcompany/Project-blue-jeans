@@ -12,17 +12,23 @@ vi.mock("@/lib/db", () => ({
   requireSql: vi.fn(),
 }));
 
+vi.mock("@/lib/generation-rate-limit", () => ({
+  consumeGeneration: vi.fn(),
+}));
+
 vi.mock("@/lib/lookbook/generate-lookbook", () => ({
   generateLookbook: vi.fn(),
 }));
 
 import { auth } from "@/lib/auth/server";
 import { getSql } from "@/lib/db";
+import { consumeGeneration } from "@/lib/generation-rate-limit";
 import { generateLookbook } from "@/lib/lookbook/generate-lookbook";
 import { POST } from "@/app/api/generate-lookbook/route";
 
 const getSession = vi.mocked(auth.getAuthoritativeSession);
 const getSqlMock = vi.mocked(getSql);
+const consumeMock = vi.mocked(consumeGeneration);
 const generateLookbookMock = vi.mocked(generateLookbook);
 
 describe("POST /api/generate-lookbook", () => {
@@ -31,6 +37,8 @@ describe("POST /api/generate-lookbook", () => {
   beforeEach(() => {
     getSession.mockReset();
     generateLookbookMock.mockReset();
+    consumeMock.mockReset();
+    consumeMock.mockResolvedValue({ allowed: true });
     getSqlMock.mockReset();
     getSqlMock.mockReturnValue(undefined);
     delete process.env.APP_OWNER_USER_ID;
@@ -66,6 +74,23 @@ describe("POST /api/generate-lookbook", () => {
       }),
     );
     expect(res.status).toBe(403);
+  });
+
+  it("returns 429 at the generation limit without generating", async () => {
+    process.env.APP_OWNER_USER_ID = "u1";
+    getSession.mockResolvedValue({
+      data: { user: { id: "u1", email: "a@x.com", role: "admin" } },
+    });
+    consumeMock.mockResolvedValue({ allowed: false, message: "Slow down." });
+    const res = await POST(
+      new Request("http://localhost/api/generate-lookbook", {
+        method: "POST",
+        body: JSON.stringify({ narrative: "x" }),
+      }),
+    );
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ ok: false, message: "Slow down." });
+    expect(generateLookbookMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid JSON", async () => {

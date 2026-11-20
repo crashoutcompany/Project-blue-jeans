@@ -28,6 +28,12 @@ const deleteFilesMock = vi.mocked(deleteUploadThingFiles);
 const resolveUploadMock = vi.mocked(resolveUploadThingTokenForConnection);
 const getAssetMock = vi.mocked(getOwnedMediaAsset);
 
+/** Neon-style `transaction(queries)`: queries are already running promises. */
+const withTransaction = (sql: ReturnType<typeof vi.fn>) =>
+  Object.assign(sql, {
+    transaction: (queries: Promise<unknown>[]) => Promise.all(queries),
+  });
+
 const mediaId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 
 describe("wearer photo UploadThing cleanup", () => {
@@ -54,7 +60,7 @@ describe("wearer photo UploadThing cleanup", () => {
 
   it("does not delete a file on first save", async () => {
     const sql = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-    requireSqlMock.mockReturnValue(sql as never);
+    requireSqlMock.mockReturnValue(withTransaction(sql) as never);
 
     const res = await saveWearerPhoto({
       userId: "u1",
@@ -69,7 +75,7 @@ describe("wearer photo UploadThing cleanup", () => {
       .fn()
       .mockResolvedValueOnce([{ uploadthing_key: "old-key", media_asset_id: "old-media" }])
       .mockResolvedValueOnce([]);
-    requireSqlMock.mockReturnValue(sql as never);
+    requireSqlMock.mockReturnValue(withTransaction(sql) as never);
 
     const res = await saveWearerPhoto({
       userId: "u1",
@@ -86,7 +92,7 @@ describe("wearer photo UploadThing cleanup", () => {
         { uploadthing_key: null, media_asset_id: "old-media" },
       ])
       .mockResolvedValue([]);
-    requireSqlMock.mockReturnValue(sql as never);
+    requireSqlMock.mockReturnValue(withTransaction(sql) as never);
 
     const res = await saveWearerPhoto({
       userId: "u1",
@@ -110,7 +116,7 @@ describe("wearer photo UploadThing cleanup", () => {
       .fn()
       .mockResolvedValueOnce([{ uploadthing_key: "same-key", media_asset_id: mediaId }])
       .mockResolvedValueOnce([]);
-    requireSqlMock.mockReturnValue(sql as never);
+    requireSqlMock.mockReturnValue(withTransaction(sql) as never);
 
     const res = await saveWearerPhoto({
       userId: "u1",
@@ -125,7 +131,7 @@ describe("wearer photo UploadThing cleanup", () => {
       .fn()
       .mockResolvedValueOnce([{ uploadthing_key: "old-key", media_asset_id: "old-media" }])
       .mockRejectedValueOnce(new Error("db down"));
-    requireSqlMock.mockReturnValue(sql as never);
+    requireSqlMock.mockReturnValue(withTransaction(sql) as never);
 
     const res = await saveWearerPhoto({
       userId: "u1",
@@ -140,7 +146,7 @@ describe("wearer photo UploadThing cleanup", () => {
       .fn()
       .mockResolvedValueOnce([{ uploadthing_key: "old-key", media_asset_id: mediaId }])
       .mockResolvedValueOnce([]);
-    requireSqlMock.mockReturnValue(sql as never);
+    requireSqlMock.mockReturnValue(withTransaction(sql) as never);
 
     const res = await clearWearerPhoto("u1");
     expect(res.ok).toBe(true);
@@ -149,7 +155,7 @@ describe("wearer photo UploadThing cleanup", () => {
 
   it("skips UploadThing when removing a row with no key", async () => {
     const sql = vi.fn().mockResolvedValueOnce([]);
-    requireSqlMock.mockReturnValue(sql as never);
+    requireSqlMock.mockReturnValue(withTransaction(sql) as never);
 
     const res = await clearWearerPhoto("u1");
     expect(res.ok).toBe(true);

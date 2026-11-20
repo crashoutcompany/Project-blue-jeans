@@ -10,11 +10,11 @@ import { productTodayIso } from "@/lib/time/product-timezone";
 
 type Search = { year?: string; month?: string };
 
-function clampMonthYear(sp: Search) {
-  // The grid highlights "today" from productTodayIso(), so the default month
-  // has to come from the same clock. Using the host Date() opened the wrong
-  // month for anyone loading /calendar across a product-timezone boundary.
-  const [todayYear, todayMonth] = productTodayIso().split("-").map(Number);
+function clampMonthYear(sp: Search, todayIso: string) {
+  // The default month has to come from the same product-timezone "today" the
+  // grid highlights. Using the host Date() opened the wrong month for anyone
+  // loading /calendar across a product-timezone boundary.
+  const [todayYear, todayMonth] = todayIso.split("-").map(Number);
   const yRaw = parseInt(sp.year ?? "", 10);
   const mRaw = parseInt(sp.month ?? "", 10);
   const year = Number.isFinite(yRaw)
@@ -25,16 +25,39 @@ function clampMonthYear(sp: Search) {
   return { year, month };
 }
 
-function CalendarFallback() {
-  // Static placeholder month for the prerendered shell (no Date.now()).
+/**
+ * Fallback and resolved content render through this one wrapper so the
+ * prerendered shell and the resumed tree have the same shape (PPR matches
+ * resume slots by position). Only the resolved content carries the test id.
+ */
+function CalendarFrame({
+  isPlaceholder,
+  children,
+}: {
+  isPlaceholder: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <OutfitCalendar
-      year={2026}
-      month={1}
-      saved={[]}
-      weeklyDrafts={[]}
-      isPlaceholder
-    />
+    <div data-testid={isPlaceholder ? undefined : "calendar-content"}>
+      {children}
+    </div>
+  );
+}
+
+function CalendarFallback() {
+  // Static placeholder month for the prerendered shell. No clock reads: the
+  // shell is built once and must not depend on the time it was built.
+  return (
+    <CalendarFrame isPlaceholder>
+      <OutfitCalendar
+        year={2026}
+        month={1}
+        saved={[]}
+        weeklyDrafts={[]}
+        todayIso={null}
+        isPlaceholder
+      />
+    </CalendarFrame>
   );
 }
 
@@ -49,7 +72,10 @@ async function CalendarContent({
     redirect(AUTH_SIGN_IN_PATH);
   }
   const sp = await searchParams;
-  const { year, month } = clampMonthYear(sp);
+  // The single read of the clock; passed down so the client never computes
+  // "today" itself and cannot disagree with the server.
+  const todayIso = productTodayIso();
+  const { year, month } = clampMonthYear(sp, todayIso);
   const { saved, weeklyDrafts } = await loadCalendarMonthData(
     userId,
     year,
@@ -57,14 +83,15 @@ async function CalendarContent({
   );
 
   return (
-    <div data-testid="calendar-content">
+    <CalendarFrame isPlaceholder={false}>
       <OutfitCalendar
         year={year}
         month={month}
         saved={saved}
         weeklyDrafts={weeklyDrafts}
+        todayIso={todayIso}
       />
-    </div>
+    </CalendarFrame>
   );
 }
 

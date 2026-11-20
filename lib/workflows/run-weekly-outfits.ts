@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { AlreadyPlannedLook } from "@/lib/ai/lookbook/prompts";
 import type { LookbookPlan } from "@/lib/ai/lookbook/schemas";
 import { resolveGeminiApiKey } from "@/lib/credentials/resolve";
@@ -66,10 +68,6 @@ const retainedLookRowSchema = z.object({
   sort_order: z.number().int(),
   title: z.string(),
   garment_ids: z.array(z.string()).nullable().optional(),
-});
-
-const insertedIdRowSchema = z.object({
-  id: z.string().uuid(),
 });
 
 async function markPlanFailed(planId: string, message: string): Promise<void> {
@@ -172,11 +170,7 @@ async function planClaimedWeek(
   }
   const outfitWornOn = new Set(outfitRows.map((r) => r.wornOn));
 
-  const daysToPlan = weeklyDaysToPlan(
-    input.weekStart,
-    todayIso,
-    outfitWornOn,
-  );
+  const daysToPlan = weeklyDaysToPlan(input.weekStart, todayIso, outfitWornOn);
   if (daysToPlan.length === 0) {
     return { ok: true, planId: row?.id ?? "", skipped: true };
   }
@@ -319,43 +313,42 @@ async function planClaimedWeek(
   let planId: string | undefined;
 
   try {
-    if (row) {
-      planId = row.id;
-      await sql`
+    // One transaction: a failure part-way must not leave a plan with no
+    // looks. A new plan gets its id up front because Neon HTTP transactions
+    // cannot feed one statement's RETURNING into the next.
+    const targetPlanId = row?.id ?? randomUUID();
+    const queries = [
+      ...(row
+        ? [
+            sql`
         DELETE FROM weekly_plan_looks
-        WHERE plan_id = ${planId}
+        WHERE plan_id = ${targetPlanId}
           AND sort_order >= ${todaySort}
-      `;
-      await sql`
+      `,
+            sql`
         UPDATE weekly_outfit_plans
         SET
           step1_raw = ${JSON.stringify(step1Raw)}::jsonb,
           status = 'draft',
           error_message = NULL,
           updated_at = now()
-        WHERE id = ${planId}
-      `;
-    } else {
-      const insertedRaw = await sql`
-        INSERT INTO weekly_outfit_plans (week_start, step1_raw, status, user_id)
+        WHERE id = ${targetPlanId}
+      `,
+          ]
+        : [
+            sql`
+        INSERT INTO weekly_outfit_plans (id, week_start, step1_raw, status, user_id)
         VALUES (
+          ${targetPlanId}::uuid,
           ${input.weekStart}::date,
           ${JSON.stringify(step1Raw)}::jsonb,
           'draft',
           ${input.userId}
         )
-        RETURNING id
-      `;
-      const insertedParsed = z.array(insertedIdRowSchema).parse(insertedRaw);
-      const insertedId = insertedParsed[0]?.id;
-      if (!insertedId) {
-        throw new Error("Insert weekly plan returned no id");
-      }
-      planId = insertedId;
-    }
-
-    for (const look of looksForDb) {
-      await sql`
+      `,
+          ]),
+      ...looksForDb.map(
+        (look) => sql`
         INSERT INTO weekly_plan_looks (
           plan_id,
           sort_order,
@@ -365,15 +358,18 @@ async function planClaimedWeek(
           garment_ids
         )
         VALUES (
-          ${planId},
+          ${targetPlanId},
           ${look.sortOrder},
           ${look.title},
           ${look.description},
           ${JSON.stringify(look.tags)}::jsonb,
           ${look.garmentIds}
         )
-      `;
-    }
+      `,
+      ),
+    ];
+    await sql.transaction(queries);
+    planId = targetPlanId;
 
     const heroOutcomes = await renderWeeklyLookHeroes(
       input.userId,

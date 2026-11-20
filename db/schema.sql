@@ -1,11 +1,11 @@
--- Neon / Postgres schema — the single source of truth (there are no migration
--- files). Fresh database: run this once in the Neon SQL editor, or
---   psql "$DATABASE_URL" -f db/schema.sql
--- Every statement is idempotent, so re-running it is safe, but it only creates
--- what is missing: it will not alter an existing table, column, or constraint.
--- Changing an existing database means hand-writing that ALTER and applying it
--- to each Neon branch alongside the edit here. Those one-off ALTERs live in
--- db/migrations/ (applied by hand, in file-name order).
+-- Neon / Postgres schema for a fresh database. `pnpm db:migrate` applies this
+-- file, then each db/migrations/*.sql not yet recorded in schema_migrations.
+-- Every statement here is idempotent, so re-running it is safe, but it only
+-- creates what is missing: it will not alter an existing table, column, or
+-- constraint. Changing an existing database means a new idempotent file in
+-- db/migrations/ (applied in file-name order) alongside the edit here. Anything
+-- here that depends on a column a migration adds must be guarded, because this
+-- file runs before the migrations.
 --
 -- Images: rows store owned `/api/media/<media_assets.id>` display paths;
 -- `uploadthing_key` / `media_assets.provider_file_key` address the file in
@@ -164,7 +164,7 @@ CREATE INDEX IF NOT EXISTS wearer_invitations_invited_by_idx
   ON wearer_invitations (invited_by_user_id);
 
 CREATE TABLE IF NOT EXISTS wearer_memberships (
-  user_id text PRIMARY KEY,
+  user_id text PRIMARY KEY REFERENCES "user" ("id") ON DELETE CASCADE,
   access_role wearer_access_role NOT NULL DEFAULT 'wearer',
   credential_source credential_source NOT NULL DEFAULT 'user_byok',
   status wearer_membership_status NOT NULL DEFAULT 'active',
@@ -260,7 +260,7 @@ CREATE TABLE IF NOT EXISTS provider_validation_attempts (
 -- UploadThing objects. Display uses /api/media/{id}; the CDN object itself is public-read.
 CREATE TABLE IF NOT EXISTS media_assets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id text NOT NULL,
+  user_id text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
   connection_id uuid REFERENCES provider_connections (id) ON DELETE SET NULL,
   kind media_kind NOT NULL,
   provider_file_key text NOT NULL,
@@ -275,7 +275,7 @@ CREATE INDEX IF NOT EXISTS media_assets_connection_id_idx
 
 CREATE TABLE IF NOT EXISTS upload_intents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id text NOT NULL,
+  user_id text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
   connection_id uuid REFERENCES provider_connections (id) ON DELETE SET NULL,
   endpoint text NOT NULL,
   expires_at timestamptz NOT NULL,
@@ -299,7 +299,7 @@ CREATE TABLE IF NOT EXISTS garments (
   notes text,
   description text NOT NULL DEFAULT '',
   -- Better Auth "user".id of the owning Wearer.
-  user_id text NOT NULL,
+  user_id text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -316,7 +316,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS garments_user_media_asset_uidx
 
 -- Wearer photo per account for try-on heroes.
 CREATE TABLE IF NOT EXISTS wearer_profile (
-  user_id text PRIMARY KEY,
+  user_id text PRIMARY KEY REFERENCES "user" ("id") ON DELETE CASCADE,
   image_url text NOT NULL,
   uploadthing_key text,
   media_asset_id uuid REFERENCES media_assets (id) ON DELETE SET NULL,
@@ -326,7 +326,7 @@ CREATE TABLE IF NOT EXISTS wearer_profile (
 COMMENT ON TABLE wearer_profile IS 'Per-account body/reference photo for try-on hero composites.';
 
 CREATE TABLE IF NOT EXISTS wearer_preferences (
-  user_id text PRIMARY KEY,
+  user_id text PRIMARY KEY REFERENCES "user" ("id") ON DELETE CASCADE,
   location text,
   -- Days before Plan my week may suggest a worn Outfit again; 0 = off.
   repeat_window_days integer NOT NULL DEFAULT 7
@@ -348,7 +348,7 @@ CREATE TABLE IF NOT EXISTS outfits (
   name text,
   -- Sorted unique garment UUID string; same clothes = same Outfit (per user).
   garment_set_key text,
-  user_id text NOT NULL,
+  user_id text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -390,9 +390,22 @@ CREATE TABLE IF NOT EXISTS outfit_wears (
 CREATE INDEX IF NOT EXISTS outfit_wears_outfit_idx ON outfit_wears (outfit_id);
 CREATE INDEX IF NOT EXISTS outfit_wears_worn_on_idx ON outfit_wears (worn_on DESC);
 CREATE INDEX IF NOT EXISTS outfit_wears_user_id_idx ON outfit_wears (user_id);
-CREATE INDEX IF NOT EXISTS outfit_wears_user_confirmed_idx
-  ON outfit_wears (user_id, worn_on DESC)
-  WHERE worn_confirmed_at IS NOT NULL;
+-- Guarded: a database from before worn_confirmed_at gets the column and this
+-- index from db/migrations/2026-11-09-outfit-repeat-guard.sql, which runs after
+-- this file.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'outfit_wears'
+      AND column_name = 'worn_confirmed_at'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS outfit_wears_user_confirmed_idx
+      ON outfit_wears (user_id, worn_on DESC)
+      WHERE worn_confirmed_at IS NOT NULL;
+  END IF;
+END $$;
 
 -- Weekly AI plan: step 1 (structured looks) + a hero image per day.
 CREATE TABLE IF NOT EXISTS weekly_outfit_plans (
@@ -403,7 +416,7 @@ CREATE TABLE IF NOT EXISTS weekly_outfit_plans (
   step1_raw jsonb,
   status weekly_plan_status NOT NULL DEFAULT 'draft',
   error_message text,
-  user_id text NOT NULL,
+  user_id text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
   UNIQUE (user_id, week_start)
 );
 
@@ -412,7 +425,7 @@ CREATE INDEX IF NOT EXISTS weekly_outfit_plans_user_id_idx ON weekly_outfit_plan
 
 -- Lease so only one "Plan my week" run per (user, week) pays for Gemini.
 CREATE TABLE IF NOT EXISTS weekly_plan_claims (
-  user_id text NOT NULL,
+  user_id text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
   week_start date NOT NULL,
   token uuid NOT NULL,
   expires_at timestamptz NOT NULL,

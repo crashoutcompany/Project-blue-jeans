@@ -32,7 +32,7 @@ const getWeatherInputSchema = z
     { message: "Provide either location or both latitude and longitude." },
   );
 
-export const getWeatherTool = tool({
+const getWeatherTool = tool({
   description:
     "Fetch current weather and today's forecast for a location. Call this when the user mentions where they will be, or when a known location is provided, so outfit layering matches real conditions.",
   inputSchema: getWeatherInputSchema,

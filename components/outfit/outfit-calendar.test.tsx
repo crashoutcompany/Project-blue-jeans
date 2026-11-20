@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const approveWeeklyPlanLook = vi.fn();
@@ -14,17 +14,9 @@ vi.mock("@/app/actions/today", () => ({
   markDayWorn: (...args: unknown[]) => markDayWorn(...args),
 }));
 
-vi.mock("@/lib/time/product-timezone", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/lib/time/product-timezone")>();
-  return {
-    ...actual,
-    productTodayIso: vi.fn(() => "2025-03-10"),
-  };
-});
-
 import { OutfitCalendar } from "@/components/outfit/outfit-calendar";
 
+const TODAY = "2025-03-10";
 const PLAN_LOOK_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 const GARMENT_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
@@ -35,7 +27,13 @@ describe("OutfitCalendar", () => {
 
   it("renders month title and nav links", () => {
     render(
-      <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
+      <OutfitCalendar
+        year={2025}
+        month={3}
+        saved={[]}
+        weeklyDrafts={[]}
+        todayIso={TODAY}
+      />,
     );
     expect(screen.getByText(/2025/)).toBeInTheDocument();
     expect(
@@ -55,6 +53,7 @@ describe("OutfitCalendar", () => {
     });
     render(
       <OutfitCalendar
+        todayIso={TODAY}
         year={2025}
         month={1}
         saved={[]}
@@ -76,7 +75,13 @@ describe("OutfitCalendar", () => {
 
   it("marks the product-timezone today cell as the current date", () => {
     render(
-      <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
+      <OutfitCalendar
+        year={2025}
+        month={3}
+        saved={[]}
+        weeklyDrafts={[]}
+        todayIso={TODAY}
+      />,
     );
     const current = document.querySelectorAll('[aria-current="date"]');
     expect(current).toHaveLength(1);
@@ -86,6 +91,7 @@ describe("OutfitCalendar", () => {
   it("fills the day tile with a hero image", () => {
     render(
       <OutfitCalendar
+        todayIso={TODAY}
         year={2025}
         month={1}
         saved={[]}
@@ -109,6 +115,7 @@ describe("OutfitCalendar", () => {
   it("shows a garment collage when the hero is missing", () => {
     render(
       <OutfitCalendar
+        todayIso={TODAY}
         year={2025}
         month={1}
         saved={[]}
@@ -147,6 +154,7 @@ describe("OutfitCalendar", () => {
     ])("renders only the weeks %s needs", (_label, year, month, expected) => {
       render(
         <OutfitCalendar
+          todayIso={TODAY}
           year={year}
           month={month}
           saved={[]}
@@ -158,7 +166,13 @@ describe("OutfitCalendar", () => {
 
     it("does not spill into the next month", () => {
       render(
-        <OutfitCalendar year={2026} month={10} saved={[]} weeklyDrafts={[]} />,
+        <OutfitCalendar
+          year={2026}
+          month={10}
+          saved={[]}
+          weeklyDrafts={[]}
+          todayIso={TODAY}
+        />,
       );
       const grid = screen.getByTestId("calendar-grid");
       expect(grid).toHaveTextContent("31");
@@ -170,7 +184,13 @@ describe("OutfitCalendar", () => {
 
   it("gives day cells a visible border and fill", () => {
     render(
-      <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
+      <OutfitCalendar
+        year={2025}
+        month={3}
+        saved={[]}
+        weeklyDrafts={[]}
+        todayIso={TODAY}
+      />,
     );
     const cell = document.querySelector('[aria-current="date"]');
     expect(cell).toHaveClass("border", "border-foreground/10", "bg-muted/60");
@@ -179,7 +199,13 @@ describe("OutfitCalendar", () => {
   describe("empty state", () => {
     it("tells the user when nothing is planned this month", () => {
       render(
-        <OutfitCalendar year={2025} month={3} saved={[]} weeklyDrafts={[]} />,
+        <OutfitCalendar
+          year={2025}
+          month={3}
+          saved={[]}
+          weeklyDrafts={[]}
+          todayIso={TODAY}
+        />,
       );
       expect(screen.getByRole("status")).toHaveTextContent(
         "No looks planned yet",
@@ -192,6 +218,7 @@ describe("OutfitCalendar", () => {
     it("is hidden once the month has a weekly draft", () => {
       render(
         <OutfitCalendar
+          todayIso={TODAY}
           year={2025}
           month={1}
           saved={[]}
@@ -215,6 +242,7 @@ describe("OutfitCalendar", () => {
     it("is hidden once the month has a saved outfit", () => {
       render(
         <OutfitCalendar
+          todayIso={TODAY}
           year={2025}
           month={1}
           saved={[
@@ -243,6 +271,7 @@ describe("OutfitCalendar", () => {
           month={1}
           saved={[]}
           weeklyDrafts={[]}
+          todayIso={null}
           isPlaceholder
         />,
       );
@@ -268,6 +297,7 @@ describe("OutfitCalendar", () => {
     it("offers Wore this on past and current days only", () => {
       render(
         <OutfitCalendar
+          todayIso={TODAY}
           year={2025}
           month={3}
           saved={[
@@ -285,7 +315,9 @@ describe("OutfitCalendar", () => {
         screen.getByRole("button", { name: "Wore this on Mon, Mar 10" }),
       ).toBeInTheDocument();
       expect(
-        screen.queryByRole("button", { name: /Wed, Mar 12/ }),
+        screen.queryByRole("button", {
+          name: /^(Wore this|Worn) on Wed, Mar 12/,
+        }),
       ).not.toBeInTheDocument();
     });
 
@@ -294,6 +326,7 @@ describe("OutfitCalendar", () => {
       markDayWorn.mockResolvedValue({ ok: true });
       render(
         <OutfitCalendar
+          todayIso={TODAY}
           year={2025}
           month={3}
           saved={[savedOn("2025-03-08", false), savedOn("2025-03-09", true)]}
@@ -309,6 +342,202 @@ describe("OutfitCalendar", () => {
         screen.getByRole("button", { name: "Worn on Sun, Mar 9. Tap to undo" }),
       );
       expect(markDayWorn).toHaveBeenCalledWith("2025-03-09", false);
+    });
+  });
+
+  describe("phone day sheet", () => {
+    const weekly = (wornOn: string, title: string, i: number) => ({
+      wornOn,
+      planLookId: `f47ac10b-58cc-4372-a567-0e02b2c3d47${i}`,
+      title,
+      heroImageUrl: null,
+      garmentIds: [],
+      garmentThumbs: [],
+    });
+
+    it("opens a day's look and approves it from the sheet", async () => {
+      const user = userEvent.setup();
+      approveWeeklyPlanLook.mockResolvedValue({ ok: true, outfitId: "x" });
+      render(
+        <OutfitCalendar
+          todayIso={TODAY}
+          year={2025}
+          month={1}
+          saved={[]}
+          weeklyDrafts={[weekly("2025-01-06", "Monday Kickoff", 0)]}
+        />,
+      );
+      // Closed until a day is tapped: one Approve (the tile's own).
+      expect(screen.getAllByRole("button", { name: /approve/i })).toHaveLength(
+        1,
+      );
+
+      await user.click(
+        screen.getByRole("button", { name: "Open Mon, Jan 6: Monday Kickoff" }),
+      );
+      const sheet = await screen.findByRole("dialog");
+      expect(sheet).toHaveTextContent("Mon, Jan 6");
+      expect(sheet).toHaveTextContent("Monday Kickoff");
+      expect(sheet).toHaveTextContent("Weekly plan, not approved yet");
+
+      const approve = within(sheet).getByRole("button", {
+        name: "Approve Monday Kickoff",
+      });
+      await user.click(approve);
+      expect(approveWeeklyPlanLook).toHaveBeenCalledWith(
+        "f47ac10b-58cc-4372-a567-0e02b2c3d470",
+      );
+    });
+
+    it("steps to the next and previous day with a look", async () => {
+      const user = userEvent.setup();
+      render(
+        <OutfitCalendar
+          todayIso={TODAY}
+          year={2025}
+          month={1}
+          saved={[]}
+          weeklyDrafts={[
+            weekly("2025-01-06", "Monday Kickoff", 0),
+            weekly("2025-01-09", "Thursday Layers", 1),
+          ]}
+        />,
+      );
+      await user.click(
+        screen.getByRole("button", { name: /^Open Mon, Jan 6/ }),
+      );
+      const sheet = await screen.findByRole("dialog");
+      expect(
+        within(sheet).getByRole("button", { name: "Previous look" }),
+      ).toBeDisabled();
+
+      await user.click(
+        within(sheet).getByRole("button", { name: "Next look" }),
+      );
+      expect(sheet).toHaveTextContent("Thursday Layers");
+      expect(
+        within(sheet).getByRole("button", { name: "Next look" }),
+      ).toBeDisabled();
+    });
+
+    it("offers no tap target on days without a look", () => {
+      render(
+        <OutfitCalendar
+          todayIso={TODAY}
+          year={2025}
+          month={1}
+          saved={[]}
+          weeklyDrafts={[weekly("2025-01-06", "Monday Kickoff", 0)]}
+        />,
+      );
+      expect(screen.getAllByRole("button", { name: /^Open / })).toHaveLength(1);
+    });
+  });
+
+  describe("clock independence (hydration)", () => {
+    /**
+     * Counts reads of the current time (`new Date()` with no arguments and
+     * `Date.now()`) made by the app's own code. A read during render is what
+     * broke the /calendar PPR resume: the Suspense fallback depended on when
+     * it was prerendered. React and the test harness read the clock too, so
+     * only stacks that pass through our source files count.
+     */
+    function countClockReads(run: () => void) {
+      const RealDate = Date;
+      let reads = 0;
+      const fromApp = () =>
+        /\/(components|lib|app)\/(?!.*\.test\.)/.test(new Error().stack ?? "");
+      class SpyDate extends RealDate {
+        constructor(...args: ConstructorParameters<typeof Date>) {
+          if (args.length === 0 && fromApp()) reads++;
+          super(...args);
+        }
+        static override now() {
+          if (fromApp()) reads++;
+          return RealDate.now();
+        }
+      }
+      vi.stubGlobal("Date", SpyDate);
+      try {
+        run();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+      return reads;
+    }
+
+    it("does not read the clock when rendering the placeholder", () => {
+      const reads = countClockReads(() =>
+        render(
+          <OutfitCalendar
+            year={2026}
+            month={1}
+            saved={[]}
+            weeklyDrafts={[]}
+            todayIso={null}
+            isPlaceholder
+          />,
+        ),
+      );
+      expect(reads).toBe(0);
+    });
+
+    it("does not read the clock when rendering real content", () => {
+      const reads = countClockReads(() =>
+        render(
+          <OutfitCalendar
+            year={2025}
+            month={3}
+            saved={[]}
+            weeklyDrafts={[]}
+            todayIso={TODAY}
+          />,
+        ),
+      );
+      expect(reads).toBe(0);
+    });
+
+    it("highlights nothing and offers no Wore this without a today", () => {
+      render(
+        <OutfitCalendar
+          year={2025}
+          month={3}
+          saved={[
+            {
+              id: GARMENT_ID,
+              wornOn: "2025-03-08",
+              imageUrl: null,
+              name: "Past look",
+              occasion: "casual",
+              garmentThumbs: [],
+              worn: false,
+            },
+          ]}
+          weeklyDrafts={[]}
+          todayIso={null}
+        />,
+      );
+      expect(document.querySelectorAll('[aria-current="date"]')).toHaveLength(
+        0,
+      );
+      expect(
+        screen.queryByRole("button", { name: /Wore this/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("highlights the day given by todayIso, whatever the host clock says", () => {
+      render(
+        <OutfitCalendar
+          year={2025}
+          month={3}
+          saved={[]}
+          weeklyDrafts={[]}
+          todayIso="2025-03-21"
+        />,
+      );
+      const current = document.querySelectorAll('[aria-current="date"]');
+      expect(current).toHaveLength(1);
+      expect(current[0]).toHaveTextContent(/^21/);
     });
   });
 });

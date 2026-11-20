@@ -77,7 +77,7 @@ Copy this policy to Z / RDC. App-specific `createTestSession` bodies may differ;
 
 Actions e2e and the Neon preview-branch workflow (shared workflows in `crashoutcompany/.github`) require `NEON_API_KEY` (secret) plus `NEON_PROJECT_ID`. CI e2e uses fixture `TEST_AUTH_SECRET` / `BETTER_AUTH_SECRET` values, so neither needs to be a GitHub secret. Local Cloud Agent e2e can use `.cursor/dev/neon-local-proxy.mjs` instead of Actions Neon branching.
 
-CI e2e / preview Neon DBs are branches of production, so they inherit its schema. A database created from scratch needs `db/schema.sql`, which includes the Better Auth tables.
+CI e2e / preview Neon DBs are branches of production, so they inherit its schema. A database created from scratch needs `pnpm db:migrate` (or `db/schema.sql` alone), which includes the Better Auth tables. CI e2e branches are migrated by Playwright global setup; preview branches are not, so run `pnpm db:migrate` against them.
 
 ### Env lock (copy checklist)
 

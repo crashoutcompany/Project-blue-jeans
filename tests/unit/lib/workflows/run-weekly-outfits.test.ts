@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// A new plan's id is generated up front; pin it so tests can assert on it.
+vi.mock("node:crypto", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:crypto")>()),
+  randomUUID: () => "11111111-1111-4111-8111-111111111111",
+}));
+
 vi.mock("@/lib/credentials/resolve", () => ({
   resolveGeminiApiKey: vi.fn(),
 }));
@@ -30,13 +36,15 @@ vi.mock("@/lib/workflows/repeat-window", () => ({
   loadRepeatWindow: vi.fn(async () => ({ wears: [], windowDays: 7 })),
 }));
 
-// No location falls back to a default, so the job would call Open-Meteo for real.
-vi.mock("@/lib/ai/weather/load-day-forecasts", () => ({
-  loadDayForecasts: vi.fn(async () => new Map()),
-}));
-
 vi.mock("@/lib/wearer/preferences", () => ({
   getWearerLocation: vi.fn(),
+}));
+
+// The job fetches a 7-day forecast from Open-Meteo. Keep unit tests off the
+// network: without this, each test waits on a real request (up to the 5s
+// forecast timeout), which times out the test where egress hangs, as in CI.
+vi.mock("@/lib/ai/weather/load-day-forecasts", () => ({
+  loadDayForecasts: vi.fn(async () => new Map()),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -162,7 +170,7 @@ function mockSql(state: {
   /** Another run already holds the week's lease. */
   claimHeld?: boolean;
 }) {
-  return vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
+  const sql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = sqlText(strings);
     state.calls.push({ text, values });
     if (text.includes("INSERT INTO weekly_plan_claims")) {
@@ -179,6 +187,9 @@ function mockSql(state: {
     }
     return Promise.resolve([]);
   });
+  return Object.assign(sql, {
+    transaction: (queries: Promise<unknown>[]) => Promise.all(queries),
+  });;
 }
 
 const input = {

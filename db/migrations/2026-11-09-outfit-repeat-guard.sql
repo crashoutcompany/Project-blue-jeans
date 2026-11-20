@@ -1,5 +1,5 @@
--- Outfit repeat guard (#61). Apply by hand to each existing Neon branch:
---   psql "$DATABASE_URL" -f db/migrations/2026-11-09-outfit-repeat-guard.sql
+-- Outfit repeat guard (#61). Applied by `pnpm db:migrate`, which runs this file
+-- in a transaction; to apply it by hand use `psql --single-transaction -f`.
 -- db/schema.sql already has these columns for fresh databases.
 --
 -- What changes:
@@ -15,8 +15,6 @@
 -- days (before today in America/New_York) are marked confirmed. Today and
 -- future days stay unconfirmed. The column add and backfill run together, and
 -- only once, so re-running this file is a no-op.
-
-BEGIN;
 
 DO $$
 BEGIN
@@ -59,5 +57,3 @@ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
-
-COMMIT;

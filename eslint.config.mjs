@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
     "scripts/.venv/**",
     "scripts/cache/**",
     ".cursor/dev/**",
+    "public/vendor/**",
   ]),
 ]);
 

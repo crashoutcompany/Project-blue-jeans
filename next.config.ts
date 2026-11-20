@@ -8,13 +8,14 @@ const isDev = process.env.NODE_ENV !== "production";
  * App-specific CSP (the shared defaults in lib/next-config.ts set the rest).
  * Next's inline RSC bootstrap needs 'unsafe-inline' without a nonce setup;
  * the policy still blocks foreign script hosts, plugins, framing, and
- * <base> hijacks. browser-image-compression's worker imports its bundle from
- * jsDelivr; UploadThing uploads PUT to *.ingest.uploadthing.com and photos
- * are served from *.ufs.sh after the /api/media redirect.
+ * <base> hijacks. browser-image-compression's worker bundle is self-hosted
+ * under /vendor (public/vendor/browser-image-compression.js).
+ * UploadThing uploads PUT to *.ingest.uploadthing.com and photos are served
+ * from *.ufs.sh after the /api/media redirect.
  */
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "worker-src 'self' blob:",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
