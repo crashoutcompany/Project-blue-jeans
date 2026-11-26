@@ -1,4 +1,7 @@
-import { fetchWeather } from "@/lib/ai/weather/fetch-weather";
+import {
+  fetchWeather,
+  type DayForecast,
+} from "@/lib/ai/weather/fetch-weather";
 import { formatTodayWeatherLine } from "@/lib/ai/weather/format-today-line";
 import { resolveOutfitLocation } from "@/lib/ai/weather/constants";
 import { loadDayForecasts } from "@/lib/ai/weather/load-day-forecasts";
@@ -13,6 +16,12 @@ import {
 } from "@/lib/outfits/day-looks-in-range";
 import { loadFailedPlanDaysByDay } from "@/lib/outfits/weekly-plan-failures";
 import { loadPlannedWeatherByDay } from "@/lib/outfits/weekly-plan-weather";
+import {
+  findLastSimilarWornDay,
+  formatSimilarDayWeather,
+  SIMILAR_DAY_LOOKBACK_DAYS,
+  similarDayLookbackStartIso,
+} from "@/lib/outfits/similar-weather-day";
 import {
   buildWeekWeather,
   type TodayDayWeather,
@@ -44,6 +53,8 @@ export type TodayLook = {
   garments: TodayGarmentThumb[];
   /** For Fits — pass to approveWeeklyPlanLook */
   planLookId?: string;
+  /** For Outfits — the Wearer tapped "Wore this" for this day. */
+  worn?: boolean;
 };
 
 export type TodayWeekPeekDay = {
@@ -64,6 +75,17 @@ export type TodayWornReviewItem = {
   garments: TodayGarmentThumb[];
   /** Already confirmed with "Wore this". */
   worn: boolean;
+};
+
+/** The Outfit worn on the most recent day with weather like today's. */
+export type TodaySimilarDay = {
+  wornOn: string;
+  outfitId: string;
+  title: string | null;
+  heroImageUrl: string | null;
+  garments: TodayGarmentThumb[];
+  /** That day's weather, e.g. "rain · 48° / 39°". */
+  weather: string;
 };
 
 export type TodayPageData = {
@@ -88,6 +110,11 @@ export type TodayPageData = {
   weatherLine: string;
   /** Forecast for today and later days, keyed by wornOn; empty if unavailable. */
   weekWeather: Record<string, TodayDayWeather>;
+  /**
+   * Today card: the last worn day (within the lookback) whose weather matched
+   * today's forecast. Null without a forecast or a match.
+   */
+  lastSimilarDay: TodaySimilarDay | null;
 };
 
 const WEEKDAY_SHORT = [
@@ -137,6 +164,7 @@ function lookFromOutfit(
     garments: outfit.garmentIds
       .map((id) => thumbsById.get(id))
       .filter((g): g is TodayGarmentThumb => g != null),
+    worn: outfit.worn,
   };
 }
 
@@ -153,6 +181,22 @@ function lookFromFit(
       .map((id) => thumbsById.get(id))
       .filter((g): g is TodayGarmentThumb => g != null),
     planLookId: fit.planLookId,
+  };
+}
+
+function similarDayFromOutfit(
+  outfit: OutfitInRange,
+  weather: DayForecast,
+  thumbsById: Map<string, TodayGarmentThumb>,
+): TodaySimilarDay {
+  const look = lookFromOutfit(outfit, thumbsById);
+  return {
+    wornOn: outfit.wornOn,
+    outfitId: outfit.id,
+    title: look.title,
+    heroImageUrl: look.heroImageUrl,
+    garments: look.garments,
+    weather: formatSimilarDayWeather(weather),
   };
 }
 
@@ -180,6 +224,7 @@ export async function loadTodayPageData(
       hasWearerPhoto: false,
       weatherLine: resolveOutfitLocation(),
       weekWeather: {},
+      lastSimilarDay: null,
     };
   }
 
@@ -201,7 +246,8 @@ export async function loadTodayPageData(
   const weekWeatherPromise = locationPromise.then(async (stored) => {
     const place = resolveOutfitLocation(stored ?? undefined);
     const [forecastByDay, plannedByDay] = await Promise.all([
-      loadDayForecasts(place),
+      // Past days let the Today card find a worn day with similar weather.
+      loadDayForecasts(place, { pastDays: SIMILAR_DAY_LOOKBACK_DAYS }),
       loadPlannedWeatherByDay(userId, weekStartIso),
     ]);
     return { place, forecastByDay, plannedByDay };
@@ -226,7 +272,12 @@ export async function loadTodayPageData(
   const fitsPromise = loadFitsByDay(userId, weekStartIso, weekEndIso);
   const reviewStartIso = addDaysIso(weekStartIso, -7);
   const yesterdayIso = addDaysIso(todayIso, -1);
-  const reviewPromise = loadOutfitsByDay(userId, reviewStartIso, yesterdayIso);
+  // One read covers last week's review and the similar-weather lookback.
+  const pastPromise = loadOutfitsByDay(
+    userId,
+    similarDayLookbackStartIso(todayIso),
+    yesterdayIso,
+  );
 
   const [
     garmentCount,
@@ -235,7 +286,7 @@ export async function loadTodayPageData(
     fitsByDay,
     weatherLine,
     failedByDay,
-    reviewByDay,
+    pastByDay,
     weekWeatherInput,
   ] = await Promise.all([
     garmentCountPromise,
@@ -244,9 +295,18 @@ export async function loadTodayPageData(
     fitsPromise,
     weatherLinePromise,
     loadFailedPlanDaysByDay(userId, weekStartIso),
-    reviewPromise,
+    pastPromise,
     weekWeatherPromise,
   ]);
+
+  const reviewOutfits = [...pastByDay.values()].filter(
+    (outfit) => outfit.wornOn >= reviewStartIso,
+  );
+  const similar = findLastSimilarWornDay({
+    todayIso,
+    forecastByDay: weekWeatherInput.forecastByDay,
+    outfits: pastByDay.values(),
+  });
 
   const referencedIds = new Set<string>();
   for (let i = 0; i < 7; i++) {
@@ -256,9 +316,10 @@ export async function loadTodayPageData(
     const ids = outfit?.garmentIds ?? fit?.garmentIds ?? [];
     for (const id of ids) referencedIds.add(id);
   }
-  for (const outfit of reviewByDay.values()) {
+  for (const outfit of reviewOutfits) {
     for (const id of outfit.garmentIds) referencedIds.add(id);
   }
+  for (const id of similar?.outfit.garmentIds ?? []) referencedIds.add(id);
 
   let thumbs: TodayGarmentThumb[] = [];
   try {
@@ -293,7 +354,7 @@ export async function loadTodayPageData(
     });
   }
 
-  const lastWeek: TodayWornReviewItem[] = [...reviewByDay.values()]
+  const lastWeek: TodayWornReviewItem[] = reviewOutfits
     .sort((a, b) => a.wornOn.localeCompare(b.wornOn))
     .map((outfit) => {
       const look = lookFromOutfit(outfit, thumbsById);
@@ -329,5 +390,8 @@ export async function loadTodayPageData(
       fitDays,
       ...weekWeatherInput,
     }),
+    lastSimilarDay: similar
+      ? similarDayFromOutfit(similar.outfit, similar.weather, thumbsById)
+      : null,
   };
 }
