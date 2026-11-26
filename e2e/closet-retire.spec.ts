@@ -80,7 +80,8 @@ test.describe("closet retire and unhide (admin)", () => {
     page,
   }) => {
     // The seed bypassed the app, so refresh the cached closet with a no-op
-    // edit through the real route (it revalidates the closet tag).
+    // edit through the real route. It revalidates the closet tag with
+    // stale-while-revalidate, so the next load can still serve the old list.
     const refresh = await page.request.patch("/api/closet/garments", {
       data: {
         id: GARMENT_ID,
@@ -95,11 +96,14 @@ test.describe("closet retire and unhide (admin)", () => {
     });
     expect(refresh.ok()).toBe(true);
 
-    let closet = await openCloset(page);
+    let closet = page.getByTestId("closet-content");
     const card = closet.getByRole("button", {
       name: `View details for ${GARMENT_NAME}, never worn`,
     });
-    await expect(card).toBeVisible();
+    await expect(async () => {
+      closet = await openCloset(page);
+      await expect(card).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
 
     await card.click();
     const sheet = page.getByRole("dialog");

@@ -511,12 +511,10 @@ export function ClosetView({
     if (unhidingId) return;
     setUnhideError(null);
     setUnhidingId(id);
-    try {
-      const result = await handleSetRetired(id, false);
-      if (!result.ok) setUnhideError(result.message);
-    } finally {
-      setUnhidingId(null);
-    }
+    // handleSetRetired catches its own errors, so this always settles.
+    const result = await handleSetRetired(id, false);
+    if (!result.ok) setUnhideError(result.message);
+    setUnhidingId(null);
   }
 
   const showGarments = mode === "pieces";
