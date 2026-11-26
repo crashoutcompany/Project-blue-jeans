@@ -16,6 +16,8 @@ export type GarmentRow = {
   name: string | null;
   notes: string | null;
   description: string | null;
+  /** Set when the piece is retired (hidden); absent on queries that skip it. */
+  retired_at?: string | Date | null;
 };
 
 export function garmentRowToCardData(row: GarmentRow): ClothingCardData {
@@ -38,5 +40,6 @@ export function garmentRowToCardData(row: GarmentRow): ClothingCardData {
     imageHint: "archive",
     description: row.description?.trim() || null,
     notes: row.notes?.trim() || null,
+    retired: row.retired_at != null,
   };
 }

@@ -16,6 +16,7 @@ import {
   GARMENT_CATEGORY_VALUES,
   isGarmentCategoryDb,
 } from "@/lib/garments/types";
+import { formatWearCount } from "@/lib/garments/wear-count-label";
 import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,9 @@ export type GarmentEditSaveInput = {
 
 export type GarmentEditSaveResult = UpdateGarmentFieldsResult;
 export type GarmentDeleteResult = DeleteGarmentResult;
+export type GarmentRetireResult =
+  | { ok: true }
+  | { ok: false; message: string };
 
 export function GarmentDetailSheet({
   garment,
@@ -51,12 +55,15 @@ export function GarmentDetailSheet({
   onToggleFavorite,
   onSave,
   onDelete,
+  onSetRetired,
 }: {
   garment: ClothingCardData | null;
   onOpenChange: (open: boolean) => void;
   onToggleFavorite: (id: string) => Promise<boolean>;
   onSave: (input: GarmentEditSaveInput) => Promise<GarmentEditSaveResult>;
   onDelete: (id: string) => Promise<GarmentDeleteResult>;
+  /** Retire (hide) or unhide the piece; omitted = no control. */
+  onSetRetired?: (id: string, retired: boolean) => Promise<GarmentRetireResult>;
 }) {
   return (
     <Sheet open={garment !== null} onOpenChange={onOpenChange}>
@@ -71,6 +78,7 @@ export function GarmentDetailSheet({
             onToggleFavorite={onToggleFavorite}
             onSave={onSave}
             onDelete={onDelete}
+            onSetRetired={onSetRetired}
           />
         ) : null}
       </SheetContent>
@@ -83,11 +91,13 @@ function GarmentDetailEditor({
   onToggleFavorite,
   onSave,
   onDelete,
+  onSetRetired,
 }: {
   garment: ClothingCardData;
   onToggleFavorite: (id: string) => Promise<boolean>;
   onSave: (input: GarmentEditSaveInput) => Promise<GarmentEditSaveResult>;
   onDelete: (id: string) => Promise<GarmentDeleteResult>;
+  onSetRetired?: (id: string, retired: boolean) => Promise<GarmentRetireResult>;
 }) {
   const formId = useId();
   const initialCategory = isGarmentCategoryDb(garment.category)
@@ -108,6 +118,8 @@ function GarmentDetailEditor({
   const [favoritePending, setFavoritePending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [retirePending, startRetireTransition] = useTransition();
+  const retired = Boolean(garment.retired);
 
   const previewColor =
     (color.startsWith("#") ? color : null) ??
@@ -176,6 +188,27 @@ function GarmentDetailEditor({
     });
   }
 
+  function handleSetRetired() {
+    if (!canEdit || !onSetRetired) return;
+    setError(null);
+    const next = !retired;
+    startRetireTransition(async () => {
+      try {
+        const result = await onSetRetired(garment.id, next);
+        if (!result.ok) setError(result.message);
+      } catch (e) {
+        console.error("[closet] retire garment", e);
+        setError(
+          next
+            ? "Could not retire that piece. Try again in a moment."
+            : "Could not unhide that piece. Try again in a moment.",
+        );
+      }
+    });
+  }
+
+  const busy = isPending || retirePending;
+
   return (
     <>
       <div className="relative min-h-[52svh] overflow-hidden bg-foreground/[0.045]">
@@ -221,8 +254,17 @@ function GarmentDetailEditor({
             <SheetTitle className="truncate text-xl">
               {name || garment.name}
             </SheetTitle>
-            <SheetDescription className="mt-1 capitalize">
-              {category}
+            <SheetDescription className="mt-1">
+              <span className="capitalize">{category}</span>
+              {typeof garment.wearCount === "number" ? (
+                <>
+                  {" · "}
+                  <span data-testid="garment-detail-wear-count">
+                    {formatWearCount(garment.wearCount)}
+                  </span>
+                </>
+              ) : null}
+              {retired ? " · Retired" : null}
             </SheetDescription>
           </div>
           <Button
@@ -440,13 +482,38 @@ function GarmentDetailEditor({
           </Button>
         </form>
 
+        {canEdit && onSetRetired ? (
+          <div className="mt-6 flex flex-col gap-2 border-t border-foreground/8 pt-5">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              disabled={busy}
+              onClick={handleSetRetired}
+            >
+              {retirePending
+                ? retired
+                  ? "Unhiding…"
+                  : "Retiring…"
+                : retired
+                  ? "Unhide piece"
+                  : "Retire piece"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {retired
+                ? "Unhiding puts this piece back in your closet and outfit planning."
+                : "Retiring hides this piece from your closet and outfit planning. Nothing is deleted; find it under Retired."}
+            </p>
+          </div>
+        ) : null}
+
         {canEdit ? (
           <div className="mt-6 flex flex-col gap-2 border-t border-foreground/8 pt-5">
             <Button
               type="button"
               variant="destructive"
               className="rounded-none"
-              disabled={isPending}
+              disabled={busy}
               onClick={handleDelete}
             >
               {isPending && confirmDelete

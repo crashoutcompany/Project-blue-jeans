@@ -13,6 +13,10 @@ import { getWearerUserId } from "@/lib/auth/wearer";
 import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
 import { getUploadThingSettings } from "@/lib/credentials/uploadthing";
 import { getClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
+import {
+  loadGarmentWearCounts,
+  withWearCounts,
+} from "@/lib/garments/wear-counts";
 import { loadSavedOutfitsForCloset } from "@/lib/outfits/closet-saved-outfits";
 
 async function ClosetContent() {
@@ -28,9 +32,10 @@ async function ClosetContent() {
     ? await getMembershipPolicyForUser(data.user)
     : null;
 
-  const [garments, savedOutfits, googleAiStudio, uploadthing] = await Promise.all(
-    [
+  const [garments, wearCounts, savedOutfits, googleAiStudio, uploadthing] =
+    await Promise.all([
       getClosetGarmentsCached(userId),
+      loadGarmentWearCounts(userId),
       loadSavedOutfitsForCloset(userId),
       membership
         ? getGoogleAiStudioSettings(userId, membership)
@@ -38,13 +43,12 @@ async function ClosetContent() {
       membership
         ? getUploadThingSettings(userId, membership)
         : Promise.resolve(null),
-    ],
-  );
+    ]);
 
   return (
     <div data-testid="closet-content">
       <ClosetView
-        initialGarments={garments}
+        initialGarments={withWearCounts(garments, wearCounts)}
         savedOutfits={savedOutfits}
         missingGemini={googleAiStudio ? !googleAiStudio.connected : false}
         missingUploadThing={uploadthing ? !uploadthing.connected : false}

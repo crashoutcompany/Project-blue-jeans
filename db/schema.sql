@@ -298,6 +298,9 @@ CREATE TABLE IF NOT EXISTS garments (
   name text,
   notes text,
   description text NOT NULL DEFAULT '',
+  -- Set when the Wearer retires (hides) the piece; NULL = active Closet.
+  -- Retiring is not deleting: the row, photo, and past Outfits stay.
+  retired_at timestamptz,
   -- Better Auth "user".id of the owning Wearer.
   user_id text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
   created_at timestamptz NOT NULL DEFAULT now(),

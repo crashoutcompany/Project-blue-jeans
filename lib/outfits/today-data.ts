@@ -212,6 +212,7 @@ export async function loadTodayPageData(
       const countRows = await sql`
         SELECT count(*)::int AS n FROM garments
         WHERE user_id = ${userId}
+          AND retired_at IS NULL
       `;
       const parsed = z.array(countRowSchema).safeParse(countRows);
       return parsed.success ? (parsed.data[0]?.n ?? 0) : 0;

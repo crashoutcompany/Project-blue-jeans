@@ -35,7 +35,8 @@ export async function getAllGarmentRowsCached(
         is_favorite,
         name,
         notes,
-        description
+        description,
+        retired_at
       FROM garments
       WHERE user_id = ${userId}
       ORDER BY created_at DESC
@@ -53,11 +54,21 @@ export async function getAllGarmentRowsCached(
 }
 
 /**
- * Cached closet list for Cache Components.
+ * Cached closet list for Cache Components, retired pieces included (each card
+ * carries `retired`). Closet shows both; use
+ * {@link getActiveClosetGarmentsCached} anywhere retired pieces stay hidden.
  */
 export async function getClosetGarmentsCached(
   userId: string,
 ): Promise<ClothingCardData[]> {
   const rows = await getAllGarmentRowsCached(userId);
   return rows.map(garmentRowToCardData);
+}
+
+/** Active (not retired) closet pieces, e.g. Generator Include / Avoid chips. */
+export async function getActiveClosetGarmentsCached(
+  userId: string,
+): Promise<ClothingCardData[]> {
+  const garments = await getClosetGarmentsCached(userId);
+  return garments.filter((g) => !g.retired);
 }

@@ -172,7 +172,8 @@ export async function updateGarmentFields(
         is_favorite,
         name,
         notes,
-        description
+        description,
+        retired_at
     `) as GarmentRow[];
 
     const next = updated[0];

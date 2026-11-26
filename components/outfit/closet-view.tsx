@@ -11,11 +11,15 @@ import {
 } from "react";
 import { CalendarDays, Search, X } from "lucide-react";
 
-import { toggleGarmentFavorite } from "@/app/actions/garments";
+import {
+  setGarmentRetired,
+  toggleGarmentFavorite,
+} from "@/app/actions/garments";
 import type {
   GarmentDeleteResult,
   GarmentEditSaveInput,
   GarmentEditSaveResult,
+  GarmentRetireResult,
 } from "@/components/outfit/garment-detail-sheet";
 import {
   ClosetImageUpload,
@@ -52,7 +56,7 @@ import {
 import { formatProductWornOn } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 
-type ClosetMode = "pieces" | "outfits";
+type ClosetMode = "pieces" | "outfits" | "retired";
 
 /** Match persist-time Gemini describe concurrency so a large paste does not burst. */
 const SUGGEST_CATEGORY_CONCURRENCY = 3;
@@ -70,6 +74,8 @@ function optimisticGarmentFromDraft(
     color: draft.color?.trim() || null,
     description: draft.description?.trim() || null,
     notes: draft.notes?.trim() || null,
+    wearCount: 0,
+    retired: false,
   };
 }
 
@@ -102,7 +108,13 @@ export function ClosetView({
 
   const garmentSignature = useMemo(
     () =>
-      `${initialGarments.length}\0${[...initialGarments.map((g) => g.id)].sort().join("\0")}`,
+      `${initialGarments.length}\0${[
+        ...initialGarments.map(
+          (g) => `${g.id}:${g.wearCount ?? ""}:${g.retired ? 1 : 0}`,
+        ),
+      ]
+        .sort()
+        .join("\0")}`,
     [initialGarments],
   );
   const [seenGarmentSignature, setSeenGarmentSignature] =
@@ -113,6 +125,14 @@ export function ClosetView({
   }
 
   const garments = serverGarments;
+  const activeGarments = useMemo(
+    () => garments.filter((g) => !g.retired),
+    [garments],
+  );
+  const retiredGarments = useMemo(
+    () => garments.filter((g) => g.retired),
+    [garments],
+  );
 
   const [mode, setMode] = useState<ClosetMode>("pieces");
   const [category, setCategory] = useState<CategoryFilterId>("all");
@@ -123,6 +143,8 @@ export function ClosetView({
   const [pendingDrafts, setPendingDrafts] = useState<GarmentUploadDraft[]>([]);
   const [persistError, setPersistError] = useState<string | null>(null);
   const [savingDrafts, setSavingDrafts] = useState(false);
+  const [unhidingId, setUnhidingId] = useState<string | null>(null);
+  const [unhideError, setUnhideError] = useState<string | null>(null);
 
   const previewUrlsRef = useRef<Set<string>>(new Set());
   const savingDraftsRef = useRef(false);
@@ -139,8 +161,8 @@ export function ClosetView({
   const { startUpload } = useUploadThing("closetImage");
 
   const dynamicColorFacets = useMemo(
-    () => buildColorFacetsFromGarments(garments),
-    [garments],
+    () => buildColorFacetsFromGarments(activeGarments),
+    [activeGarments],
   );
   const activeColorId =
     colorId === "all" || dynamicColorFacets.some((f) => f.id === colorId)
@@ -148,7 +170,7 @@ export function ClosetView({
       : "all";
 
   const filtered = useMemo(() => {
-    return garments.filter((g) => {
+    return activeGarments.filter((g) => {
       if (category !== "all" && g.category !== category) return false;
       if (!garmentMatchesColorFacet(g, activeColorId)) return false;
       if (query.trim()) {
@@ -168,7 +190,7 @@ export function ClosetView({
       }
       return true;
     });
-  }, [garments, category, activeColorId, query]);
+  }, [activeGarments, category, activeColorId, query]);
 
   const selectedGarment =
     selectedId === null
@@ -176,7 +198,9 @@ export function ClosetView({
       : (garments.find((g) => g.id === selectedId) ?? null);
 
   const pieceLabel =
-    garments.length === 1 ? "1 piece" : `${garments.length} pieces`;
+    activeGarments.length === 1
+      ? "1 piece"
+      : `${activeGarments.length} pieces`;
 
   // Stable so the upload picker does not tear down and re-register its
   // document-level paste listener on every re-render of this view.
@@ -390,8 +414,13 @@ export function ClosetView({
               : `Save failed (${res.status}). Try again.`,
         };
       }
+      // The edit response has no wear count; keep the one the Closet loaded.
       setServerGarments((prev) =>
-        prev.map((g) => (g.id === result.garment.id ? result.garment : g)),
+        prev.map((g) =>
+          g.id === result.garment.id
+            ? { ...result.garment, wearCount: g.wearCount }
+            : g,
+        ),
       );
       return result;
     } catch (error) {
@@ -452,13 +481,51 @@ export function ClosetView({
     }
   }
 
+  async function handleSetRetired(
+    id: string,
+    retired: boolean,
+  ): Promise<GarmentRetireResult> {
+    if (id.startsWith("pending:")) {
+      return { ok: false, message: "Finish uploading first." };
+    }
+    try {
+      const result = await setGarmentRetired(id, retired);
+      if (!result.ok) return result;
+      setServerGarments((prev) =>
+        prev.map((g) => (g.id === id ? { ...g, retired } : g)),
+      );
+      setSelectedId(null);
+      return result;
+    } catch (error) {
+      console.error("[closet] retire garment", error);
+      return {
+        ok: false,
+        message: retired
+          ? "Could not retire that piece. Try again in a moment."
+          : "Could not unhide that piece. Try again in a moment.",
+      };
+    }
+  }
+
+  async function handleQuickUnhide(id: string) {
+    if (unhidingId) return;
+    setUnhideError(null);
+    setUnhidingId(id);
+    // handleSetRetired catches its own errors, so this always settles.
+    const result = await handleSetRetired(id, false);
+    if (!result.ok) setUnhideError(result.message);
+    setUnhidingId(null);
+  }
+
   const showGarments = mode === "pieces";
   const headerLabel =
     mode === "pieces"
       ? pieceLabel
-      : outfitArchive.length === 1
-        ? "1 outfit"
-        : `${outfitArchive.length} outfits`;
+      : mode === "retired"
+        ? `${retiredGarments.length} retired`
+        : outfitArchive.length === 1
+          ? "1 outfit"
+          : `${outfitArchive.length} outfits`;
   const selectedOutfit =
     selectedOutfitId === null
       ? null
@@ -483,6 +550,7 @@ export function ClosetView({
               [
                 { id: "pieces", label: "Pieces" },
                 { id: "outfits", label: "Outfits" },
+                { id: "retired", label: "Retired" },
               ] as const
             ).map((tab) => {
               const active = mode === tab.id;
@@ -667,8 +735,50 @@ export function ClosetView({
         </section>
       ) : null}
 
+      {mode === "retired" ? (
+        <section className="mt-6 sm:mt-8" aria-label="Retired pieces">
+          <p className="max-w-md px-1 text-sm text-muted-foreground sm:px-0">
+            Hidden from your closet and outfit planning. Nothing here is
+            deleted; unhide a piece to bring it back.
+          </p>
+          {unhideError ? (
+            <p className="mt-3 px-1 text-sm text-destructive sm:px-0" role="alert">
+              {unhideError}
+            </p>
+          ) : null}
+          {retiredGarments.length === 0 ? (
+            <p className="mt-16 px-1 text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground sm:px-0">
+              No retired pieces
+            </p>
+          ) : (
+            <ul className="mt-6 grid grid-cols-2 gap-x-2 gap-y-4 sm:grid-cols-3 sm:gap-x-[18px] sm:gap-y-[22px] md:grid-cols-4 lg:grid-cols-[repeat(auto-fill,minmax(165px,1fr))]">
+              {retiredGarments.map((g) => (
+                <li key={g.id} className="flex min-w-0 flex-col gap-2">
+                  <ClothingCard
+                    garment={g}
+                    selected={selectedId === g.id}
+                    onSelect={(garment) => setSelectedId(garment.id)}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="rounded-none"
+                    disabled={unhidingId !== null}
+                    aria-label={`Unhide ${g.name}`}
+                    onClick={() => void handleQuickUnhide(g.id)}
+                  >
+                    {unhidingId === g.id ? "Unhiding…" : "Unhide"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
       {showGarments ? (
-        <div
+        <section
           className="mt-6 grid grid-cols-2 gap-x-2 gap-y-3 sm:mt-8 sm:grid-cols-3 sm:gap-x-[18px] sm:gap-y-[22px] md:grid-cols-4 lg:grid-cols-[repeat(auto-fill,minmax(165px,1fr))]"
           aria-label="Closet pieces"
         >
@@ -680,7 +790,7 @@ export function ClosetView({
               onSelect={(garment) => setSelectedId(garment.id)}
             />
           ))}
-        </div>
+        </section>
       ) : null}
 
       {showGarments && filtered.length === 0 ? (
@@ -714,9 +824,14 @@ export function ClosetView({
         </section>
       ) : null}
 
-      {/* Slim dock: picker + save actions. Drafts live above so buttons never stack. */}
+      {/* Slim dock: picker + save actions. Drafts live above so buttons never stack.
+          Hidden (not unmounted) on Retired with no queue: adding photos does not
+          belong there, and the sticky dock would cover the Unhide buttons. */}
       <div
-        className="sticky bottom-0 z-20 mt-auto border border-dashed border-border/70 bg-background/95 px-5 py-4 backdrop-blur-sm sm:px-8"
+        className={cn(
+          "sticky bottom-0 z-20 mt-auto border border-dashed border-border/70 bg-background/95 px-5 py-4 backdrop-blur-sm sm:px-8",
+          mode === "retired" && pendingDrafts.length === 0 && "hidden",
+        )}
         data-testid="closet-add-zone"
       >
         <div className="mx-auto flex max-w-xl flex-col items-center gap-3 text-center">
@@ -769,6 +884,7 @@ export function ClosetView({
         onToggleFavorite={handleToggleFavorite}
         onSave={handleSaveGarment}
         onDelete={handleDeleteGarment}
+        onSetRetired={handleSetRetired}
       />
 
       <OutfitDetailSheet

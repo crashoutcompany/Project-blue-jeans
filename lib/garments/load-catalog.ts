@@ -6,13 +6,15 @@ import { closetGarmentsTag } from "@/lib/garments/closet-garments-cache-tag";
 import { getAllGarmentRowsCached } from "@/lib/garments/get-closet-garments-cached";
 
 /**
- * Closet rows formatted for step-1 AI catalog (same cache as `getClosetGarmentsCached`).
+ * Active closet rows formatted for step-1 AI catalog (same cache as
+ * `getClosetGarmentsCached`). Retired (hidden) pieces are left out, so Weekly
+ * Fits, the Generator, and shopping gaps never plan around them.
  */
 export async function loadGarmentCatalog(
   userId: string,
 ): Promise<CatalogGarment[]> {
   const rows = await getAllGarmentRowsCached(userId);
-  return rows.map((r) => ({
+  return rows.filter((r) => r.retired_at == null).map((r) => ({
     id: r.id,
     category: r.category,
     name: r.name,
