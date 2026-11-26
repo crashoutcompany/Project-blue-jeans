@@ -231,6 +231,8 @@ describe("ClosetView", () => {
 
     await user.click(screen.getByRole("tab", { name: "Retired" }));
     const retired = screen.getByRole("region", { name: "Retired pieces" });
+    // The add-photos dock would sit over the Unhide buttons.
+    expect(screen.getByTestId("closet-add-zone")).toHaveClass("hidden");
     expect(
       within(retired).getByRole("button", { name: /view details for blazer/i }),
     ).toBeInTheDocument();

@@ -824,9 +824,14 @@ export function ClosetView({
         </section>
       ) : null}
 
-      {/* Slim dock: picker + save actions. Drafts live above so buttons never stack. */}
+      {/* Slim dock: picker + save actions. Drafts live above so buttons never stack.
+          Hidden (not unmounted) on Retired with no queue: adding photos does not
+          belong there, and the sticky dock would cover the Unhide buttons. */}
       <div
-        className="sticky bottom-0 z-20 mt-auto border border-dashed border-border/70 bg-background/95 px-5 py-4 backdrop-blur-sm sm:px-8"
+        className={cn(
+          "sticky bottom-0 z-20 mt-auto border border-dashed border-border/70 bg-background/95 px-5 py-4 backdrop-blur-sm sm:px-8",
+          mode === "retired" && pendingDrafts.length === 0 && "hidden",
+        )}
         data-testid="closet-add-zone"
       >
         <div className="mx-auto flex max-w-xl flex-col items-center gap-3 text-center">

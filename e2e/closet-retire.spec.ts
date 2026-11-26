@@ -54,6 +54,8 @@ async function openCloset(page: Page) {
 test.describe("closet retire and unhide (admin)", () => {
   test.use({ storageState: "e2e/.auth/admin.json" });
   test.describe.configure({ mode: "serial" });
+  // Waiting out the stale closet cache can take a few reloads.
+  test.setTimeout(90_000);
   test.skip(!databaseUrl, "needs DATABASE_URL to seed a garment");
 
   test.beforeAll(async () => {
