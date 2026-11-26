@@ -6,7 +6,7 @@ settings:
 
 overrides:
   '@modelcontextprotocol/sdk': ^1.32.0
-  effect: ^3.20.0
+  effect: ^3.22.1
   systeminformation: ^5.33.16
   undici@>=7.0.0 <7.30.1: ^7.30.1
   vite: ^8.3.3
@@ -456,7 +456,7 @@ packages:
   '@effect/platform@0.90.3':
     resolution: {integrity: sha512-XvQ37yzWQKih4Du2CYladd1i/MzqtgkTPNCaN6Ku6No4CK83hDtXIV/rP03nEoBg2R3Pqgz6gGWmE2id2G81HA==}
     peerDependencies:
-      effect: ^3.20.0
+      effect: ^3.22.1
 
   '@emnapi/core@1.11.2':
     resolution: {integrity: sha512-TC8MkTuZUtcTSiFeuC0ksCh9QIJ5+F21MvZ4Wn4ORfYaFJ/0dsiudv5tVkejgwZlwQ39jL9WWDe2lz8x0WglOA==}
