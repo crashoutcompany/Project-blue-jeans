@@ -21,8 +21,16 @@ The wearer's catalog of owned **Garments**, plus archived **Outfits** (two modes
 _Avoid_: Dashboard (URL leftover; not the product concept); stuffing **Fits** into Closet
 
 **Garment**:
-A single owned clothing item in the **Digital Closet**. Removing one is a **hard delete** (photo gone, stripped from **Outfits**, uniqueness rekeyed).
-_Avoid_: Piece (ok in casual UI copy), “item” as the domain noun; archive/hide; leaving deleted pieces in past **Outfits**
+A single owned clothing item in the **Digital Closet**. Removing one is a **hard delete** (photo gone, stripped from **Outfits**, uniqueness rekeyed). **Retiring** one only hides it.
+_Avoid_: Piece (ok in casual UI copy), “item” as the domain noun; calling **Retire** a delete; leaving deleted pieces in past **Outfits**
+
+**Retire**:
+Hide a **Garment** the Wearer doesn't wear. Nothing is deleted: the photo, row, and past **Outfits** stay. A retired piece leaves the active Closet, **Weekly Fits** / Generator planning, and shopping gaps, and lives in Closet → **Retired**, where **Unhide** brings it back. Never suggested automatically (no "unworn for N days" prompt).
+_Avoid_: Auto-retire or retire nudges; treating retired pieces as deleted; feeding retired pieces into shopping gaps
+
+**Wear count**:
+How many days a **Garment** was in an **Outfit** marked **Wore this**. Shown on Closet pieces. Committed-but-unconfirmed days don't count.
+_Avoid_: Counting commits; a stored counter that can drift from `outfit_wears`
 
 **Fit**:
 An AI-suggested combination for a day that is not yet committed.
@@ -74,7 +82,7 @@ _Avoid_: Re-uploading a body shot every generate; treating AI editorial as the d
 
 **Settings**:
 Account-level controls reached from the account menu (not primary nav); includes **Wearer photo**, **home city** (weather), and provider keys.
-_Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; archived-garment management (delete is hard)
+_Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; retired-garment management (that is Closet → **Retired**)
 
 ## Relationships
 
@@ -128,7 +136,8 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; archi
 - Add/replace **Wearer photo** via **Today** soft CTA when missing, and anytime in **Settings**
 - First implementation slice: routing + **Today** shell (nav, `/` / `/closet`, hero/CTAs on existing data; editorial heroes OK) **and** a **full signed-out landing rewrite** (promise + purge Style DNA/weather/old names)
 - Signed-out marketing promise: decide what to wear today from clothes you already own (closet / try-on are support, not the headline)
-- Removing a **Garment** is a **hard delete**: strip it from **Outfits**, rekey uniqueness, delete the photo. There is no archive.
+- Removing a **Garment** is a **hard delete**: strip it from **Outfits**, rekey uniqueness, delete the photo. **Retire** is the non-destructive option: hide it, keep everything.
+- Closet chrome adds a **Retired** tab after **Pieces | Outfits**: hidden pieces with **Unhide**. Each Closet piece shows its **Wear count** ("Never worn", "Worn once", "Worn N times").
 - Invited Wearers see **soft Settings banners** on Today / Closet when Gemini or UploadThing is missing (not a hard gate).
 - Closet upload: AI suggests a category; the wearer can override. Auto-apply only while the draft is still the default **Tops**.
 - Closet → **Outfits** cards: hero + optional name + **last worn** (date) — not wear-count or garment-thumbnail grids for v1; unnamed Outfits show without a title (or a quiet fallback like “Outfit”)
@@ -273,6 +282,15 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; archi
 > **Dev:** "Archive a piece in today’s Outfit?"
 > **Domain expert:** "Leave the **Outfit**. Soft note is fine — no auto-Unwear."
 
+> **Dev:** "Retire a piece nobody wears — delete it?"
+> **Domain expert:** "No. **Retire** hides it. A Closet section shows hidden clothes and lets you unhide them." (Ty, Nov 26)
+
+> **Dev:** "Suggest retiring after N days unworn?"
+> **Domain expert:** "No automatic retire suggestions." (Ty, Nov 26)
+
+> **Dev:** "Do retired pieces feed shopping gaps?"
+> **Domain expert:** "No." (Crash default, Nov 26)
+
 > **Dev:** "Generator — chat or form?"
 > **Domain expert:** "Hybrid: short prompt + chips → options → approve. Not free chat."
 
@@ -365,7 +383,7 @@ _Avoid_: Fourth primary nav item; burying Wearer photo only inside Closet; archi
 - **Style DNA** and occasion: deferred.
 - **Occasion** (and per-wear labels): deferred; optional Outfit **name** only for now.
 - Multi-wearer profiles under one login (partner / kid): deferred.
-- Soft-delete garment archive: rejected for this product; delete is hard.
+- Soft-delete garment archive: rejected for this product; delete is hard. **Retire** (#88) hides a piece instead and is not a delete.
 - Former marketing names (**The Digital Atelier**, **Curated Canvas**) retired from product chrome.
 - Former term **Draft Look** retired in favor of **Fit**.
 - Landing visual craft (exact photography, type, motion) owned at implementation time within the locked structure in Relationships.

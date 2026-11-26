@@ -51,6 +51,10 @@ export const clothingCardDataSchema = z.object({
   imageHint: z.string().optional(),
   description: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  /** Days the Wearer confirmed with "Wore this" in an Outfit with this piece. */
+  wearCount: z.number().int().nonnegative().optional(),
+  /** Retired (hidden) from the active Closet; not deleted. */
+  retired: z.boolean().optional(),
 });
 
 /** Shared shape for `ClothingCard` (closet DB rows). */

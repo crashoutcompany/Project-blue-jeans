@@ -3,6 +3,7 @@
 import Image from "next/image";
 
 import type { ClothingCardData } from "@/lib/garments/types";
+import { formatWearCount } from "@/lib/garments/wear-count-label";
 import { shouldBypassImageOptimizer } from "@/lib/media/display";
 import { cn } from "@/lib/utils";
 
@@ -19,12 +20,20 @@ export function ClothingCard({
 }) {
   const swatchHex = garment.colorHex ?? "#e8e8e6";
   const hasRemoteImage = Boolean(garment.imageUrl);
+  const wearLabel =
+    typeof garment.wearCount === "number"
+      ? formatWearCount(garment.wearCount)
+      : null;
 
   return (
     <button
       type="button"
       onClick={() => onSelect(garment)}
-      aria-label={`View details for ${garment.name}`}
+      aria-label={
+        wearLabel
+          ? `View details for ${garment.name}, ${wearLabel.toLowerCase()}`
+          : `View details for ${garment.name}`
+      }
       aria-current={selected ? "true" : undefined}
       className={cn(
         "garment-tile group relative aspect-[0.78] min-w-0 cursor-zoom-in overflow-hidden rounded-none bg-transparent outline-none transition-[outline-color] duration-160 ease-[ease] focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-foreground",
@@ -57,6 +66,15 @@ export function ClothingCard({
           </span>
         </div>
       )}
+      {wearLabel ? (
+        <span
+          data-testid="garment-wear-count"
+          aria-hidden
+          className="absolute bottom-1.5 left-1.5 bg-background/85 px-1.5 py-0.5 text-[0.6rem] font-medium uppercase tracking-[0.08em] text-muted-foreground backdrop-blur-[2px]"
+        >
+          {wearLabel}
+        </span>
+      ) : null}
     </button>
   );
 }

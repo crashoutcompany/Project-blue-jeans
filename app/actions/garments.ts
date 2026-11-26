@@ -62,3 +62,59 @@ export async function toggleGarmentFavorite(
     };
   }
 }
+
+export type SetGarmentRetiredResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
+/**
+ * Retire (hide) or unhide a closet piece. Retiring is not deleting: the row,
+ * photo, and past Outfits stay, and the piece moves to Closet → Retired. It
+ * drops out of the active Closet, AI planning, and shopping gaps until
+ * unhidden.
+ */
+export async function setGarmentRetired(
+  id: string,
+  retired: boolean,
+): Promise<SetGarmentRetiredResult> {
+  const gate = await assertAdmittedForServerAction();
+  if (!gate.ok) return { ok: false, message: gate.message };
+  const idParse = z.string().uuid().safeParse(id);
+  if (!idParse.success) {
+    return { ok: false, message: "Invalid garment id." };
+  }
+  if (typeof retired !== "boolean") {
+    return { ok: false, message: "Invalid request." };
+  }
+  try {
+    const sql = requireSql();
+    const rows = await sql`
+      UPDATE garments
+      SET
+        retired_at = CASE
+          WHEN ${retired} THEN coalesce(retired_at, now())
+          ELSE NULL
+        END,
+        updated_at = now()
+      WHERE id = ${idParse.data}::uuid
+        AND user_id = ${gate.userId}
+      RETURNING id
+    `;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { ok: false, message: "That piece was not found." };
+    }
+    revalidateClosetGarmentsCache(gate.userId);
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      message: safeClientMessage(
+        "setGarmentRetired",
+        e,
+        retired
+          ? "Could not retire that piece. Try again in a moment."
+          : "Could not unhide that piece. Try again in a moment.",
+      ),
+    };
+  }
+}

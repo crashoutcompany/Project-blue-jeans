@@ -11,7 +11,7 @@ import { auth } from "@/lib/auth/server";
 import { getMembershipPolicyForUser } from "@/lib/auth/admitted";
 import { getGoogleAiStudioSettings } from "@/lib/credentials/google-ai-studio";
 import { getUploadThingSettings } from "@/lib/credentials/uploadthing";
-import { getClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
+import { getActiveClosetGarmentsCached } from "@/lib/garments/get-closet-garments-cached";
 import { loadTodayPageData } from "@/lib/outfits/today-data";
 
 export const metadata: Metadata = {
@@ -41,7 +41,7 @@ async function HomeContent() {
     const [todayData, closetGarments, googleAiStudio, uploadthing] =
       await Promise.all([
         loadTodayPageData(userId),
-        getClosetGarmentsCached(userId),
+        getActiveClosetGarmentsCached(userId),
         getGoogleAiStudioSettings(userId, membership),
         getUploadThingSettings(userId, membership),
       ]);
