@@ -79,6 +79,94 @@ function WoreThisFitButton({
   );
 }
 
+function lookLabel(look: TodayLook | null): string {
+  if (!look) return "No look for today yet";
+  if (look.title) return look.title;
+  return look.kind === "outfit" ? "Outfit" : "Suggested look";
+}
+
+type ErrorSink = (message: string | null) => void;
+
+function TodayWoreThis({
+  todayIso,
+  look,
+  onError,
+}: {
+  todayIso: string;
+  look: TodayLook | null;
+  onError: ErrorSink;
+}) {
+  if (look?.kind === "outfit") {
+    return (
+      <WoreThisButton
+        wornOn={todayIso}
+        worn={look.worn ?? false}
+        onError={onError}
+      />
+    );
+  }
+  if (look?.kind === "fit" && look.planLookId) {
+    return (
+      <WoreThisFitButton
+        planLookId={look.planLookId}
+        todayIso={todayIso}
+        onError={onError}
+      />
+    );
+  }
+  return null;
+}
+
+function TodayLookTile({
+  todayIso,
+  look,
+  onError,
+}: {
+  todayIso: string;
+  look: TodayLook | null;
+  onError: ErrorSink;
+}) {
+  return (
+    <div className="flex min-w-0 gap-3" data-testid="today-summary-look">
+      {look ? (
+        <Thumb src={lookThumb(look)} alt={look.title ?? "Today's look"} />
+      ) : null}
+      <div className="flex min-w-0 flex-col items-start gap-2">
+        <div className="min-w-0">
+          <p className={EYEBROW}>Today&apos;s outfit</p>
+          <p className="truncate text-sm text-foreground">{lookLabel(look)}</p>
+        </div>
+        <TodayWoreThis todayIso={todayIso} look={look} onError={onError} />
+      </div>
+    </div>
+  );
+}
+
+function SimilarDayTile({ day }: { day: TodaySimilarDay | null }) {
+  return (
+    <div className="flex min-w-0 gap-3" data-testid="today-summary-similar">
+      {day ? <Thumb src={lookThumb(day)} alt={day.title ?? "Outfit"} /> : null}
+      <div className="min-w-0">
+        <p className={EYEBROW}>Last similar day</p>
+        {day ? (
+          <>
+            <p className="truncate text-sm text-foreground">
+              {day.title ?? "Outfit"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {formatProductWornOn(day.wornOn)} · {day.weather}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Nothing worn on a day like this yet.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Top of home: today's look, today's weather, and what was worn on the last
  * day with similar weather. Sits above the Today hero; it does not replace it.
@@ -106,7 +194,10 @@ export function TodaySummaryCard({
         <h2 id="today-summary-heading" className={EYEBROW}>
           Today
         </h2>
-        <p className="text-sm text-foreground" data-testid="today-summary-weather">
+        <p
+          className="text-sm text-foreground"
+          data-testid="today-summary-weather"
+        >
           {weatherLine}
         </p>
       </div>
@@ -118,62 +209,8 @@ export function TodaySummaryCard({
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex min-w-0 gap-3" data-testid="today-summary-look">
-          {look ? (
-            <Thumb src={lookThumb(look)} alt={look.title ?? "Today's look"} />
-          ) : null}
-          <div className="flex min-w-0 flex-col items-start gap-2">
-            <div className="min-w-0">
-              <p className={EYEBROW}>Today&apos;s outfit</p>
-              <p className="truncate text-sm text-foreground">
-                {look
-                  ? (look.title ??
-                    (look.kind === "outfit" ? "Outfit" : "Suggested look"))
-                  : "No look for today yet"}
-              </p>
-            </div>
-            {look?.kind === "outfit" ? (
-              <WoreThisButton
-                wornOn={todayIso}
-                worn={look.worn ?? false}
-                onError={setError}
-              />
-            ) : look?.kind === "fit" && look.planLookId ? (
-              <WoreThisFitButton
-                planLookId={look.planLookId}
-                todayIso={todayIso}
-                onError={setError}
-              />
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex min-w-0 gap-3" data-testid="today-summary-similar">
-          {lastSimilarDay ? (
-            <Thumb
-              src={lookThumb(lastSimilarDay)}
-              alt={lastSimilarDay.title ?? "Outfit"}
-            />
-          ) : null}
-          <div className="min-w-0">
-            <p className={EYEBROW}>Last similar day</p>
-            {lastSimilarDay ? (
-              <>
-                <p className="truncate text-sm text-foreground">
-                  {lastSimilarDay.title ?? "Outfit"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatProductWornOn(lastSimilarDay.wornOn)} ·{" "}
-                  {lastSimilarDay.weather}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Nothing worn on a day like this yet.
-              </p>
-            )}
-          </div>
-        </div>
+        <TodayLookTile todayIso={todayIso} look={look} onError={setError} />
+        <SimilarDayTile day={lastSimilarDay} />
       </div>
     </section>
   );
