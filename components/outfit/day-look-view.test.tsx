@@ -121,6 +121,7 @@ function baseData(overrides: Partial<TodayPageData> = {}): TodayPageData {
     hasWearerPhoto: true,
     weatherLine: "New York, NY",
     weekWeather: {},
+    lastSimilarDay: null,
     ...overrides,
   };
 }
@@ -148,7 +149,9 @@ describe("DayLookView", () => {
     render(<DayLookView data={baseData()} closetGarments={[]} />);
 
     expect(screen.getByText("Monday, August 10")).toBeInTheDocument();
-    expect(screen.getByText("Monday outfit")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Monday outfit" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the empty state for a query day with no week look", () => {
@@ -164,7 +167,9 @@ describe("DayLookView", () => {
     render(<DayLookView data={baseData()} closetGarments={[]} />);
 
     expect(screen.getByText("Monday, August 10")).toBeInTheDocument();
-    expect(screen.getByText("Monday outfit")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Monday outfit" }),
+    ).toBeInTheDocument();
 
     await user.click(
       screen.getByRole("button", { name: /Show look for Tuesday, August 11/i }),
@@ -422,8 +427,8 @@ describe("DayLookView", () => {
       />,
     );
 
-    // Today keeps the live line and has no flag.
-    expect(screen.getByText("New York, NY")).toBeInTheDocument();
+    // Today keeps the live line (hero and Today card) and has no flag.
+    expect(screen.getAllByText("New York, NY")).toHaveLength(2);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
 
     await user.click(
@@ -440,5 +445,23 @@ describe("DayLookView", () => {
     );
     // The plan is not rewritten: the same Fit is still shown.
     expect(screen.getByText("Tuesday fit")).toBeInTheDocument();
+  });
+
+  it("puts the Today card at the top of home, above the hero", () => {
+    render(<DayLookView data={baseData()} closetGarments={[]} />);
+    const card = screen.getByRole("region", { name: "Today" });
+    const hero = screen.getByRole("heading", { name: "Monday outfit" });
+    expect(
+      card.compareDocumentPosition(hero) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("keeps the Today card off the empty-closet gate", () => {
+    render(
+      <DayLookView data={baseData({ garmentCount: 0 })} closetGarments={[]} />,
+    );
+    expect(
+      screen.queryByRole("region", { name: "Today" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -244,14 +244,24 @@ type DailyForecastResponse = {
   };
 };
 
-/** Daily highs, lows, and rain chance for the next `days` days via Open-Meteo. */
+/** Open-Meteo serves up to this many past days on the forecast endpoint. */
+export const MAX_PAST_DAYS = 92;
+
+/**
+ * Daily highs, lows, and rain chance for the next `days` days via Open-Meteo.
+ * `pastDays` also returns that many days before today (oldest first).
+ */
 export async function fetchDailyForecast(
   input: FetchWeatherInput,
-  options?: { abortSignal?: AbortSignal; days?: number },
+  options?: { abortSignal?: AbortSignal; days?: number; pastDays?: number },
 ): Promise<DailyForecast> {
   if (isTestingApiExposed()) return WEATHER_OFF_IN_E2E;
   const signal = options?.abortSignal;
   const forecastDays = Math.min(Math.max(options?.days ?? 7, 1), 16);
+  const pastDays = Math.min(
+    Math.max(Math.floor(options?.pastDays ?? 0), 0),
+    MAX_PAST_DAYS,
+  );
 
   const place = await resolvePlace(input, signal);
   if (!place.ok) return place;
@@ -265,6 +275,7 @@ export async function fetchDailyForecast(
   );
   url.searchParams.set("timezone", "auto");
   url.searchParams.set("forecast_days", String(forecastDays));
+  if (pastDays > 0) url.searchParams.set("past_days", String(pastDays));
 
   const res = await fetch(url, { signal });
   if (!res.ok) {

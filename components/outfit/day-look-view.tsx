@@ -19,6 +19,7 @@ import { formatProductDateLong } from "@/lib/time/product-timezone";
 import { cn } from "@/lib/utils";
 import { GeneratorSheet } from "@/components/outfit/generator-sheet";
 import { LastWeekReview } from "@/components/outfit/last-week-review";
+import { TodaySummaryCard } from "@/components/outfit/today-summary-card";
 import { ProviderSetupBanner } from "@/components/settings/provider-setup-banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 
@@ -193,6 +194,12 @@ export function DayLookView({
       <ProviderSetupBanner
         missingGemini={missingGemini}
         missingUploadThing={missingUploadThing}
+      />
+      <TodaySummaryCard
+        todayIso={data.todayIso}
+        weatherLine={data.weatherLine}
+        look={data.look}
+        lastSimilarDay={data.lastSimilarDay}
       />
       {look ? (
         <div className="flex flex-col gap-5">
